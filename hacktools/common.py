@@ -287,12 +287,14 @@ def makeFolders(path):
         pass
 
 
-def getFiles(path, extension=""):
+def getFiles(path, extensions=[]):
+    if isinstance(extensions, str):
+        extensions = [extensions]
     ret = []
     for (root, dirs, files) in os.walk(path):
         for file in files:
             file = os.path.join(root, file).replace(path, "").replace("\\", "/")
-            if extension != "" and not file.endswith(extension):
+            if len(extensions) > 0 and os.path.splitext(file)[1] not in extensions:
                 continue
             ret.append(file)
     return ret
