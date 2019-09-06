@@ -478,7 +478,7 @@ def drawNCER(outfile, ncer, ncgr, palettes, usetrasp=True, layered=False):
                 banklayers[i].save(layerfile, "PNG")
                 layers.append(layerfile)
         currheight += bank.height
-    if layered:
+    if layered and os.path.isdir("imagemagick"):
         cmd = "imagemagick/convert ( -page +0+0 -label \"palette\" \"" + outfile + "\"[0] -background none -mosaic -set colorspace RGBA )"
         for layer in layers:
             cmd += " ( -page +0+0 -label \"" + os.path.basename(layer).replace(".png", "") + "\" \"" + layer + "\"[0] -background none -mosaic -set colorspace RGBA )"

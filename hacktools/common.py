@@ -205,7 +205,7 @@ def getSection(f, title, comment="#"):
     return ret
 
 
-def getSectionPercentage(section, chartot, transtot):
+def getSectionPercentage(section, chartot=0, transtot=0):
     for s in section.keys():
         strlen = len(s)
         for s2 in section[s]:
