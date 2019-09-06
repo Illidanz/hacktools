@@ -221,7 +221,7 @@ def wordwrap(text, glyphs, width, codefunc=None, default=6, linebreak="|", secti
     if text.count(sectionsep) > 0:
         lines = text.split(sectionsep)
         for i in range(len(lines)):
-            lines[i] = wordwrap(lines[i], glyphs, default)
+            lines[i] = wordwrap(lines[i], glyphs, width, codefunc, default, linebreak, sectionsep)
         return sectionsep.join(lines)
     text = text.replace(linebreak, "\n")
     pattern = re.compile(r"(\s+)")
