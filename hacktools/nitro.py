@@ -641,15 +641,16 @@ def writeNCER(file, ncgr, ncer, infile, palettes):
                 if psd:
                     pixels = layers[cell.layer].load()
                 tile = (bank.partitionoffset // (32 * (ncgr.bpp // 4))) + (cell.tileoffset << ncer.blocksize // (ncgr.bpp // 4))
-                if tile not in donetiles:
-                    if cell.pal in palettes.keys():
-                        pali = 0
-                        palette = palettes[cell.pal]
-                    else:
-                        pali = cell.pal * 16
-                        palette = palettes[0]
-                    for i in range(cell.height // ncgr.tilesize):
-                        for j in range(cell.width // ncgr.tilesize):
+                if cell.pal in palettes.keys():
+                    pali = 0
+                    palette = palettes[cell.pal]
+                else:
+                    pali = cell.pal * 16
+                    palette = palettes[0]
+                for i in range(cell.height // ncgr.tilesize):
+                    for j in range(cell.width // ncgr.tilesize):
+                        if tile not in donetiles:
+                            donetiles.append(tile)
                             f.seek(ncgr.tileoffset + tile * (32 * (ncgr.bpp // 4)))
                             for i2 in range(ncgr.tilesize):
                                 for j2 in range(0, ncgr.tilesize, 2):
@@ -658,7 +659,7 @@ def writeNCER(file, ncgr, ncer, infile, palettes):
                                     index1 = common.getPaletteIndex(palette, pixels[pixelx, pixely], False, pali, 16 if ncgr.bpp == 4 else -1)
                                     index2 = common.getPaletteIndex(palette, pixels[pixelx + 1, pixely], False, pali, 16 if ncgr.bpp == 4 else -1)
                                     writeNCGRData(f, ncgr.bpp, index1, index2)
-                            tile += 1
+                        tile += 1
             currheight += bank.height
 
 
