@@ -6,11 +6,12 @@ from hacktools import common
 
 def extractRom(romfile, extractfolder, workfolder=""):
     common.logMessage("Extracting ROM", romfile, "...")
-    if not os.path.isfile("ndstool.exe"):
-        common.logError("ndstool.exe not found")
+    ndstool = common.bundledExecutable("ndstool.exe")
+    if not os.path.isfile(ndstool):
+        common.logError("ndstool not found")
     else:
         common.makeFolder(extractfolder)
-        common.execute("ndstool -x {rom} -9 {folder}arm9.bin -7 {folder}arm7.bin -y9 {folder}y9.bin -y7 {folder}y7.bin -t {folder}banner.bin -h {folder}header.bin -d {folder}data -y {folder}overlay".
+        common.execute(ndstool + " -x {rom} -9 {folder}arm9.bin -7 {folder}arm7.bin -y9 {folder}y9.bin -y7 {folder}y7.bin -t {folder}banner.bin -h {folder}header.bin -d {folder}data -y {folder}overlay".
                        format(rom=romfile, folder=extractfolder), False)
         if workfolder != "":
             common.copyFolder(extractfolder, workfolder)
@@ -19,19 +20,21 @@ def extractRom(romfile, extractfolder, workfolder=""):
 
 def repackRom(romfile, rompatch, workfolder, patchfile=""):
     common.logMessage("Repacking ROM", rompatch, "...")
-    if not os.path.isfile("ndstool.exe"):
-        common.logError("[ERROR] ndstool.exe not found")
+    ndstool = common.bundledExecutable("ndstool.exe")
+    if not os.path.isfile(ndstool):
+        common.logError("ndstool not found")
     else:
-        common.execute("ndstool -c {rom} -9 {folder}arm9.bin -7 {folder}arm7.bin -y9 {folder}y9.bin -y7 {folder}y7.bin -t {folder}banner.bin -h {folder}header.bin -d {folder}data -y {folder}overlay".
+        common.execute(ndstool + " -c {rom} -9 {folder}arm9.bin -7 {folder}arm7.bin -y9 {folder}y9.bin -y7 {folder}y7.bin -t {folder}banner.bin -h {folder}header.bin -d {folder}data -y {folder}overlay".
                        format(rom=rompatch, folder=workfolder), False)
         common.logMessage("Done!")
         # Create xdelta patch
         if patchfile != "":
             common.logMessage("Creating xdelta patch", patchfile, "...")
-            if not os.path.isfile("xdelta.exe"):
-                common.logError("[ERROR] xdelta.exe not found")
+            xdelta = common.bundledExecutable("xdelta.exe")
+            if not os.path.isfile(xdelta):
+                common.logError("xdelta not found")
             else:
-                common.execute("xdelta -f -e -s {rom} {rompatch} {patch}".format(rom=romfile, rompatch=rompatch, patch=patchfile), False)
+                common.execute(xdelta + " -f -e -s {rom} {rompatch} {patch}".format(rom=romfile, rompatch=rompatch, patch=patchfile), False)
                 common.logMessage("Done!")
 
 

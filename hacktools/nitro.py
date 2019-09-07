@@ -1,4 +1,5 @@
 import os
+import shutil
 import struct
 from PIL import Image, ImageOps
 from psd_tools import PSDImage
@@ -478,8 +479,8 @@ def drawNCER(outfile, ncer, ncgr, palettes, usetrasp=True, layered=False):
                 banklayers[i].save(layerfile, "PNG")
                 layers.append(layerfile)
         currheight += bank.height
-    if layered and os.path.isdir("imagemagick"):
-        cmd = "imagemagick/convert ( -page +0+0 -label \"palette\" \"" + outfile + "\"[0] -background none -mosaic -set colorspace RGBA )"
+    if layered and shutil.which("magick"):
+        cmd = shutil.which("magick") + " convert ( -page +0+0 -label \"palette\" \"" + outfile + "\"[0] -background none -mosaic -set colorspace RGBA )"
         for layer in layers:
             cmd += " ( -page +0+0 -label \"" + os.path.basename(layer).replace(".png", "") + "\" \"" + layer + "\"[0] -background none -mosaic -set colorspace RGBA )"
         cmd += " ( -clone 0--1 -background none -mosaic ) -reverse \"" + outfile.replace(".png", ".psd") + "\""

@@ -4,6 +4,7 @@ import math
 import os
 import re
 import shutil
+import sys
 import struct
 import subprocess
 import click
@@ -298,6 +299,13 @@ def getFiles(path, extensions=[]):
                 continue
             ret.append(file)
     return ret
+
+
+def bundledExecutable(name):
+    try:
+        return os.path.join(sys._MEIPASS, name)
+    except AttributeError:
+        return name
 
 
 def execute(cmd, show=True):
