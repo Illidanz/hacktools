@@ -1,3 +1,4 @@
+import math
 import os
 import shutil
 import struct
@@ -20,12 +21,14 @@ def getFontGlyphs(file):
         hdwcoffset = f.readUInt()
         pamcoffset = f.readUInt()
         common.logDebug("fontwidth:", fontwidth, "fontheight:", fontheight, "plgcoffset:", plgcoffset, "hdwcoffset:", hdwcoffset, "pamcoffset:", pamcoffset)
+        # PLGC
         f.seek(plgcoffset - 4)
         plgcsize = f.readUInt()
         f.seek(2, 1)
         tilelength = f.readUShort()
         tilenum = (plgcsize - 0x10) // tilelength
         common.logDebug("plgcsize:", plgcsize, "tilelength:", tilelength, "tilenum:", tilenum)
+        # HDWC
         f.seek(hdwcoffset)
         firstcode = f.readUShort()
         lastcode = f.readUShort()
@@ -37,6 +40,7 @@ def getFontGlyphs(file):
             hdwcwidth = f.readByte()
             hdwclength = f.readByte()
             hdwc.append((hdwcstart, hdwcwidth, hdwclength))
+        # PAMC
         nextoffset = pamcoffset
         while nextoffset != 0x00:
             f.seek(nextoffset)
@@ -409,6 +413,25 @@ def cellIntersect(a, b):
     return (a.x < b.x + b.width) and (a.x + a.width > b.x) and (a.y < b.y + b.height) and (a.y + a.height > b.y)
 
 
+def tileToPixels(pixels, width, ncgr, tile, i, j, palette, pali, usetrasp=True):
+    for i2 in range(ncgr.tilesize):
+        for j2 in range(ncgr.tilesize):
+            try:
+                index = ncgr.tiles[tile][i2 * ncgr.tilesize + j2]
+                if not usetrasp or index > 0:
+                    if ncgr.lineal:
+                        lineal = (i * width * ncgr.tilesize) + (j * ncgr.tilesize * ncgr.tilesize) + (i2 * ncgr.tilesize + j2)
+                        pixelx = lineal % width
+                        pixely = int(math.floor(lineal / width))
+                    else:
+                        pixelx = j * ncgr.tilesize + j2
+                        pixely = i * ncgr.tilesize + i2
+                    pixels[pixelx, pixely] = palette[pali + index]
+            except IndexError:
+                common.logWarning("Unable to set pixels at", i, j, i2, j2, "for tile", tile, "with palette", pali)
+    return pixels
+
+
 def drawNCER(outfile, ncer, ncgr, palettes, usetrasp=True, layered=False):
     palsize = 0
     for palette in palettes.values():
@@ -459,11 +482,7 @@ def drawNCER(outfile, ncer, ncgr, palettes, usetrasp=True, layered=False):
             cellpixels = cellimg.load()
             for i in range(cell.height // ncgr.tilesize):
                 for j in range(cell.width // ncgr.tilesize):
-                    for i2 in range(ncgr.tilesize):
-                        for j2 in range(ncgr.tilesize):
-                            index = ncgr.tiles[x][i2 * ncgr.tilesize + j2]
-                            if not usetrasp or index > 0:
-                                cellpixels[j * ncgr.tilesize + j2, i * ncgr.tilesize + i2] = palette[pali + index]
+                    cellpixels = tileToPixels(cellpixels, cell.width, ncgr, x, i, j, palette, pali, usetrasp)
                     x += 1
             if cell.xflip or cell.yflip:
                 if cell.yflip:
@@ -497,22 +516,18 @@ def drawNCGR(outfile, nscr, ncgr, palettes, width, height, usetrasp=True):
         palsize += 5 * (len(palette) // 8)
     img = Image.new("RGBA", (width + 40, max(height, palsize)), (0, 0, 0, 0))
     pixels = img.load()
-    i = j = 0
-    if nscr is not None:
-        for map in nscr.maps:
-            try:
-                tile = ncgr.tiles[map.tile]
+    x = 0
+    for i in range(height // ncgr.tilesize):
+        for j in range(width // ncgr.tilesize):
+            if nscr is not None:
+                map = nscr.maps[x]
                 if map.pal in palettes.keys():
                     pali = 0
                     palette = palettes[map.pal]
                 else:
                     pali = map.pal * 16
                     palette = palettes[0]
-                for i2 in range(ncgr.tilesize):
-                    for j2 in range(ncgr.tilesize):
-                        index = tile[i2 * ncgr.tilesize + j2]
-                        if not usetrasp or index > 0:
-                            pixels[j + j2, i + i2] = palette[pali + index]
+                pixels = tileToPixels(pixels, width, ncgr, map.tile, i, j, palette, pali, usetrasp)
                 # Very inefficient way to flip pixels
                 if map.xflip or map.yflip:
                     sub = img.crop(box=(j, i, j + ncgr.tilesize, i + ncgr.tilesize))
@@ -521,25 +536,9 @@ def drawNCGR(outfile, nscr, ncgr, palettes, width, height, usetrasp=True):
                     if map.xflip:
                         sub = ImageOps.mirror(sub)
                     img.paste(sub, box=(j, i))
-            except (KeyError, IndexError):
-                common.logWarning("Tile", map.tile, "not found")
-            j += ncgr.tilesize
-            if j >= width:
-                j = 0
-                i += ncgr.tilesize
-                if i >= height:
-                    break
-    else:
-        for tile in ncgr.tiles:
-            for i2 in range(ncgr.tilesize):
-                for j2 in range(ncgr.tilesize):
-                    index = tile[i2 * ncgr.tilesize + j2]
-                    if not usetrasp or index > 0:
-                        pixels[j + j2, i + i2] = palettes[0][index]
-            j += ncgr.tilesize
-            if j >= width:
-                j = 0
-                i += ncgr.tilesize
+            else:
+                pixels = tileToPixels(pixels, width, ncgr, x, i, j, palettes[0], 0, usetrasp)
+            x += 1
     palstart = 0
     for palette in palettes.values():
         pixels = common.drawPalette(pixels, palette, width, palstart * 10)
@@ -547,7 +546,7 @@ def drawNCGR(outfile, nscr, ncgr, palettes, width, height, usetrasp=True):
     img.save(outfile, "PNG")
 
 
-def writeNSCRData(f, bpp, index1, index2):
+def writeNCGRData(f, bpp, index1, index2):
     if bpp == 4:
         f.writeByte(((index2) << 4) | index1)
     else:
@@ -555,26 +554,26 @@ def writeNSCRData(f, bpp, index1, index2):
         f.writeByte(index2)
 
 
+def writeNCGRTile(f, pixels, ncgr, i, j, palette):
+    for i2 in range(ncgr.tilesize):
+        for j2 in range(0, ncgr.tilesize, 2):
+            index1 = common.getPaletteIndex(palette, pixels[j * ncgr.tilesize + j2, i * ncgr.tilesize + i2])
+            index2 = common.getPaletteIndex(palette, pixels[j * ncgr.tilesize + j2 + 1, i * ncgr.tilesize + i2])
+            writeNCGRData(f, ncgr.bpp, index1, index2)
+
+
 def writeNCGR(file, ncgr, infile, palettes, width=-1, height=-1):
     if width < 0:
         width = ncgr.width
-        # height = ncgr.height
+        height = ncgr.height
     img = Image.open(infile)
     img = img.convert("RGBA")
     pixels = img.load()
     with common.Stream(file, "rb+") as f:
-        i = j = 0
         f.seek(ncgr.tileoffset)
-        for tile in ncgr.tiles:
-            for i2 in range(ncgr.tilesize):
-                for j2 in range(0, ncgr.tilesize, 2):
-                    index1 = common.getPaletteIndex(palettes[0], pixels[j + j2, i + i2])
-                    index2 = common.getPaletteIndex(palettes[0], pixels[j + j2 + 1, i + i2])
-                    writeNSCRData(f, ncgr.bpp, index1, index2)
-            j += ncgr.tilesize
-            if j >= width:
-                j = 0
-                i += ncgr.tilesize
+        for i in range(height // ncgr.tilesize):
+            for j in range(width // ncgr.tilesize):
+                writeNCGRTile(f, pixels, ncgr, i, j, palettes[0])
 
 
 def writeNSCR(file, ncgr, nscr, infile, palettes, width=-1, height=-1):
@@ -586,24 +585,19 @@ def writeNSCR(file, ncgr, nscr, infile, palettes, width=-1, height=-1):
     pixels = img.load()
     with common.Stream(file, "rb+") as f:
         donetiles = []
-        j = i = 0
-        for map in nscr.maps:
-            # Skip flipped tiles since there's always(?) going to be an unflipped one next
-            if map.xflip or map.yflip:
-                continue
-            # Write the tile if it's a new one
-            if map.tile not in donetiles:
-                donetiles.append(map.tile)
-                f.seek(ncgr.tileoffset + map.tile * (32 * (ncgr.bpp // 4)))
-                for i2 in range(ncgr.tilesize):
-                    for j2 in range(0, ncgr.tilesize, 2):
-                        index1 = common.getPaletteIndex(palettes[map.pal], pixels[j + j2, i + i2])
-                        index2 = common.getPaletteIndex(palettes[map.pal], pixels[j + j2 + 1, i + i2])
-                        writeNSCRData(f, ncgr.bpp, index1, index2)
-            j += ncgr.tilesize
-            if j >= width:
-                j = 0
-                i += ncgr.tilesize
+        x = 0
+        for i in range(height // ncgr.tilesize):
+            for j in range(width // ncgr.tilesize):
+                map = nscr.maps[x]
+                # Skip flipped tiles since there's always(?) going to be an unflipped one next
+                if map.xflip or map.yflip:
+                    continue
+                # Write the tile if it's a new one
+                if map.tile not in donetiles:
+                    donetiles.append(map.tile)
+                    f.seek(ncgr.tileoffset + map.tile * (32 * (ncgr.bpp // 4)))
+                    writeNCGRTile(f, pixels, ncgr, i, j, palettes[map.pal])
+                x += 1
 
 
 def writeNCER(file, ncgr, ncer, infile, palettes):
@@ -663,7 +657,7 @@ def writeNCER(file, ncgr, ncer, infile, palettes):
                                     pixely = currheight + cell.y + i * ncgr.tilesize + i2
                                     index1 = common.getPaletteIndex(palette, pixels[pixelx, pixely], False, pali, 16 if ncgr.bpp == 4 else -1)
                                     index2 = common.getPaletteIndex(palette, pixels[pixelx + 1, pixely], False, pali, 16 if ncgr.bpp == 4 else -1)
-                                    writeNSCRData(f, ncgr.bpp, index1, index2)
+                                    writeNCGRData(f, ncgr.bpp, index1, index2)
                             tile += 1
             currheight += bank.height
 
