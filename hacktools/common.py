@@ -122,8 +122,8 @@ def cli(log):
 
 def logMessage(*messages):
     message = " ".join(str(x) for x in messages)
-    print(message)
     logging.info(message)
+    tqdm.write(message)
 
 
 def logDebug(*messages):
@@ -138,8 +138,8 @@ def logWarning(*messages):
 
 def logError(*messages):
     message = " ".join(str(x) for x in messages)
-    print("[ERROR]", message)
     logging.error(message)
+    tqdm.write("[ERROR] " + message)
 
 
 def showProgress(iterable):
