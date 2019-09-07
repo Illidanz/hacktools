@@ -124,6 +124,7 @@ class Bank:
     width = 0
     height = 0
     layernum = 0
+    duplicate = False
 
 
 class Cell:
@@ -405,6 +406,20 @@ def readNCER(ncerfile):
                             bank.layernum += 1
                         else:
                             cells[j].layer = bank.layernum - 1
+    # Mark banks as duplicate
+    for bank in ncer.banks:
+        if bank.duplicate:
+            continue
+        for bank2 in ncer.banks:
+            if bank2.duplicate or bank == bank2 or bank.cellnum != bank2.cellnum:
+                continue
+            samecells = True
+            for i in range(bank.cellnum):
+                if bank.cells[i].width != bank2.cells[i].width or bank.cells[i].height != bank2.cells[i].height or bank.cells[i].tileoffset != bank2.cells[i].tileoffset:
+                    samecells = False
+                    break
+            if samecells:
+                bank2.duplicate = True
     common.logDebug("Loaded", len(ncer.banks), "banks")
     return ncer
 
@@ -438,6 +453,8 @@ def drawNCER(outfile, ncer, ncgr, palettes, usetrasp=True, layered=False):
         palsize += 5 * (len(palette) // 8)
     width = height = 0
     for bank in ncer.banks:
+        if bank.duplicate:
+            continue
         width = max(width, bank.width)
         height += bank.height
     img = Image.new("RGBA", (width + 40, max(height, palsize)), (0, 0, 0, 0))
@@ -463,7 +480,7 @@ def drawNCER(outfile, ncer, ncgr, palettes, usetrasp=True, layered=False):
     currheight = 0
     for bankn in range(len(ncer.banks)):
         bank = ncer.banks[bankn]
-        if bank.width == 0 or bank.height == 0:
+        if bank.width == 0 or bank.height == 0 or bank.duplicate:
             continue
         if layered:
             banklayers = []
@@ -614,7 +631,7 @@ def writeNCER(file, ncgr, ncer, infile, palettes):
         donetiles = []
         for nceri in range(len(ncer.banks)):
             bank = ncer.banks[nceri]
-            if bank.width == 0 or bank.height == 0:
+            if bank.width == 0 or bank.height == 0 or bank.duplicate:
                 continue
             if psd:
                 # Extract layers from the psd file, searching them by name
