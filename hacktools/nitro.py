@@ -547,12 +547,12 @@ def drawNCGR(outfile, nscr, ncgr, palettes, width, height, usetrasp=True):
                 pixels = tileToPixels(pixels, width, ncgr, map.tile, i, j, palette, pali, usetrasp)
                 # Very inefficient way to flip pixels
                 if map.xflip or map.yflip:
-                    sub = img.crop(box=(j, i, j + ncgr.tilesize, i + ncgr.tilesize))
+                    sub = img.crop(box=(j * ncgr.tilesize, i * ncgr.tilesize, j * ncgr.tilesize + ncgr.tilesize, i * ncgr.tilesize + ncgr.tilesize))
                     if map.yflip:
                         sub = ImageOps.flip(sub)
                     if map.xflip:
                         sub = ImageOps.mirror(sub)
-                    img.paste(sub, box=(j, i))
+                    img.paste(sub, box=(j * ncgr.tilesize, i * ncgr.tilesize))
             else:
                 pixels = tileToPixels(pixels, width, ncgr, x, i, j, palettes[0], 0, usetrasp)
             x += 1
