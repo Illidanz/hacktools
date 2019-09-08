@@ -171,6 +171,16 @@ def loadTable(tablefile):
                     table[linesplit[0]] = linesplit[1]
 
 
+def shiftPointer(pointer, pointerdiff):
+    newpointer = pointer
+    for k, v in pointerdiff.items():
+        if k < pointer:
+            newpointer += v
+    if newpointer != pointer:
+        logDebug("Shifted pointer", pointer, "to", newpointer)
+    return newpointer
+
+
 def checkShiftJIS(first, second):
     # Based on https://www.lemoda.net/c/detect-shift-jis/
     status = False
