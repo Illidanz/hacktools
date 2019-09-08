@@ -728,13 +728,20 @@ class NSBMDPalette:
 def readNSBMD(nsbmdfile):
     nsbmd = NSBMD()
     with common.Stream(nsbmdfile, "rb") as f:
+        nsbmdstart = 0
+        # 3DG have an additional header, skip it
+        if f.readString(4) == "D3KT":
+            f.seek(4, 1)
+            nsbmdstart = f.readUShort()
         # Read the TEX0 offset
-        f.seek(20)
-        texstart = f.readUShort()
-        # If texstart points to MDL0, the model doesn't have any texture
-        if texstart == 17485:  # MDL0
+        f.seek(nsbmdstart + 20)
+        check = f.readString(4)
+        if check == "MDL0":
+            # The model doesn't have any textures
             return None
-        nsbmd.blockoffset = texstart
+        f.seek(-4, 1)
+        texstart = f.readUShort()
+        nsbmd.blockoffset = nsbmdstart + texstart
         # Read TEX0 block
         f.seek(nsbmd.blockoffset + 4)
         nsbmd.blocksize = f.readUInt()
@@ -949,3 +956,39 @@ def drawNSBMD(file, nsbmd, texi):
     if tex.format != 7:
         pixels = common.drawPalette(pixels, palette, tex.width)
     img.save(file, "PNG")
+
+
+def writeNSBMD(file, nsbmd, texi, infile):
+    img = Image.open(infile)
+    img = img.convert("RGBA")
+    pixels = img.load()
+    tex = nsbmd.textures[texi]
+    with common.Stream(file, "r+b") as f:
+        # Read palette
+        if tex.format != 7:
+            palette = nsbmd.palettes[texi]
+            paldata = palette.data
+        # Write new texture data
+        f.seek(tex.offset)
+        # A3I5 Translucent Texture (3bit Alpha, 5bit Color Index)
+        if tex.format == 1:
+            common.logError("Texture format 1 not implemented")
+        # 4-color Palette
+        elif tex.format == 2:
+            common.logError("Texture format 2 not implemented")
+        # 16/256-color Palette
+        elif tex.format == 3 or tex.format == 4:
+            for i in range(tex.height):
+                for j in range(0, tex.width, 2):
+                    index1 = common.getPaletteIndex(paldata, pixels[j, i])
+                    index2 = common.getPaletteIndex(paldata, pixels[j + 1, i])
+                    writeNCGRData(f, 4 if tex.format == 3 else 8, index1, index2)
+        # 4x4-Texel Compressed Texture
+        elif tex.format == 5:
+            common.logError("Texture format 5 not implemented")
+        # A5I3 Translucent Texture (5bit Alpha, 3bit Color Index)
+        elif tex.format == 6:
+            common.logError("Texture format 6 not implemented")
+        # Direct Color Texture
+        elif tex.format == 7:
+            common.logError("Texture format 7 not implemented")
