@@ -229,7 +229,7 @@ def readNCGR(ncgrfile):
             ncgr.width *= ncgr.tilesize
             ncgr.height *= ncgr.tilesize
         common.logDebug(vars(ncgr))
-        for i in range(ncgr.tilelen // (32 if ncgr.bpp == 4 else 64)):
+        for i in range(ncgr.tilelen // (8 * ncgr.bpp)):
             singletile = []
             for j in range(ncgr.tilesize * ncgr.tilesize):
                 x = i * (ncgr.tilesize * ncgr.tilesize) + j
@@ -488,7 +488,7 @@ def drawNCER(outfile, ncer, ncgr, palettes, usetrasp=True, layered=False):
                 banklayers.append(Image.new("RGBA", (img.width, img.height), (0, 0, 0, 0)))
         for celln in range(len(bank.cells)):
             cell = bank.cells[celln]
-            x = (bank.partitionoffset // (32 * (ncgr.bpp // 4))) + (cell.tileoffset << ncer.blocksize // (ncgr.bpp // 4))
+            x = (bank.partitionoffset // (8 * ncgr.bpp)) + ((cell.tileoffset << ncer.blocksize) * 0x20 // (8 * ncgr.bpp))
             if cell.pal in palettes.keys():
                 pali = 0
                 palette = palettes[cell.pal]
@@ -528,6 +528,14 @@ def drawNCER(outfile, ncer, ncgr, palettes, usetrasp=True, layered=False):
 
 
 def drawNCGR(outfile, nscr, ncgr, palettes, width, height, usetrasp=True):
+    if width == 0xFFFF or height == 0xFFFF:
+        root = int(math.sqrt(len(ncgr.tiles)))
+        if math.pow(root, 2) == len(ncgr.tiles):
+            width = height = root * ncgr.tilesize
+            common.logWarning("Assuming square size", width, "for", outfile)
+        else:
+            common.logError("Wrong width/height", width, height, "for", outfile)
+            return
     palsize = 0
     for palette in palettes.values():
         palsize += 5 * (len(palette) // 8)
@@ -612,7 +620,7 @@ def writeNSCR(file, ncgr, nscr, infile, palettes, width=-1, height=-1):
                 # Write the tile if it's a new one
                 if map.tile not in donetiles:
                     donetiles.append(map.tile)
-                    f.seek(ncgr.tileoffset + map.tile * (32 * (ncgr.bpp // 4)))
+                    f.seek(ncgr.tileoffset + map.tile * (8 * ncgr.bpp))
                     writeNCGRTile(f, pixels, ncgr, i, j, palettes[map.pal])
                 x += 1
 
@@ -657,7 +665,7 @@ def writeNCER(file, ncgr, ncer, infile, palettes):
                     continue
                 if psd:
                     pixels = layers[cell.layer].load()
-                tile = (bank.partitionoffset // (32 * (ncgr.bpp // 4))) + (cell.tileoffset << ncer.blocksize // (ncgr.bpp // 4))
+                tile = (bank.partitionoffset // (8 * ncgr.bpp)) + (cell.tileoffset << ncer.blocksize // (ncgr.bpp // 4))
                 if cell.pal in palettes.keys():
                     pali = 0
                     palette = palettes[cell.pal]
@@ -668,7 +676,7 @@ def writeNCER(file, ncgr, ncer, infile, palettes):
                     for j in range(cell.width // ncgr.tilesize):
                         if tile not in donetiles:
                             donetiles.append(tile)
-                            f.seek(ncgr.tileoffset + tile * (32 * (ncgr.bpp // 4)))
+                            f.seek(ncgr.tileoffset + tile * (8 * ncgr.bpp))
                             for i2 in range(ncgr.tilesize):
                                 for j2 in range(0, ncgr.tilesize, 2):
                                     pixelx = cell.x + j * ncgr.tilesize + j2
