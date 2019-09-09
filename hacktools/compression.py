@@ -80,7 +80,6 @@ def getOccurrenceLength(indata, newptr, newlength, oldptr, oldlength, mindisp=1)
     if newlength == 0:
         return 0
     maxlength = 0
-    disp = 0
     # try every possible 'disp' value (disp = oldLength - i)
     for i in range(oldlength - mindisp):
         # work from the start of the old data to the end, to mimic the original implementation's behaviour
@@ -105,7 +104,7 @@ def getOccurrenceLength(indata, newptr, newlength, oldptr, oldlength, mindisp=1)
     return maxlength, disp
 
 
-def compressLZ10(indata):
+def compressLZ10(indata, mindisp=1):
     with common.Stream() as out:
         inlength = len(indata)
         compressedlength = 0
@@ -131,7 +130,7 @@ def compressLZ10(indata):
             # it is a compressed block when the next 3 or more bytes can be copied from
             # somewhere in the set of already compressed bytes.
             oldlength = min(readbytes, 0x1000)
-            length, disp = getOccurrenceLength(indata, instart + readbytes, min(inlength - readbytes, 0x12), instart + readbytes - oldlength, oldlength)
+            length, disp = getOccurrenceLength(indata, instart + readbytes, min(inlength - readbytes, 0x12), instart + readbytes - oldlength, oldlength, mindisp)
             # length not 3 or more? next byte is raw data
             if length < 3:
                 outbuffer[bufferlength] = indata[instart + readbytes]
@@ -157,8 +156,37 @@ def compressLZ10(indata):
 
 
 def decompressLZ11(data, complength, decomplength):
-    # TODO
-    return bytes()
+    result = bytearray(decomplength)
+    dstoffset = 0
+    while True:
+        header = data.readByte()
+        for i in range(8):
+            if (header & 0x80) == 0:
+                result[dstoffset] = data.readByte()
+                dstoffset += 1
+            else:
+                a = data.readByte()
+                b = data.readByte()
+                offset = 0
+                length2 = 0
+                if (a >> 4) == 0:
+                    c = data.readByte()
+                    length2 = (((a & 0xF) << 4) | (b >> 4)) + 0x11
+                    offset = (((b & 0xF) << 8) | c) + 1
+                elif (a >> 4) == 1:
+                    c = data.readByte()
+                    d = data.readByte()
+                    length2 = (((a & 0xF) << 12) | (b << 4) | (c >> 4)) + 0x111
+                    offset = (((c & 0xF) << 8) | d) + 1
+                else:
+                    length2 = (a >> 4) + 1
+                    offset = (((a & 0xF) << 8) | b) + 1
+                for j in range(length2):
+                    result[dstoffset] = result[dstoffset - offset]
+                    dstoffset += 1
+            if dstoffset >= decomplength:
+                return result
+            header <<= 1
 
 
 def compressLZ11(indata):
