@@ -1,3 +1,4 @@
+import codecs
 from enum import IntFlag
 import os
 import struct
@@ -58,6 +59,25 @@ def getHeaderID(file):
     with common.Stream(file, "rb") as f:
         f.seek(12)
         return f.readString(6)
+
+
+def extractBinaryStrings(infile, outfile, binrange, func, encoding="shift_jis"):
+    foundstrings = []
+    insize = os.path.getsize(infile)
+    with codecs.open(outfile, "w", "utf-8") as out:
+        with common.Stream(infile, "rb") as f:
+            f.seek(binrange[0])
+            while f.tell() < binrange[1] and f.tell() < insize - 2:
+                pos = f.tell()
+                check = func(f, encoding)
+                if check != "":
+                    if check not in foundstrings:
+                        common.logDebug("Found string at", pos)
+                        foundstrings.append(check)
+                        out.write(check + "=\n")
+                    pos = f.tell() - 1
+                f.seek(pos + 1)
+    return foundstrings
 
 
 class CompressionType(IntFlag):
