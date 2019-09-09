@@ -1,4 +1,5 @@
 import codecs
+from io import BytesIO
 import logging
 import math
 import os
@@ -15,13 +16,16 @@ table = {}
 
 # File reading
 class Stream(object):
-    def __init__(self, fpath, mode, little=True):
+    def __init__(self, fpath="", mode="m", little=True):
         self.f = fpath
         self.mode = mode
         self.endian = "<" if little else ">"
 
     def __enter__(self):
-        self.f = open(self.f, self.mode)
+        if self.mode == "m":
+            self.f = BytesIO()
+        else:
+            self.f = open(self.f, self.mode)
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
@@ -193,7 +197,7 @@ def checkShiftJIS(first, second):
     return status
 
 
-def getSection(f, title, comment="#"):
+def getSection(f, title, comment="#", fixchars=[]):
     ret = {}
     found = title == ""
     try:
@@ -210,7 +214,9 @@ def getSection(f, title, comment="#"):
                     split[1] = split[1].split(comment)[0]
                     if split[0] not in ret:
                         ret[split[0]] = []
-                    ret[split[0]].append(split[1].replace("’", "'").replace("‘", "'").replace("…", "...").replace("—", "-").replace("～", "~").replace("	", " "))
+                    for fixchar in fixchars:
+                        split[1] = split[1].replace(fixchar[0], fixchar[1])
+                    ret[split[0]].append(split[1])
     except UnicodeDecodeError:
         return ret
     return ret
