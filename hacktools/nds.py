@@ -1,7 +1,8 @@
+from enum import IntFlag
 import os
 import struct
 import crcmod
-from hacktools import common
+from hacktools import common, compression
 
 
 def extractRom(romfile, extractfolder, workfolder=""):
@@ -59,16 +60,63 @@ def getHeaderID(file):
         return f.readString(6)
 
 
-# Compression
-def decompress(f, size):
+class CompressionType(IntFlag):
+    LZ10 = 0x10,
+    LZ11 = 0x11,
+    Huff4 = 0x24,
+    Huff8 = 0x28,
+    RLE = 0x30,
+    LZ40 = 0x40,
+    LZ60 = 0x60
+
+
+def decompress(f, complength):
     header = f.readUInt()
-    length = header >> 8
-    type = 0x10 if ((header >> 4) & 0xF == 1) else 0x11
-    common.logDebug("  Header:", common.toHex(header), "length:", length, "type:", type)
-    if type == 0x10:
-        return bytes(decompressRawLZSS10(f.read(), length))
-    elif type == 0x11:
-        return bytes(decompressRawLZSS11(f.read(), length))
+    type = header & 0xFF
+    decomplength = ((header & 0xFFFFFF00) >> 8)
+    common.logDebug("Compression header:", common.toHex(header), "type:", common.toHex(type), "length:", decomplength)
+    with common.Stream() as data:
+        data.write(f.read(complength - 4))
+        data.seek(0)
+        if type == CompressionType.LZ10:
+            return compression.decompressLZ10(data, complength, decomplength)
+        elif type == CompressionType.LZ11:
+            return compression.decompressLZ11(data, complength, decomplength)
+        else:
+            common.logError("Unsupported compression type", common.toHex(type))
+            return data.read()
+
+
+def compress(data, type):
+    with common.Stream() as out:
+        length = len(data)
+        out.writeByte(type.value)
+        out.writeByte(length & 0xFF)
+        out.writeByte(length >> 8 & 0xFF)
+        out.writeByte(length >> 16 & 0xFF)
+        if type == CompressionType.LZ10:
+            out.write(compression.compressLZ10(data))
+        elif type == CompressionType.LZ11:
+            out.write(compression.compressLZ11(data))
+        else:
+            common.logError("Unsupported compression type", common.toHex(type))
+            out.write(data)
+        out.seek(0)
+        return out.read()
+
+
+def decompressFile(infile, outfile):
+    insize = os.path.getsize(infile)
+    with common.Stream(infile, "rb") as fin:
+        with common.Stream(outfile, "wb") as fout:
+            fout.write(decompress(fin, insize - 4))
+
+
+def compressFile(infile, outfile, type):
+    with common.Stream(infile, "rb") as fin:
+        data = fin.read()
+        with common.Stream(outfile, "wb") as fout:
+            fout.write(compress(data, type))
 
 
 def decompressBinary(infile, outfile):
@@ -95,7 +143,7 @@ def decompressBinary(infile, outfile):
         data.extend(fin.read(enddelta - padding))
         data.reverse()
         # Decompress and reverse again
-        uncdata = decompressRawLZSS10(data, decsize, True)
+        uncdata = compression.decompressLZ10(data, len(data), decsize, 3)
         uncdata.reverse()
         # Write uncompressed bin with header
         with common.Stream(outfile, "wb") as f:
@@ -103,92 +151,3 @@ def decompressBinary(infile, outfile):
             f.write(fin.read(headerlen))
             f.write(uncdata)
     return headerlen, footer
-
-
-# https://github.com/magical/nlzss/blob/master/lzss3.py
-def bits(b):
-    return ((b >> 7) & 1, (b >> 6) & 1, (b >> 5) & 1, (b >> 4) & 1, (b >> 3) & 1, (b >> 2) & 1, (b >> 1) & 1, (b) & 1)
-
-
-def decompressRawLZSS10(indata, decompressed_size, binary=False):
-    data = bytearray()
-    it = iter(indata)
-    disp_extra = 3 if binary else 1
-
-    while len(data) < decompressed_size:
-        b = next(it)
-        flags = bits(b)
-        for flag in flags:
-            if flag == 0:
-                data.append(next(it))
-            elif flag == 1:
-                sha = next(it)
-                shb = next(it)
-                sh = (sha << 8) | shb
-                count = (sh >> 0xc) + 3
-                disp = (sh & 0xfff) + disp_extra
-
-                for _ in range(count):
-                    data.append(data[-disp])
-            else:
-                raise ValueError(flag)
-
-            if decompressed_size <= len(data):
-                break
-
-    if len(data) != decompressed_size:
-        common.logError("Decompressed size", len(data), "does not match the expected size", decompressed_size)
-
-    return data
-
-
-def decompressRawLZSS11(indata, decompressed_size):
-    data = bytearray()
-    it = iter(indata)
-
-    while len(data) < decompressed_size:
-        b = next(it)
-        flags = bits(b)
-        for flag in flags:
-            if flag == 0:
-                data.append(next(it))
-            elif flag == 1:
-                b = next(it)
-                indicator = b >> 4
-
-                if indicator == 0:
-                    # 8 bit count, 12 bit disp
-                    # indicator is 0, don't need to mask b
-                    count = (b << 4)
-                    b = next(it)
-                    count += b >> 4
-                    count += 0x11
-                elif indicator == 1:
-                    # 16 bit count, 12 bit disp
-                    count = ((b & 0xf) << 12) + (next(it) << 4)
-                    b = next(it)
-                    count += b >> 4
-                    count += 0x111
-                else:
-                    # indicator is count (4 bits), 12 bit disp
-                    count = indicator
-                    count += 1
-
-                disp = ((b & 0xf) << 8) + next(it)
-                disp += 1
-
-                try:
-                    for _ in range(count):
-                        data.append(data[-disp])
-                except IndexError:
-                    raise Exception(count, disp, len(data), sum(1 for x in it))
-            else:
-                raise ValueError(flag)
-
-            if decompressed_size <= len(data):
-                break
-
-    if len(data) != decompressed_size:
-        common.logError("Decompressed size", len(data), "does not match the expected size", decompressed_size)
-
-    return data
