@@ -163,8 +163,11 @@ def decompressBinary(infile, outfile):
         data.extend(fin.read(enddelta - padding))
         data.reverse()
         # Decompress and reverse again
-        uncdata = compression.decompressLZ10(data, len(data), decsize, 3)
-        uncdata.reverse()
+        with common.Stream() as indata:
+            indata.write(data)
+            indata.seek(0)
+            uncdata = bytearray(compression.decompressLZ10(indata, len(data), decsize, 3))
+            uncdata.reverse()
         # Write uncompressed bin with header
         with common.Stream(outfile, "wb") as f:
             fin.seek(0)
