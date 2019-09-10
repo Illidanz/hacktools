@@ -579,11 +579,18 @@ def writeNCGRData(f, bpp, index1, index2):
         f.writeByte(index2)
 
 
-def writeNCGRTile(f, pixels, ncgr, i, j, palette):
+def writeNCGRTile(f, pixels, width, ncgr, i, j, palette):
     for i2 in range(ncgr.tilesize):
         for j2 in range(0, ncgr.tilesize, 2):
-            index1 = common.getPaletteIndex(palette, pixels[j * ncgr.tilesize + j2, i * ncgr.tilesize + i2])
-            index2 = common.getPaletteIndex(palette, pixels[j * ncgr.tilesize + j2 + 1, i * ncgr.tilesize + i2])
+            if ncgr.lineal:
+                lineal = (i * width * ncgr.tilesize) + (j * ncgr.tilesize * ncgr.tilesize) + (i2 * ncgr.tilesize + j2)
+                pixelx = lineal % width
+                pixely = int(math.floor(lineal / width))
+            else:
+                pixelx = j * ncgr.tilesize + j2
+                pixely = i * ncgr.tilesize + i2
+            index1 = common.getPaletteIndex(palette, pixels[pixelx, pixely])
+            index2 = common.getPaletteIndex(palette, pixels[pixelx + 1, pixely])
             writeNCGRData(f, ncgr.bpp, index1, index2)
 
 
@@ -598,7 +605,7 @@ def writeNCGR(file, ncgr, infile, palettes, width=-1, height=-1):
         f.seek(ncgr.tileoffset)
         for i in range(height // ncgr.tilesize):
             for j in range(width // ncgr.tilesize):
-                writeNCGRTile(f, pixels, ncgr, i, j, palettes[0])
+                writeNCGRTile(f, pixels, width, ncgr, i, j, palettes[0])
 
 
 def writeNSCR(file, ncgr, nscr, infile, palettes, width=-1, height=-1):
@@ -621,7 +628,7 @@ def writeNSCR(file, ncgr, nscr, infile, palettes, width=-1, height=-1):
                 if map.tile not in donetiles:
                     donetiles.append(map.tile)
                     f.seek(ncgr.tileoffset + map.tile * (8 * ncgr.bpp))
-                    writeNCGRTile(f, pixels, ncgr, i, j, palettes[map.pal])
+                    writeNCGRTile(f, pixels, width, ncgr, i, j, palettes[map.pal])
                 x += 1
 
 
@@ -679,8 +686,13 @@ def writeNCER(file, ncgr, ncer, infile, palettes):
                             f.seek(ncgr.tileoffset + tile * (8 * ncgr.bpp))
                             for i2 in range(ncgr.tilesize):
                                 for j2 in range(0, ncgr.tilesize, 2):
-                                    pixelx = cell.x + j * ncgr.tilesize + j2
-                                    pixely = currheight + cell.y + i * ncgr.tilesize + i2
+                                    if ncgr.lineal:
+                                        lineal = (i * cell.width * ncgr.tilesize) + (j * ncgr.tilesize * ncgr.tilesize) + (i2 * ncgr.tilesize + j2)
+                                        pixelx = cell.x + (lineal % cell.width)
+                                        pixely = currheight + cell.y + int(math.floor(lineal / cell.width))
+                                    else:
+                                        pixelx = cell.x + j * ncgr.tilesize + j2
+                                        pixely = currheight + cell.y + i * ncgr.tilesize + i2
                                     index1 = common.getPaletteIndex(palette, pixels[pixelx, pixely], False, pali, 16 if ncgr.bpp == 4 else -1)
                                     index2 = common.getPaletteIndex(palette, pixels[pixelx + 1, pixely], False, pali, 16 if ncgr.bpp == 4 else -1)
                                     writeNCGRData(f, ncgr.bpp, index1, index2)
