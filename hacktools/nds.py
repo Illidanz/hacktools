@@ -3,6 +3,7 @@ from enum import IntFlag
 import os
 import struct
 import crcmod
+from ndspy import codeCompression
 from hacktools import common, compression
 
 
@@ -140,37 +141,23 @@ def compressFile(infile, outfile, type):
 
 
 def decompressBinary(infile, outfile):
-    filelen = os.path.getsize(infile)
-    footer = bytes()
-    if infile.endswith("arm9.bin"):
-        filelen -= 0x0C
     with common.Stream(infile, "rb") as fin:
-        # Read footer
-        if infile.endswith("arm9.bin"):
-            fin.seek(filelen)
-            footer = fin.read(0x0C)
-        # Read compression info
-        fin.seek(filelen - 8)
-        header = fin.read(8)
-        enddelta, startdelta = struct.unpack("<LL", header)
-        padding = enddelta >> 0x18
-        enddelta &= 0xFFFFFF
-        decsize = startdelta + enddelta
-        headerlen = filelen - enddelta
-        # Read compressed data and reverse it
-        fin.seek(headerlen)
-        data = bytearray()
-        data.extend(fin.read(enddelta - padding))
-        data.reverse()
-        # Decompress and reverse again
-        with common.Stream() as indata:
-            indata.write(data)
-            indata.seek(0)
-            uncdata = bytearray(compression.decompressLZ10(indata, len(data), decsize, 3))
-            uncdata.reverse()
-        # Write uncompressed bin with header
-        with common.Stream(outfile, "wb") as f:
-            fin.seek(0)
-            f.write(fin.read(headerlen))
-            f.write(uncdata)
-    return headerlen, footer
+        data = fin.read()
+    uncdata = codeCompression.decompress(data)
+    with common.Stream(outfile, "wb") as f:
+        f.write(uncdata)
+
+
+def compressBinary(infile, outfile):
+    with common.Stream(infile, "rb") as fin:
+        data = bytearray(fin.read())
+    compdata = bytearray(codeCompression.compress(data, True))
+    codeoffset = 0
+    for i in range(0, 0x8000, 4):
+        if compdata[i:i+8] == b'\x21\x06\xC0\xDE\xDE\xC0\x06\x21':
+            codeoffset = i - 0x1C
+            break
+    if codeoffset > 0:
+        struct.pack_into("<I", compdata, codeoffset + 0x14, 0x02000000 + len(compdata))
+    with common.Stream(outfile, "wb") as f:
+        f.write(compdata)

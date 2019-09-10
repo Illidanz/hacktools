@@ -88,7 +88,7 @@ def compressLZ10(indata, mindisp=1):
         bufferedblocks = 0
         readbytes = 0
         while readbytes < inlength:
-            # If 8 blocks are bufferd, write them and reset the buffer
+            # If 8 blocks are buffered, write them and reset the buffer
             # we can only buffer 8 blocks at a time.
             if bufferedblocks == 8:
                 out.write(outbuffer[:bufferlength])
@@ -174,7 +174,7 @@ def compressLZ11(indata, mindisp=1):
         bufferedblocks = 0
         readbytes = 0
         while readbytes < inlength:
-            # If 8 blocks are bufferd, write them and reset the buffer
+            # If 8 blocks are buffered, write them and reset the buffer
             # we can only buffer 8 blocks at a time.
             if bufferedblocks == 8:
                 out.write(outbuffer[:bufferlength])
