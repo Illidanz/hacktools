@@ -62,7 +62,7 @@ def getHeaderID(file):
         return f.readString(6)
 
 
-def extractBinaryStrings(infile, outfile, binrange, func, encoding="shift_jis"):
+def extractBinaryStrings(infile, outfile, binrange, func, encoding="shift_jis", writepos=False):
     foundstrings = []
     insize = os.path.getsize(infile)
     with codecs.open(outfile, "w", "utf-8") as out:
@@ -75,6 +75,8 @@ def extractBinaryStrings(infile, outfile, binrange, func, encoding="shift_jis"):
                     if check not in foundstrings:
                         common.logDebug("Found string at", pos)
                         foundstrings.append(check)
+                        if writepos:
+                            out.write(str(pos) + "!")
                         out.write(check + "=\n")
                     pos = f.tell() - 1
                 f.seek(pos + 1)
