@@ -672,7 +672,7 @@ def writeNCER(file, ncgr, ncer, infile, palettes):
                     continue
                 if psd:
                     pixels = layers[cell.layer].load()
-                tile = (bank.partitionoffset // (8 * ncgr.bpp)) + (cell.tileoffset << ncer.blocksize // (ncgr.bpp // 4))
+                tile = (bank.partitionoffset // (8 * ncgr.bpp)) + ((cell.tileoffset << ncer.blocksize) * 0x20 // (8 * ncgr.bpp))
                 if cell.pal in palettes.keys():
                     pali = 0
                     palette = palettes[cell.pal]
