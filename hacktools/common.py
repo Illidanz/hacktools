@@ -43,6 +43,9 @@ class Stream(object):
     def write(self, data):
         self.f.write(data)
 
+    def writeLine(self, data):
+        self.f.write(data + "\n")
+
     def readInt(self):
         return struct.unpack(self.endian + "i", self.read(4))[0]
 
