@@ -970,7 +970,7 @@ def drawNSBMD(file, nsbmd, texi):
     img.save(file, "PNG")
 
 
-def writeNSBMD(file, nsbmd, texi, infile):
+def writeNSBMD(file, nsbmd, texi, infile, fixtrasp=False):
     img = Image.open(infile)
     img = img.convert("RGBA")
     pixels = img.load()
@@ -992,8 +992,8 @@ def writeNSBMD(file, nsbmd, texi, infile):
         elif tex.format == 3 or tex.format == 4:
             for i in range(tex.height):
                 for j in range(0, tex.width, 2):
-                    index1 = common.getPaletteIndex(paldata, pixels[j, i])
-                    index2 = common.getPaletteIndex(paldata, pixels[j + 1, i])
+                    index1 = common.getPaletteIndex(paldata, pixels[j, i], fixtrasp)
+                    index2 = common.getPaletteIndex(paldata, pixels[j + 1, i], fixtrasp)
                     writeNCGRData(f, 4 if tex.format == 3 else 8, index1, index2)
         # 4x4-Texel Compressed Texture
         elif tex.format == 5:
