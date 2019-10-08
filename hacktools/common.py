@@ -206,7 +206,7 @@ def getSection(f, title, comment="#", fixchars=[]):
     try:
         f.seek(0)
         for line in f:
-            line = line.rstrip("\r\n")
+            line = line.rstrip("\r\n").replace("\ufeff", "")
             if not found and line.startswith("!FILE:" + title):
                 found = True
             elif found:
