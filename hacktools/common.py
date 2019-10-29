@@ -1,5 +1,6 @@
 import codecs
 from io import BytesIO
+import distutils.dir_util
 import logging
 import math
 import os
@@ -292,6 +293,10 @@ def clearFolder(folder):
 def copyFolder(f1, f2):
     clearFolder(f2)
     shutil.copytree(f1, f2)
+
+
+def mergeFolder(f1, f2):
+    distutils.dir_util.copy_tree(f1, f2)
 
 
 def copyFile(f1, f2):
