@@ -169,6 +169,15 @@ def isAscii(s):
     return True
 
 
+def codeToChar(code):
+    try:
+        if code < 256:
+            return struct.pack("B", code).decode("ascii")
+        return struct.pack(">H", code).decode("shift_jis")
+    except UnicodeDecodeError:
+        return ""
+
+
 def loadTable(tablefile):
     if os.path.isfile(tablefile):
         with codecs.open(tablefile, "r", "utf-8") as ft:

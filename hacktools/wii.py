@@ -1,5 +1,5 @@
 import os
-from hacktools import common, nitro
+from hacktools import common
 
 
 def extractIso(isofile, extractfolder, workfolder=""):
@@ -54,14 +54,14 @@ def getFontGlyphs(file):
             if sectiontype == 0:
                 firstcode = f.readUShort()
                 for i in range(lastchar - firstchar + 1):
-                    c = nitro.codeToChar(firstchar + i)
+                    c = common.codeToChar(firstchar + i)
                     glyphs[c] = hdwc[firstcode + i] + (firstchar + i,)
             elif sectiontype == 1:
                 for i in range(lastchar - firstchar + 1):
                     charcode = f.readUShort()
                     if charcode == 0xFFFF or charcode >= len(hdwc):
                         continue
-                    c = nitro.codeToChar(firstchar + i)
+                    c = common.codeToChar(firstchar + i)
                     glyphs[c] = hdwc[charcode] + (firstchar + i,)
             else:
                 common.logError("Unknown section type", sectiontype)
