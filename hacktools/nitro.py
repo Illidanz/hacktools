@@ -623,6 +623,48 @@ def writeNSCR(file, ncgr, nscr, infile, palettes, width=-1, height=-1):
                 x += 1
 
 
+def writeMappedNSCR(file, mapfile, ncgr, nscr, infile, palettes, width=-1, height=-1):
+    if width < 0:
+        width = nscr.width
+        # height = nscr.height
+    img = Image.open(infile)
+    img = img.convert("RGBA")
+    pixels = img.load()
+    with common.Stream(file, "rb+") as f:
+        with common.Stream(mapfile, "rb+") as mapf:
+            mapf.seek(nscr.mapoffset)
+            tiles = []
+            for i in range(height // ncgr.tilesize):
+                for j in range(width // ncgr.tilesize):
+                    tilecolors = []
+                    for i2 in range(ncgr.tilesize):
+                        for j2 in range(ncgr.tilesize):
+                            tilecolors.append(pixels[j + j2, i + i2])
+                    pal = common.findBestPalette(palettes, tilecolors)
+                    tile = []
+                    for tilecolor in tilecolors:
+                        tile.append(common.getPaletteIndex(palettes[pal], tilecolor))
+                    # Search for a repeated tile
+                    found = -1
+                    for ti in range(len(tiles)):
+                        if tiles[ti] == tile:
+                            found = ti
+                            break
+                    map = Map()
+                    map.pal = pal
+                    if found != -1:
+                        map.tile = found
+                    else:
+                        tiles.append(tile)
+                        map.tile = len(tiles) - 1
+                        f.seek(ncgr.tileoffset + map.tile * (8 * ncgr.bpp))
+                        writeNCGRTile(f, pixels, width, ncgr, i, j, palettes[map.pal])
+                    mapdata = (map.pal << 12) + (map.xflip << 11) + (map.yflip << 10) + map.tile
+                    mapf.writeUShort(mapdata)
+            f.seek(40)
+            f.writeUInt(len(tiles) * (8 * ncgr.bpp))
+
+
 def writeNCER(file, ncgr, ncer, infile, palettes):
     psd = infile.endswith(".psd")
     if psd:
