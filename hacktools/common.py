@@ -21,6 +21,7 @@ class Stream(object):
         self.f = fpath
         self.mode = mode
         self.endian = "<" if little else ">"
+        self.half = None
 
     def __enter__(self):
         if self.mode == "m":
@@ -64,6 +65,15 @@ class Stream(object):
 
     def readSByte(self):
         return struct.unpack("b", self.read(1))[0]
+
+    def readHalf(self):
+        if self.half is None:
+            self.half = self.readByte()
+            return self.half & 0x0F
+        else:
+            ret = self.half >> 4
+            self.half = None
+            return ret
 
     def readBytes(self, n):
         ret = ""
@@ -109,6 +119,13 @@ class Stream(object):
 
     def writeSByte(self, num):
         self.f.write(struct.pack("b", num))
+
+    def writeHalf(self, num):
+        if self.half is None:
+            self.half = num
+        else:
+            self.writeByte((num << 4) | self.half)
+            self.half = None
 
     def writeString(self, str):
         self.f.write(str.encode("ascii"))
@@ -355,10 +372,13 @@ def readPalette(p):
     return (((p >> 0) & 0x1f) << 3, ((p >> 5) & 0x1f) << 3, ((p >> 10) & 0x1f) << 3, 0xff)
 
 
-def getColorDistance(c1, c2):
+def getColorDistance(c1, c2, checkalpha=False):
     (r1, g1, b1, a1) = c1
     (r2, g2, b2, a2) = c2
-    return math.sqrt((r1 - r2) ** 2 + (g1 - g2) ** 2 + (b1 - b2) ** 2)
+    sum = (r1 - r2) ** 2 + (g1 - g2) ** 2 + (b1 - b2) ** 2
+    if checkalpha:
+        sum += (a1 - a2) ** 2
+    return math.sqrt(sum)
 
 
 def sumColors(c1, c2, a=1, b=1, c=2):
@@ -367,22 +387,22 @@ def sumColors(c1, c2, a=1, b=1, c=2):
     return ((r1 * a + r2 * b) // c, (g1 * a + g2 * b) // c, (b1 * a + b2 * b) // c, a1)
 
 
-def getPaletteIndex(palette, color, fixtrasp=False, starti=0, palsize=-1):
-    if color[3] == 0:
+def getPaletteIndex(palette, color, fixtrasp=False, starti=0, palsize=-1, checkalpha=False, zerotrasp=True):
+    if color[3] == 0 and zerotrasp:
         return 0
     if palsize == -1:
         palsize = len(palette)
     for i in range(starti, starti + palsize):
         if fixtrasp and i == starti:
             continue
-        if palette[i][0] == color[0] and palette[i][1] == color[1] and palette[i][2] == color[2]:
+        if palette[i][0] == color[0] and palette[i][1] == color[1] and palette[i][2] == color[2] and (not checkalpha or palette[i][3] == color[3]):
             return i - starti
-    if palette[starti][0] == color[0] and palette[starti][1] == color[1] and palette[starti][2] == color[2]:
+    if palette[starti][0] == color[0] and palette[starti][1] == color[1] and palette[starti][2] == color[2] and (not checkalpha or palette[starti][3] == color[3]):
         return 0
     mindist = 0xFFFFFFFF
     disti = 0
     for i in range(starti + 1, starti + palsize):
-        distance = getColorDistance(color, palette[i])
+        distance = getColorDistance(color, palette[i], checkalpha)
         if distance < mindist:
             mindist = distance
             disti = i - starti
