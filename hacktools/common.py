@@ -387,6 +387,35 @@ def sumColors(c1, c2, a=1, b=1, c=2):
     return ((r1 * a + r2 * b) // c, (g1 * a + g2 * b) // c, (b1 * a + b2 * b) // c, a1)
 
 
+# https://github.com/marco-calautti/Rainbow/blob/master/Rainbow.ImgLib/ImgLib/Common/ImageUtils.cs
+cc38 = [
+    0x00, 0x24, 0x49, 0x6d,  0x92, 0xb6, 0xdb, 0xff
+]
+cc48 = [
+    0x00, 0x11, 0x22, 0x33,  0x44, 0x55, 0x66, 0x77,  0x88, 0x99, 0xaa, 0xbb,  0xcc, 0xdd, 0xee, 0xff
+]
+cc58 = [
+    0x00, 0x08, 0x10, 0x19,  0x21, 0x29, 0x31, 0x3a,  0x42, 0x4a, 0x52, 0x5a,  0x63, 0x6b, 0x73, 0x7b,
+    0x84, 0x8c, 0x94, 0x9c,  0xa5, 0xad, 0xb5, 0xbd,  0xc5, 0xce, 0xd6, 0xde,  0xe6, 0xef, 0xf7, 0xff
+]
+
+
+# https://github.com/marco-calautti/Rainbow/blob/master/Rainbow.ImgLib/ImgLib/Encoding/Implementation/ColorCodecRGB5A3.cs
+def readRGB5A3(color):
+    r, g, b, a = (0, 0, 0, 0)
+    if color & 0x8000 != 0:
+        a = 255
+        r = cc58[(color >> 10) & 0x1F]
+        g = cc58[(color >> 5) & 0x1F]
+        b = cc58[(color) & 0x1F]
+    else:
+        a = cc38[(color >> 12) & 0x7]
+        r = cc48[(color >> 8) & 0xF]
+        g = cc48[(color >> 4) & 0xF]
+        b = cc48[(color) & 0xF]
+    return (r, g, b, a)
+
+
 def getPaletteIndex(palette, color, fixtrasp=False, starti=0, palsize=-1, checkalpha=False, zerotrasp=True):
     if color[3] == 0 and zerotrasp:
         return 0
