@@ -639,7 +639,7 @@ def writeMappedNSCR(file, mapfile, ncgr, nscr, infile, palettes, width=-1, heigh
                     tilecolors = []
                     for i2 in range(ncgr.tilesize):
                         for j2 in range(ncgr.tilesize):
-                            tilecolors.append(pixels[j + j2, i + i2])
+                            tilecolors.append(pixels[j * ncgr.tilesize + j2, i * ncgr.tilesize + i2])
                     pal = common.findBestPalette(palettes, tilecolors)
                     tile = []
                     for tilecolor in tilecolors:
