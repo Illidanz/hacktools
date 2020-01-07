@@ -64,7 +64,7 @@ def readTPL(file):
             image.palformat = f.readUInt()
             image.paldataoff = f.readUInt()
             if image.palformat != 0x02:
-                common.logError("Unimplemented palette format: " + str(image.palformat))
+                common.logError("Unimplemented palette format:", image.palformat)
                 continue
             f.seek(image.paldataoff)
             image.palette = []
@@ -76,7 +76,7 @@ def readTPL(file):
             image.format = f.readUInt()
             image.dataoff = f.readUInt()
             if image.format != 0x08 and image.format != 0x09:
-                common.logError("Unimplemented image format: " + str(image.format))
+                common.logError("Unimplemented image format:", image.format)
                 continue
             image.tilewidth = 8
             image.tileheight = 8 if image.format == 0x08 else 4
