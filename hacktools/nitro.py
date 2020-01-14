@@ -105,6 +105,7 @@ class Bank:
     cellnum = 0
     cellinfo = 0
     celloffset = 0
+    objoffset = 0
     partitionoffset = 0
     partitionsize = 0
     cells = []
@@ -126,6 +127,7 @@ class Cell:
     numcell = 0
     shape = 0
     size = 0
+    objoffset = 0
     tileoffset = 0
     rsflag = False
     objdisable = False
@@ -296,12 +298,14 @@ def readNCER(ncerfile):
                 bank.width = bank.xmax - bank.xmin + 1
                 bank.height = bank.ymax - bank.ymin + 1
             pos = f.tell()
-            f.seek(pos + (ncer.banknum - (i + 1)) * (8 if ncer.tbank == 0x00 else 0x10) + bank.celloffset)
+            bank.objoffset = pos + (ncer.banknum - (i + 1)) * (8 if ncer.tbank == 0x00 else 0x10) + bank.celloffset
+            f.seek(bank.objoffset)
             for j in range(bank.cellnum):
+                cell = Cell()
+                cell.objoffset = f.tell()
                 obj0 = f.readUShort()
                 obj1 = f.readUShort()
                 obj2 = f.readUShort()
-                cell = Cell()
                 cell.y = obj0 & 0xFF
                 if cell.y >= 128:
                     cell.y -= 256
@@ -665,7 +669,7 @@ def writeMappedNSCR(file, mapfile, ncgr, nscr, infile, palettes, width=-1, heigh
             f.writeUInt(len(tiles) * (8 * ncgr.bpp))
 
 
-def writeNCER(file, ncgr, ncer, infile, palettes):
+def writeNCER(file, ncerfile, ncgr, ncer, infile, palettes, width, height):
     psd = infile.endswith(".psd")
     if psd:
         psd = PSDImage.open(infile)
@@ -674,63 +678,110 @@ def writeNCER(file, ncgr, ncer, infile, palettes):
         img = Image.open(infile)
         img = img.convert("RGBA")
         pixels = img.load()
+    nexttile = len(ncgr.tiles)
     with common.Stream(file, "rb+") as f:
-        currheight = 0
-        donetiles = []
-        for nceri in range(len(ncer.banks)):
-            bank = ncer.banks[nceri]
-            if bank.width == 0 or bank.height == 0 or bank.duplicate:
-                continue
-            if psd:
-                # Extract layers from the psd file, searching them by name
-                layers = []
-                for i in range(bank.layernum):
-                    layername = basename + "_" + str(nceri) + "_" + str(i)
-                    psdlayer = None
-                    for layer in psd:
-                        if layer.name == layername:
-                            psdlayer = layer
-                            break
-                    if psdlayer is None:
-                        common.logError("Layer", layername, "not found")
-                        return
-                    # Copy the layer in a normal PIL image for cell access, since the layer is cropped
-                    layerimg = Image.new("RGBA", (psd.width, psd.height), (0, 0, 0, 0))
-                    psdimg = psdlayer.topil()
-                    layerimg.paste(psdimg, (psdlayer.left, psdlayer.top), psdimg)
-                    layers.append(layerimg)
-            for cell in bank.cells:
-                # Skip flipped cells since there's always(?) going to be an unflipped one next
-                if cell.xflip or cell.yflip:
+        with common.Stream(ncerfile, "rb+") as fn:
+            currheight = 0
+            donetiles = []
+            cellboxes = {}
+            for nceri in range(len(ncer.banks)):
+                bank = ncer.banks[nceri]
+                if bank.width == 0 or bank.height == 0 or bank.duplicate:
                     continue
                 if psd:
-                    pixels = layers[cell.layer].load()
-                tile = (bank.partitionoffset // (8 * ncgr.bpp)) + ((cell.tileoffset << ncer.blocksize) * 0x20 // (8 * ncgr.bpp))
-                if cell.pal in palettes.keys():
-                    pali = 0
-                    palette = palettes[cell.pal]
-                else:
-                    pali = cell.pal * 16
-                    palette = palettes[0]
-                for i in range(cell.height // ncgr.tilesize):
-                    for j in range(cell.width // ncgr.tilesize):
-                        if tile not in donetiles:
-                            donetiles.append(tile)
-                            f.seek(ncgr.tileoffset + tile * (8 * ncgr.bpp))
-                            for i2 in range(ncgr.tilesize):
-                                for j2 in range(0, ncgr.tilesize, 2):
-                                    if ncgr.lineal:
-                                        lineal = (i * cell.width * ncgr.tilesize) + (j * ncgr.tilesize * ncgr.tilesize) + (i2 * ncgr.tilesize + j2)
-                                        pixelx = cell.x + (lineal % cell.width)
-                                        pixely = currheight + cell.y + int(math.floor(lineal / cell.width))
-                                    else:
-                                        pixelx = cell.x + j * ncgr.tilesize + j2
-                                        pixely = currheight + cell.y + i * ncgr.tilesize + i2
-                                    index1 = common.getPaletteIndex(palette, pixels[pixelx, pixely], False, pali, 16 if ncgr.bpp == 4 else -1)
-                                    index2 = common.getPaletteIndex(palette, pixels[pixelx + 1, pixely], False, pali, 16 if ncgr.bpp == 4 else -1)
-                                    writeNCGRData(f, ncgr.bpp, index1, index2)
-                        tile += 1
-            currheight += bank.height
+                    # Extract layers from the psd file, searching them by name
+                    layers = []
+                    for i in range(bank.layernum):
+                        layername = basename + "_" + str(nceri) + "_" + str(i)
+                        psdlayer = None
+                        for layer in psd:
+                            if layer.name == layername:
+                                psdlayer = layer
+                                break
+                        if psdlayer is None:
+                            common.logError("Layer", layername, "not found")
+                            return
+                        # Copy the layer in a normal PIL image for cell access, since the layer is cropped
+                        layerimg = Image.new("RGBA", (psd.width, psd.height), (0, 0, 0, 0))
+                        psdimg = psdlayer.topil()
+                        layerimg.paste(psdimg, (psdlayer.left, psdlayer.top), psdimg)
+                        layers.append(layerimg)
+                for cell in bank.cells:
+                    # Skip flipped cells since there's always(?) going to be an unflipped one next
+                    if cell.xflip or cell.yflip:
+                        continue
+                    if psd:
+                        img = layers[cell.layer]
+                        pixels = img.load()
+                    tile = (bank.partitionoffset // (8 * ncgr.bpp)) + ((cell.tileoffset << ncer.blocksize) * 0x20 // (8 * ncgr.bpp))
+                    if cell.pal in palettes.keys():
+                        pali = 0
+                        palette = palettes[cell.pal]
+                    else:
+                        pali = cell.pal * 16
+                        palette = palettes[0]
+                    sametile = tile in donetiles
+                    addingtiles = False
+                    if sametile:
+                        tiledata = []
+                        for i in range(cell.height // ncgr.tilesize):
+                            for j in range(cell.width // ncgr.tilesize):
+                                for i2 in range(ncgr.tilesize):
+                                    for j2 in range(0, ncgr.tilesize, 2):
+                                        if ncgr.lineal:
+                                            lineal = (i * cell.width * ncgr.tilesize) + (j * ncgr.tilesize * ncgr.tilesize) + (i2 * ncgr.tilesize + j2)
+                                            pixelx = cell.x + (lineal % cell.width)
+                                            pixely = currheight + cell.y + int(math.floor(lineal / cell.width))
+                                        else:
+                                            pixelx = cell.x + j * ncgr.tilesize + j2
+                                            pixely = currheight + cell.y + i * ncgr.tilesize + i2
+                                        index1 = common.getPaletteIndex(palette, pixels[pixelx, pixely], False, pali, 16 if ncgr.bpp == 4 else -1)
+                                        index2 = common.getPaletteIndex(palette, pixels[pixelx + 1, pixely], False, pali, 16 if ncgr.bpp == 4 else -1)
+                                        tiledata.append(index1)
+                                        tiledata.append(index2)
+                        sametile = tiledata == cellboxes[tile]
+                        if not sametile:
+                            tile = nexttile
+                            tileoffset = (tile * (8 * ncgr.bpp) // 0x20) >> ncer.blocksize
+                            fn.seek(cell.objoffset + 4)
+                            obj2 = 0
+                            obj2 += tileoffset & 0x3FF
+                            obj2 += (cell.priority & 3) << 10
+                            obj2 += (cell.pal & 0xF) << 12
+                            fn.writeUShort(obj2)
+                            addingtiles = True
+                    if not sametile:
+                        currtile = tile
+                        cellboxes[currtile] = []
+                        for i in range(cell.height // ncgr.tilesize):
+                            for j in range(cell.width // ncgr.tilesize):
+                                if tile not in donetiles:
+                                    donetiles.append(tile)
+                                    f.seek(ncgr.tileoffset + tile * (8 * ncgr.bpp))
+                                    for i2 in range(ncgr.tilesize):
+                                        for j2 in range(0, ncgr.tilesize, 2):
+                                            if ncgr.lineal:
+                                                lineal = (i * cell.width * ncgr.tilesize) + (j * ncgr.tilesize * ncgr.tilesize) + (i2 * ncgr.tilesize + j2)
+                                                pixelx = cell.x + (lineal % cell.width)
+                                                pixely = currheight + cell.y + int(math.floor(lineal / cell.width))
+                                            else:
+                                                pixelx = cell.x + j * ncgr.tilesize + j2
+                                                pixely = currheight + cell.y + i * ncgr.tilesize + i2
+                                            index1 = common.getPaletteIndex(palette, pixels[pixelx, pixely], False, pali, 16 if ncgr.bpp == 4 else -1)
+                                            index2 = common.getPaletteIndex(palette, pixels[pixelx + 1, pixely], False, pali, 16 if ncgr.bpp == 4 else -1)
+                                            cellboxes[currtile].append(index1)
+                                            cellboxes[currtile].append(index2)
+                                            writeNCGRData(f, ncgr.bpp, index1, index2)
+                                tile += 1
+                                if addingtiles:
+                                    nexttile += 1
+                currheight += bank.height
+        if nexttile > len(ncgr.tiles):
+            tottiles = nexttile
+            f.seek(32)
+            f.writeUInt(tottiles)
+            f.seek(4, 1)
+            f.writeUInt(tottiles * (8 * ncgr.bpp))
 
 
 # 3D Models
