@@ -669,7 +669,7 @@ def writeMappedNSCR(file, mapfile, ncgr, nscr, infile, palettes, width=-1, heigh
             f.writeUInt(len(tiles) * (8 * ncgr.bpp))
 
 
-def writeNCER(file, ncerfile, ncgr, ncer, infile, palettes, width, height):
+def writeNCER(file, ncerfile, ncgr, ncer, infile, palettes, width, height, appendTiles=False):
     psd = infile.endswith(".psd")
     if psd:
         psd = PSDImage.open(infile)
@@ -722,7 +722,7 @@ def writeNCER(file, ncerfile, ncgr, ncer, infile, palettes, width, height):
                         palette = palettes[0]
                     sametile = tile in donetiles
                     addingtiles = False
-                    if sametile:
+                    if sametile and appendTiles:
                         tiledata = []
                         for i in range(cell.height // ncgr.tilesize):
                             for j in range(cell.width // ncgr.tilesize):
@@ -741,15 +741,27 @@ def writeNCER(file, ncerfile, ncgr, ncer, infile, palettes, width, height):
                                         tiledata.append(index2)
                         sametile = tiledata == cellboxes[tile]
                         if not sametile:
+                            # Check if we can find a repeated tile
+                            addingtiles = True
                             tile = nexttile
+                            for celltile in cellboxes:
+                                if len(cellboxes[celltile]) >= len(tiledata) and tiledata == cellboxes[celltile][:len(tiledata)]:
+                                    common.logError("Found")
+                                    tile = celltile
+                                    addingtiles = False
+                                    sametile = True
+                                    break
                             tileoffset = (tile * (8 * ncgr.bpp) // 0x20) >> ncer.blocksize
+                            if tileoffset > 0x3FF:
+                                common.logError("Too many tiles:", tileoffset)
                             fn.seek(cell.objoffset + 4)
                             obj2 = 0
                             obj2 += tileoffset & 0x3FF
                             obj2 += (cell.priority & 3) << 10
                             obj2 += (cell.pal & 0xF) << 12
                             fn.writeUShort(obj2)
-                            addingtiles = True
+                            if addingtiles:
+                                common.logError("Adding", tile)
                     if not sametile:
                         currtile = tile
                         cellboxes[currtile] = []
