@@ -746,22 +746,17 @@ def writeNCER(file, ncerfile, ncgr, ncer, infile, palettes, width, height, appen
                             tile = nexttile
                             for celltile in cellboxes:
                                 if len(cellboxes[celltile]) >= len(tiledata) and tiledata == cellboxes[celltile][:len(tiledata)]:
-                                    common.logError("Found")
                                     tile = celltile
                                     addingtiles = False
                                     sametile = True
                                     break
                             tileoffset = (tile * (8 * ncgr.bpp) // 0x20) >> ncer.blocksize
-                            if tileoffset > 0x3FF:
-                                common.logError("Too many tiles:", tileoffset)
                             fn.seek(cell.objoffset + 4)
                             obj2 = 0
                             obj2 += tileoffset & 0x3FF
                             obj2 += (cell.priority & 3) << 10
                             obj2 += (cell.pal & 0xF) << 12
                             fn.writeUShort(obj2)
-                            if addingtiles:
-                                common.logError("Adding", tile)
                     if not sametile:
                         currtile = tile
                         cellboxes[currtile] = []
