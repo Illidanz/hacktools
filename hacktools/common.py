@@ -421,13 +421,18 @@ def getPaletteIndex(palette, color, fixtrasp=False, starti=0, palsize=-1, checka
         return 0
     if palsize == -1:
         palsize = len(palette)
+    zeroalpha = -1
     for i in range(starti, starti + palsize):
         if fixtrasp and i == starti:
             continue
         if palette[i][0] == color[0] and palette[i][1] == color[1] and palette[i][2] == color[2] and (not checkalpha or palette[i][3] == color[3]):
             return i - starti
+        if palette[i][3] == 0:
+            zeroalpha = i - starti
     if palette[starti][0] == color[0] and palette[starti][1] == color[1] and palette[starti][2] == color[2] and (not checkalpha or palette[starti][3] == color[3]):
         return 0
+    if checkalpha and color[3] == 0 and zeroalpha != -1:
+        return zeroalpha
     mindist = 0xFFFFFFFF
     disti = 0
     for i in range(starti + 1, starti + palsize):
