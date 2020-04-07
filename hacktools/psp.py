@@ -52,13 +52,68 @@ def repackIso(isofile, isopatch, workfolder, patchfile=""):
             common.logMessage("Done!")
 
 
-def extractBinaryStrings(infile, outfile, binrange, func, encoding="shift_jis", writepos=False):
+class ELF():
+    sections = []
+    sectionsdict = {}
+
+
+class ELFSection():
+    name = ""
+    nameoff = 0
+    type = 0
+    flags = 0
+    addr = 0
+    offset = 0
+    size = 0
+    link = 0
+    info = 0
+    addralign = 0
+    entsize = 0
+
+
+def readELF(infile):
+    elf = ELF()
+    elf.sections = []
+    with common.Stream(infile, "rb") as f:
+        f.seek(0x20)
+        sectionsoff = f.readUInt()
+        f.seek(0x2E)
+        sectionsize = f.readUShort()
+        sectionnum = f.readUShort()
+        shstrndx = f.readUShort()
+        common.logDebug("sectionsoff:", sectionsoff, "sectionsize:", sectionsize, "sectionnum", sectionnum, "shstrndx", shstrndx)
+        # Read section headers
+        f.seek(sectionsoff)
+        for i in range(sectionnum):
+            section = ELFSection()
+            section.nameoff = f.readUInt()
+            section.type = f.readUInt()
+            section.flags = f.readUInt()
+            section.addr = f.readUInt()
+            section.offset = f.readUInt()
+            section.size = f.readUInt()
+            section.link = f.readUInt()
+            section.info = f.readUInt()
+            section.addralign = f.readUInt()
+            section.entsize = f.readUInt()
+            elf.sections.append(section)
+        # Read section names
+        for section in elf.sections:
+            f.seek(elf.sections[shstrndx].offset + section.nameoff)
+            section.name = f.readNullString()
+            elf.sectionsdict[section.name] = section
+        for i in range(sectionnum):
+            common.logDebug(i, vars(elf.sections[i]))
+    return elf
+
+
+def extractBinaryStrings(elf, infile, outfile, func, encoding="shift_jis", writepos=False):
     foundstrings = []
-    insize = os.path.getsize(infile)
     with codecs.open(outfile, "w", "utf-8") as out:
         with common.Stream(infile, "rb") as f:
-            f.seek(binrange[0])
-            while f.tell() < binrange[1] and f.tell() < insize - 2:
+            rodata = elf.sectionsdict[".rodata"]
+            f.seek(rodata.offset)
+            while f.tell() < rodata.offset + rodata.size:
                 pos = f.tell()
                 check = func(f, encoding)
                 if check != "":
