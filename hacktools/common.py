@@ -339,7 +339,7 @@ def makeFolders(path):
 
 
 def getFiles(path, extensions=[]):
-    if isinstance(extensions, str):
+    if isinstance(extensions, str) and extensions != "":
         extensions = [extensions]
     ret = []
     for (root, dirs, files) in os.walk(path):
