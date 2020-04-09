@@ -1,4 +1,3 @@
-import codecs
 import math
 import os
 import pycdlib
@@ -107,25 +106,41 @@ def readELF(infile):
     return elf
 
 
-def extractBinaryStrings(elf, infile, outfile, func, encoding="shift_jis", writepos=False):
-    foundstrings = []
-    with codecs.open(outfile, "w", "utf-8") as out:
-        with common.Stream(infile, "rb") as f:
-            rodata = elf.sectionsdict[".rodata"]
-            f.seek(rodata.offset)
-            while f.tell() < rodata.offset + rodata.size:
-                pos = f.tell()
-                check = func(f, encoding)
-                if check != "":
-                    if check not in foundstrings:
-                        common.logDebug("Found string at", pos)
-                        foundstrings.append(check)
-                        if writepos:
-                            out.write(str(pos) + "!")
-                        out.write(check + "=\n")
-                    pos = f.tell() - 1
-                f.seek(pos + 1)
+def extractBinaryStrings(elf, foundstrings, infile, func, encoding="shift_jis"):
+    with common.Stream(infile, "rb") as f:
+        rodata = elf.sectionsdict[".rodata"]
+        f.seek(rodata.offset)
+        while f.tell() < rodata.offset + rodata.size:
+            pos = f.tell()
+            check = func(f, encoding)
+            if check != "":
+                if check not in foundstrings:
+                    common.logDebug("Found string at", pos)
+                    foundstrings.append(check)
+                pos = f.tell() - 1
+            f.seek(pos + 1)
     return foundstrings
+
+
+def repackBinaryStrings(elf, section, infile, outfile, detectFunc, writeFunc, encoding="shift_jis"):
+    rodata = elf.sectionsdict[".rodata"]
+    with common.Stream(infile, "rb") as fi:
+        with common.Stream(outfile, "r+b") as fo:
+            fi.seek(rodata.offset)
+            while fi.tell() < rodata.offset + rodata.size:
+                pos = fi.tell()
+                check = detectFunc(fi, encoding)
+                if check in section and section[check][0] != "":
+                    common.logDebug("Replacing string at", pos)
+                    fo.seek(pos)
+                    endpos = fi.tell() - 1
+                    newlen = writeFunc(fo, section[check][0], endpos - pos + 1)
+                    if newlen < 0:
+                        fo.writeZero(1)
+                        common.logError("String", section[check][0], "is too long.")
+                    else:
+                        fo.writeZero(endpos - fo.tell())
+                fi.seek(pos + 1)
 
 
 # https://www.psdevwiki.com/ps3/Graphic_Image_Map_(GIM)
