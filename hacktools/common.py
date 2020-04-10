@@ -367,6 +367,16 @@ def execute(cmd, show=True):
             logDebug(result)
 
 
+def armipsPatch(file):
+    logMessage("Running armips patch", file, "...")
+    armips = bundledExecutable("armips.exe")
+    if not os.path.isfile(armips):
+        logError("armips not found")
+    else:
+        execute(armips + " {binpatch}".format(file), False)
+        logMessage("Done!")
+
+
 # Generic texture
 def readPalette(p):
     return (((p >> 0) & 0x1f) << 3, ((p >> 5) & 0x1f) << 3, ((p >> 10) & 0x1f) << 3, 0xff)
