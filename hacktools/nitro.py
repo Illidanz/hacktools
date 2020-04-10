@@ -199,6 +199,8 @@ def readNCLR(nclrfile):
         else:
             indexedpalettes = {i: palettes[i] for i in range(0, len(palettes))}
     common.logDebug("Loaded", len(indexedpalettes), "palettes")
+    if 0 not in indexedpalettes.keys():
+        indexedpalettes[0] = indexedpalettes[list(indexedpalettes.keys())[0]]
     return indexedpalettes
 
 
