@@ -373,7 +373,7 @@ def armipsPatch(file):
     if not os.path.isfile(armips):
         logError("armips not found")
     else:
-        execute(armips + " {binpatch}".format(file), False)
+        execute(armips + " {binpatch}".format(binpatch=file), False)
         logMessage("Done!")
 
 
