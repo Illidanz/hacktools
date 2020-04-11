@@ -368,7 +368,7 @@ def execute(cmd, show=True):
 
 
 def armipsPatch(file):
-    logMessage("Running armips patch", file, "...")
+    logMessage("Applying armips patch ...")
     armips = bundledFile("armips.exe")
     if not os.path.isfile(armips):
         logError("armips not found")
