@@ -130,16 +130,19 @@ def repackBinaryStrings(elf, section, infile, outfile, detectFunc, writeFunc, en
             while fi.tell() < rodata.offset + rodata.size:
                 pos = fi.tell()
                 check = detectFunc(fi, encoding)
-                if check in section and section[check][0] != "":
-                    common.logDebug("Replacing string at", pos)
-                    fo.seek(pos)
-                    endpos = fi.tell() - 1
-                    newlen = writeFunc(fo, section[check][0], endpos - pos + 1)
-                    if newlen < 0:
-                        fo.writeZero(1)
-                        common.logError("String", section[check][0], "is too long.")
+                if check != "":
+                    if check in section and section[check][0] != "":
+                        common.logDebug("Replacing string at", pos)
+                        fo.seek(pos)
+                        endpos = fi.tell() - 1
+                        newlen = writeFunc(fo, section[check][0], endpos - pos + 1)
+                        if newlen < 0:
+                            fo.writeZero(1)
+                            common.logError("String", section[check][0], "is too long.")
+                        else:
+                            fo.writeZero(endpos - fo.tell())
                     else:
-                        fo.writeZero(endpos - fo.tell())
+                        pos = fi.tell() - 1
                 fi.seek(pos + 1)
 
 
