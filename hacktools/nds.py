@@ -9,7 +9,7 @@ from hacktools import common, compression
 
 def extractRom(romfile, extractfolder, workfolder=""):
     common.logMessage("Extracting ROM", romfile, "...")
-    ndstool = common.bundledExecutable("ndstool.exe")
+    ndstool = common.bundledFile("ndstool.exe")
     if not os.path.isfile(ndstool):
         common.logError("ndstool not found")
     else:
@@ -23,7 +23,7 @@ def extractRom(romfile, extractfolder, workfolder=""):
 
 def repackRom(romfile, rompatch, workfolder, patchfile=""):
     common.logMessage("Repacking ROM", rompatch, "...")
-    ndstool = common.bundledExecutable("ndstool.exe")
+    ndstool = common.bundledFile("ndstool.exe")
     if not os.path.isfile(ndstool):
         common.logError("ndstool not found")
     else:
@@ -33,7 +33,7 @@ def repackRom(romfile, rompatch, workfolder, patchfile=""):
         # Create xdelta patch
         if patchfile != "":
             common.logMessage("Creating xdelta patch", patchfile, "...")
-            xdelta = common.bundledExecutable("xdelta.exe")
+            xdelta = common.bundledFile("xdelta.exe")
             if not os.path.isfile(xdelta):
                 common.logError("xdelta not found")
             else:

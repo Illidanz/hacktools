@@ -43,7 +43,7 @@ def repackIso(isofile, isopatch, workfolder, patchfile=""):
     # Create xdelta patch
     if patchfile != "":
         common.logMessage("Creating xdelta patch", patchfile, "...")
-        xdelta = common.bundledExecutable("xdelta.exe")
+        xdelta = common.bundledFile("xdelta.exe")
         if not os.path.isfile(xdelta):
             common.logError("xdelta not found")
         else:

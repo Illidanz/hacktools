@@ -351,7 +351,7 @@ def getFiles(path, extensions=[]):
     return ret
 
 
-def bundledExecutable(name):
+def bundledFile(name):
     try:
         return os.path.join(sys._MEIPASS, name)
     except AttributeError:
@@ -369,7 +369,7 @@ def execute(cmd, show=True):
 
 def armipsPatch(file):
     logMessage("Running armips patch", file, "...")
-    armips = bundledExecutable("armips.exe")
+    armips = bundledFile("armips.exe")
     if not os.path.isfile(armips):
         logError("armips not found")
     else:
