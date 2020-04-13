@@ -75,6 +75,13 @@ class Stream(object):
             self.half = None
             return ret
 
+    def readZeros(self, size):
+        while self.tell() < size:
+            byte = self.readByte()
+            if byte != 0x00:
+                self.seek(-1, 1)
+                break
+
     def readBytes(self, n):
         ret = ""
         for i in range(n):
@@ -359,7 +366,11 @@ def bundledFile(name):
 
 
 def execute(cmd, show=True):
-    result = str(subprocess.check_output(cmd))
+    try:
+        result = str(subprocess.check_output(cmd))
+    except FileNotFoundError:
+        logError("Failed executing command", len(cmd))
+        return
     if result != "":
         if show:
             logMessage(result)
