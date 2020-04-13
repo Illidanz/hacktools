@@ -83,6 +83,30 @@ def extractBinaryStrings(infile, outfile, binrange, func, encoding="shift_jis", 
     return foundstrings
 
 
+def repackBinaryStrings(section, infile, outfile, binrange, detectFunc, writeFunc, encoding="shift_jis"):
+    insize = os.path.getsize(infile)
+    with common.Stream(infile, "rb") as fi:
+        with common.Stream(outfile, "r+b") as fo:
+            fi.seek(binrange[0])
+            while fi.tell() < binrange[1] and fi.tell() < insize - 2:
+                pos = fi.tell()
+                check = detectFunc(fi, encoding)
+                if check != "":
+                    if check in section and section[check][0] != "":
+                        common.logDebug("Replacing string at", pos)
+                        fo.seek(pos)
+                        endpos = fi.tell() - 1
+                        newlen = writeFunc(fo, section[check][0], endpos - pos + 1, encoding)
+                        if newlen < 0:
+                            fo.writeZero(1)
+                            common.logError("String", section[check][0], "is too long.")
+                        else:
+                            fo.writeZero(endpos - fo.tell())
+                    else:
+                        pos = fi.tell() - 1
+                fi.seek(pos + 1)
+
+
 class CompressionType(IntFlag):
     LZ10 = 0x10,
     LZ11 = 0x11,
