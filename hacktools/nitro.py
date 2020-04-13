@@ -146,7 +146,7 @@ class Cell:
 def readNitroGraphic(palettefile, tilefile, mapfile, cellfile):
     if not os.path.isfile(palettefile):
         common.logError("Palette", palettefile, "not found")
-        return [], None, [], None, 0, 0
+        return [], None, None, None, 0, 0
     palettes = readNCLR(palettefile)
     # Read tiles
     ncgr = readNCGR(tilefile)
@@ -251,15 +251,19 @@ def readNSCR(nscrfile):
         mapdata = f.read(nscr.maplen)
         common.logDebug(vars(nscr))
         for i in range(0, len(mapdata), 2):
-            map = Map()
             data = struct.unpack("<h", mapdata[i:i+2])[0]
-            map.pal = (data >> 12) & 0xF
-            map.xflip = (data >> 10) & 1
-            map.yflip = (data >> 11) & 1
-            map.tile = data & 0x3FF
-            nscr.maps.append(map)
+            nscr.maps.append(readMapData(data))
     common.logDebug("Loaded", len(nscr.maps), "maps")
     return nscr
+
+
+def readMapData(data):
+    map = Map()
+    map.pal = (data >> 12) & 0xF
+    map.xflip = (data >> 10) & 1
+    map.yflip = (data >> 11) & 1
+    map.tile = data & 0x3FF
+    return map
 
 
 def readNCER(ncerfile):
@@ -1097,3 +1101,105 @@ def writeNSBMD(file, nsbmd, texi, infile, fixtrasp=False):
         # Direct Color Texture
         elif tex.format == 7:
             common.logError("Texture format 7 not implemented")
+
+
+def readNitroGraphicNBFC(palettefile, tilefile, mapfile):
+    if not os.path.isfile(palettefile):
+        common.logError("Palette", palettefile, "not found")
+        return [], None
+    palettes = readNBFP(palettefile)
+    # Read tiles
+    nbfc = readNBFC(tilefile, palettes[0], False)
+    # Read maps
+    nbfs = None
+    if os.path.isfile(mapfile):
+        nbfs = readNBFS(mapfile)
+        nbfc.width = nbfs.width
+        nbfc.height = nbfs.height
+    return palettes, nbfc, nbfs
+
+
+def readNitroGraphicNTFT(palettefile, tilefile):
+    if not os.path.isfile(palettefile):
+        common.logError("Palette", palettefile, "not found")
+        return [], None
+    palettes = readNBFP(palettefile)
+    # Read tiles
+    ntft = readNBFC(tilefile, palettes[0], True)
+    return palettes, ntft
+
+
+def readNBFP(ntfpfile):
+    indexedpalettes = {}
+    palettes = []
+    size = os.path.getsize(ntfpfile)
+    with common.Stream(ntfpfile, "rb") as f:
+        pallen = 0x200
+        if size < pallen:
+            pallen = size
+        colornum = pallen // 2
+        for i in range(size // pallen):
+            palette = []
+            for j in range(colornum):
+                palette.append(common.readPalette(f.readUShort()))
+            palettes.append(palette)
+        indexedpalettes = {i: palettes[i] for i in range(0, len(palettes))}
+    common.logDebug("Loaded", len(indexedpalettes), "palettes")
+    return indexedpalettes
+
+
+def readNBFC(ntftfile, palette, lineal):
+    # RawImage image = new RawImage(file.path, file.id, TileForm.Lineal, depth, true, 0, -1, file.name);
+    nbfc = NCGR()
+    nbfc.tiles = []
+    nbfc.bpp = 4 if len(palette) <= 16 else 8
+    nbfc.width = 0x0100
+    nbfc.height = 0x00C0
+    nbfc.lineal = lineal
+    with common.Stream(ntftfile, "rb") as f:
+        tiledata = f.read()
+    tilelen = len(tiledata)
+    for i in range(tilelen // (8 * nbfc.bpp)):
+        singletile = []
+        for j in range(nbfc.tilesize * nbfc.tilesize):
+            x = i * (nbfc.tilesize * nbfc.tilesize) + j
+            if nbfc.bpp == 4:
+                index = (tiledata[x // 2] >> ((x % 2) << 2)) & 0x0f
+            else:
+                index = tiledata[x]
+            singletile.append(index)
+        nbfc.tiles.append(singletile)
+    numpix = tilelen * 8 / nbfc.bpp
+    root = int(math.sqrt(numpix))
+    if math.pow(root, 2) == numpix:
+        nbfc.width = nbfc.height = root
+        common.logDebug("Assuming square size", nbfc.width)
+    else:
+        nbfc.width = numpix if numpix < 0x100 else 0x0100
+        nbfc.height = int(numpix // nbfc.width)
+        common.logDebug("Assuming size", nbfc.width, nbfc.height)
+    common.logDebug("Loaded", len(nbfc.tiles), "tiles")
+    return nbfc
+
+
+def readNBFS(nscrfile):
+    nbfs = NSCR()
+    nbfs.maps = []
+    with common.Stream(nscrfile, "rb") as f:
+        mapdata = f.read()
+    for i in range(0, len(mapdata), 2):
+        data = struct.unpack("<h", mapdata[i:i+2])[0]
+        map = readMapData(data)
+        map.pal = 0
+        nbfs.maps.append(map)
+    maplen = len(nbfs.maps)
+    root = int(math.sqrt(maplen))
+    if math.pow(root, 2) == maplen:
+        nbfs.width = nbfs.height = root * 8
+        common.logDebug("Assuming square size", nbfs.width)
+    else:
+        nbfs.width = 0x100 if (maplen * 8 >= 0x100) else (maplen * 8)
+        nbfs.height = (maplen // (nbfs.width // 8)) * 8
+        common.logDebug("Assuming size", nbfs.width, nbfs.height)
+    common.logDebug("Loaded", len(nbfs.maps), "maps", nbfs.width, nbfs.height)
+    return nbfs
