@@ -369,7 +369,10 @@ def execute(cmd, show=True):
     try:
         result = str(subprocess.check_output(cmd))
     except FileNotFoundError:
-        logError("Failed executing command", len(cmd))
+        logError("Command too long:", len(cmd))
+        return
+    except subprocess.CalledProcessError:
+        logError("Command error:", result)
         return
     if result != "":
         if show:

@@ -518,14 +518,17 @@ def drawNCER(outfile, ncer, ncgr, palettes, usetrasp=True, layered=False):
                 layers.append(layerfile)
         currheight += bank.height
     if layered and shutil.which("magick"):
-        cmd = shutil.which("magick") + " convert ( -page +0+0 -label \"palette\" \"" + outfile + "\"[0] -background none -mosaic -set colorspace RGBA )"
-        for layer in layers:
-            cmd += " ( -page +0+0 -label \"" + os.path.basename(layer).replace(".png", "") + "\" \"" + layer + "\"[0] -background none -mosaic -set colorspace RGBA )"
-        cmd += " ( -clone 0--1 -background none -mosaic ) -reverse \"" + outfile.replace(".png", ".psd") + "\""
+        with open("script.scr", "w") as script:
+            script.write("\"" + outfile + "\" -label \"palette\" -background none -mosaic -set colorspace RGBA")
+            for layer in layers:
+                script.write(" ( -page +0+0 -label \"" + os.path.basename(layer).replace(".png", "") + "\" \"" + layer + "\"[0] -background none -mosaic -set colorspace RGBA )")
+            script.write(" ( -clone 0--1 -background none -mosaic ) -reverse -write \"" + outfile.replace(".png", ".psd") + "\"")
+        cmd = shutil.which("magick") + " -script script.scr"
         common.execute(cmd, False)
         for layer in layers:
             os.remove(layer)
         os.remove(outfile)
+        os.remove("script.scr")
     img.save(outfile, "PNG")
 
 
