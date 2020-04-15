@@ -94,12 +94,15 @@ def repackBinaryStrings(section, infile, outfile, binrange, detectFunc, writeFun
                 if check != "":
                     if check in section and section[check][0] != "":
                         common.logDebug("Replacing string at", pos)
+                        newsjis = section[check][0]
+                        if newsjis == "!":
+                            newsjis = ""
                         fo.seek(pos)
                         endpos = fi.tell() - 1
-                        newlen = writeFunc(fo, section[check][0], endpos - pos + 1, encoding)
+                        newlen = writeFunc(fo, newsjis, endpos - pos + 1, encoding)
                         if newlen < 0:
                             fo.writeZero(1)
-                            common.logError("String", section[check][0], "is too long.")
+                            common.logError("String", newsjis, "is too long.")
                         else:
                             fo.writeZero(endpos - fo.tell())
                     else:
