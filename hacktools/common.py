@@ -372,7 +372,7 @@ def execute(cmd, show=True):
         logError("Command too long:", len(cmd))
         return
     except subprocess.CalledProcessError:
-        logError("Command error:", result)
+        logError("Command error", cmd)
         return
     if result != "":
         if show:
