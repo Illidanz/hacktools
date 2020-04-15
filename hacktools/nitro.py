@@ -72,6 +72,7 @@ class NCGR:
     height = 0
     bpp = 4
     tilesize = 8
+    tileoffset = 0
     lineal = False
     tiles = []
 
