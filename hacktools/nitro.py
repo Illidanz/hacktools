@@ -1107,13 +1107,13 @@ def writeNSBMD(file, nsbmd, texi, infile, fixtrasp=False):
             common.logError("Texture format 7 not implemented")
 
 
-def readNitroGraphicNBFC(palettefile, tilefile, mapfile):
+def readNitroGraphicNBFC(palettefile, tilefile, mapfile, lineal=False):
     if not os.path.isfile(palettefile):
         common.logError("Palette", palettefile, "not found")
         return [], None
     palettes = readNBFP(palettefile)
     # Read tiles
-    nbfc = readNBFC(tilefile, palettes[0], False)
+    nbfc = readNBFC(tilefile, palettes[0], lineal)
     # Read maps
     nbfs = None
     if os.path.isfile(mapfile):
@@ -1123,13 +1123,13 @@ def readNitroGraphicNBFC(palettefile, tilefile, mapfile):
     return palettes, nbfc, nbfs
 
 
-def readNitroGraphicNTFT(palettefile, tilefile):
+def readNitroGraphicNTFT(palettefile, tilefile, lineal=True):
     if not os.path.isfile(palettefile):
         common.logError("Palette", palettefile, "not found")
         return [], None
     palettes = readNBFP(palettefile)
     # Read tiles
-    ntft = readNBFC(tilefile, palettes[0], True)
+    ntft = readNBFC(tilefile, palettes[0], lineal)
     return palettes, ntft
 
 
