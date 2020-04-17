@@ -637,7 +637,7 @@ def writeNSCR(file, ncgr, nscr, infile, palettes, width=-1, height=-1):
                 x += 1
 
 
-def writeMappedNSCR(file, mapfile, ncgr, nscr, infile, palettes, width=-1, height=-1):
+def writeMappedNSCR(file, mapfile, ncgr, nscr, infile, palettes, width=-1, height=-1, trasnptile=False):
     if width < 0:
         width = nscr.width
         # height = nscr.height
@@ -648,6 +648,17 @@ def writeMappedNSCR(file, mapfile, ncgr, nscr, infile, palettes, width=-1, heigh
         with common.Stream(mapfile, "rb+") as mapf:
             mapf.seek(nscr.mapoffset)
             tiles = []
+            if trasnptile:
+                # Start with a completely transparent tile
+                tile = []
+                for i2 in range(ncgr.tilesize):
+                    for j2 in range(ncgr.tilesize):
+                        tile.append(0)
+                tiles.append(tile)
+                f.seek(ncgr.tileoffset)
+                for i2 in range(ncgr.tilesize):
+                    for j2 in range(0, ncgr.tilesize, 2):
+                        writeNCGRData(f, ncgr.bpp, 0, 0)
             for i in range(height // ncgr.tilesize):
                 for j in range(width // ncgr.tilesize):
                     tilecolors = []
