@@ -61,20 +61,28 @@ def repackIMG(workfolder, infolder, outfolder, extensions=".NCGR", readfunc=None
             mapfile = file.replace(extension, ".NSCR")
             cellfile = file.replace(extension, ".NCER")
             palettes, image, map, cell, width, height = readNitroGraphic(infolder + palettefile, infolder + file, infolder + mapfile, infolder + cellfile)
-        if image is None:
-            continue
         pngfile = file.replace(extension, ".psd")
         if not os.path.isfile(workfolder + pngfile):
             pngfile = file.replace(extension, ".png")
             if not os.path.isfile(workfolder + pngfile):
-                if clean:
-                    if os.path.isfile(outfolder + file):
-                        os.remove(outfolder + file)
-                    if os.path.isfile(outfolder + mapfile):
-                        os.remove(outfolder + mapfile)
-                    if os.path.isfile(outfolder + cellfile):
-                        os.remove(outfolder + cellfile)
-                continue
+                pngfile = ""
+        if image is None or pngfile == "":
+            if clean:
+                if os.path.isfile(outfolder + file):
+                    os.remove(outfolder + file)
+                if os.path.isfile(outfolder + mapfile):
+                    os.remove(outfolder + mapfile)
+                if os.path.isfile(outfolder + cellfile):
+                    os.remove(outfolder + cellfile)
+            else:
+                common.copyFile(infolder + file, outfolder + file)
+                if os.path.isfile(infolder + mapfile):
+                    common.copyFile(infolder + mapfile, outfolder + mapfile)
+                if os.path.isfile(workfolder + cellfile):
+                    common.copyFile(workfolder + cellfile, outfolder + cellfile)
+                elif os.path.isfile(infolder + cellfile):
+                    common.copyFile(infolder + cellfile, outfolder + cellfile)
+            continue
         common.makeFolders(outfolder + os.path.dirname(file))
         common.copyFile(infolder + file, outfolder + file)
         transptile = False
