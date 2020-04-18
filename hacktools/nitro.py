@@ -7,6 +7,90 @@ from psd_tools import PSDImage
 from hacktools import common
 
 
+# Generic extract/repack functions
+def extractNSBMD(infolder, outfolder):
+    common.makeFolder(outfolder)
+    common.logMessage("Extracting NSBMD to", outfolder, "...")
+    files = common.getFiles(infolder, ".nsbmd")
+    for file in common.showProgress(files):
+        common.logDebug("Processing", file, "...")
+        nsbmd = readNSBMD(infolder + file)
+        if nsbmd is not None and len(nsbmd.textures) > 0:
+            common.makeFolders(outfolder + os.path.dirname(file))
+            for texi in range(len(nsbmd.textures)):
+                drawNSBMD(outfolder + file.replace(".nsbmd", "") + "_" + nsbmd.textures[texi].name + ".png", nsbmd, texi)
+    common.logMessage("Done! Extracted", len(files), "files")
+
+
+def extractIMG(infolder, outfolder, extensions=".NCGR", readfunc=None):
+    common.makeFolder(outfolder)
+    common.logMessage("Extracting IMG to", outfolder, "...")
+    files = common.getFiles(infolder, extensions)
+    for file in common.showProgress(files):
+        common.logDebug("Processing", file, "...")
+        extension = os.path.splitext(file)[1]
+        if readfunc is not None:
+            palettes, image, map, cell, width, height, mapfile, cellfile = readfunc(infolder, file, extension)
+        else:
+            palettefile = file.replace(extension, ".NCLR")
+            mapfile = file.replace(extension, ".NSCR")
+            cellfile = file.replace(extension, ".NCER")
+            palettes, image, map, cell, width, height = readNitroGraphic(infolder + palettefile, infolder + file, infolder + mapfile, infolder + cellfile)
+        if image is None:
+            continue
+        # Export img
+        common.makeFolders(outfolder + os.path.dirname(file))
+        outfile = outfolder + file.replace(extension, ".png")
+        if cell is not None:
+            drawNCER(outfile, cell, image, palettes, True, True)
+        else:
+            drawNCGR(outfile, map, image, palettes, width, height)
+    common.logMessage("Done! Extracted", len(files), "files")
+
+
+def repackIMG(workfolder, infolder, outfolder, extensions=".NCGR", readfunc=None, writefunc=None, clean=False):
+    common.logMessage("Repacking IMG from", workfolder, "...")
+    files = common.getFiles(infolder, extensions)
+    for file in common.showProgress(files):
+        common.logDebug("Processing", file, "...")
+        extension = os.path.splitext(file)[1]
+        if readfunc is not None:
+            palettes, image, map, cell, width, height, mapfile, cellfile = readfunc(infolder, file, extension)
+        else:
+            palettefile = file.replace(extension, ".NCLR")
+            mapfile = file.replace(extension, ".NSCR")
+            cellfile = file.replace(extension, ".NCER")
+            palettes, image, map, cell, width, height = readNitroGraphic(infolder + palettefile, infolder + file, infolder + mapfile, infolder + cellfile)
+        if image is None:
+            continue
+        pngfile = file.replace(extension, ".psd")
+        if not os.path.isfile(workfolder + pngfile):
+            pngfile = file.replace(extension, ".png")
+            if not os.path.isfile(workfolder + pngfile):
+                if clean:
+                    if os.path.isfile(outfolder + file):
+                        os.remove(outfolder + file)
+                    if os.path.isfile(outfolder + mapfile):
+                        os.remove(outfolder + mapfile)
+                    if os.path.isfile(outfolder + cellfile):
+                        os.remove(outfolder + cellfile)
+                continue
+        common.makeFolders(outfolder + os.path.dirname(file))
+        common.copyFile(infolder + file, outfolder + file)
+        transptile = False
+        if writefunc is not None:
+            image, map, cell, width, height, transptile = writefunc(file, image, map, cell, width, height)
+        if map is None and cell is None:
+            writeNCGR(outfolder + file, image, workfolder + pngfile, palettes, width, height)
+        elif cell is None:
+            common.copyFile(infolder + mapfile, outfolder + mapfile)
+            writeMappedNSCR(outfolder + file, outfolder + mapfile, image, map, workfolder + pngfile, palettes, width, height, transptile)
+        else:
+            common.copyFile(infolder + cellfile, outfolder + cellfile)
+            writeNCER(outfolder + file, outfolder + cellfile, image, cell, workfolder + pngfile, palettes, width, height)
+    common.logMessage("Done!")
+
+
 # Font
 def getFontGlyphs(file):
     glyphs = {}
@@ -64,6 +148,14 @@ def getFontGlyphs(file):
             else:
                 common.logError("Unknown section type", sectiontype)
     return glyphs
+
+
+def extractFontData(fontfiles, out):
+    with common.Stream(out, "wb") as f:
+        for fontfile in fontfiles:
+            glyphs = getFontGlyphs(fontfile)
+            for i in range(0x20, 0x7e):
+                f.writeByte(glyphs[chr(i)][2])
 
 
 # Graphics
@@ -372,18 +464,24 @@ def readNCER(ncerfile):
             # Calculate bank size
             minx = miny = 512
             maxx = maxy = -512
+            malformedtbank = False
             for cell in bank.cells:
                 minx = min(minx, cell.x)
                 miny = min(miny, cell.y)
                 maxx = max(maxx, cell.x + cell.width)
                 maxy = max(maxy, cell.y + cell.height)
-            if ncer.tbank == 0x00:
+            if ncer.tbank == 0x01 and (maxx - minx > bank.width or maxy - miny > bank.height):
+                malformedtbank = True
+                common.logWarning("Malformed tbank", ncerfile, bank.width, maxx, bank.height, maxy)
+            if ncer.tbank == 0x00 or malformedtbank:
                 bank.width = maxx - minx
                 bank.height = maxy - miny
             for cell in bank.cells:
                 cell.x -= minx
                 cell.y -= miny
             common.logDebug(vars(bank))
+            for cell in bank.cells:
+                common.logDebug(vars(cell))
             # Sort cells based on priority
             bank.cells.sort(key=lambda x: (x.priority, x.numcell), reverse=True)
             f.seek(pos)
