@@ -113,7 +113,11 @@ def repackIMG(workfolder, infolder, outfolder, extensions=".NCGR", readfunc=None
             common.copyFile(infolder + mapfile, outfolder + mapfile)
             writeMappedNSCR(outfolder + file, outfolder + mapfile, image, map, workfolder + pngfile, palettes, width, height, transptile)
         else:
-            common.copyFile(infolder + cellfile, outfolder + cellfile)
+            if os.path.isfile(workfolder + cellfile):
+                cell = readNCER(workfolder + cellfile)
+                common.copyFile(workfolder + cellfile, outfolder + cellfile)
+            else:
+                common.copyFile(infolder + cellfile, outfolder + cellfile)
             writeNCER(outfolder + file, outfolder + cellfile, image, cell, workfolder + pngfile, palettes, width, height)
     common.logMessage("Done!")
 
