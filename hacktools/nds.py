@@ -62,7 +62,14 @@ def getHeaderID(file):
         return f.readString(6)
 
 
-def extractBinaryStrings(infile, outfile, binrange, func, encoding="shift_jis", writepos=False):
+# Binary-related functions
+def extractBIN(range, detectFunc=common.detectEncodedString, encoding="shift_jis", binin="data/extract/arm9.bin", binfile="data/bin_output.txt"):
+    common.logMessage("Extracting BIN to", binfile, "...")
+    foundstrings = extractBinaryStrings(binin, binfile, range, detectFunc, encoding)
+    common.logMessage("Done! Extracted", len(foundstrings), "lines")
+
+
+def extractBinaryStrings(infile, outfile, binrange, func=common.detectEncodedString, encoding="shift_jis", writepos=False):
     foundstrings = []
     insize = os.path.getsize(infile)
     with codecs.open(outfile, "w", "utf-8") as out:
@@ -83,7 +90,23 @@ def extractBinaryStrings(infile, outfile, binrange, func, encoding="shift_jis", 
     return foundstrings
 
 
-def repackBinaryStrings(section, infile, outfile, binrange, detectFunc, writeFunc, encoding="shift_jis"):
+def repackBIN(range, detectFunc=common.detectEncodedString, writeFunc=common.writeEncodedString, encoding="shift_jis", binin="data/extract/arm9.bin", binout="data/repack/arm9.bin", binfile="data/bin_input.txt"):
+    if not os.path.isfile(binfile):
+        common.logError("Input file", binfile, "not found")
+        return False
+
+    common.copyFile(binin, binout)
+    common.logMessage("Repacking BIN from", binfile, "...")
+    section = {}
+    with codecs.open(binfile, "r", "utf-8") as bin:
+        section = common.getSection(bin, "")
+        chartot, transtot = common.getSectionPercentage(section)
+    repackBinaryStrings(section, binin, binout, range, detectFunc, writeFunc, encoding)
+    common.logMessage("Done! Translation is at {0:.2f}%".format((100 * transtot) / chartot))
+    return True
+
+
+def repackBinaryStrings(section, infile, outfile, binrange, detectFunc=common.detectEncodedString, writeFunc=common.writeEncodedString, encoding="shift_jis"):
     insize = os.path.getsize(infile)
     with common.Stream(infile, "rb") as fi:
         with common.Stream(outfile, "r+b") as fo:
@@ -110,6 +133,7 @@ def repackBinaryStrings(section, infile, outfile, binrange, detectFunc, writeFun
                 fi.seek(pos + 1)
 
 
+# Compression-related functions
 class CompressionType(IntFlag):
     LZ10 = 0x10,
     LZ11 = 0x11,

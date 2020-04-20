@@ -311,6 +311,96 @@ def wordwrap(text, glyphs, width, codefunc=None, default=6, linebreak="|", secti
     return linebreak.join(lines)
 
 
+def readEncodedString(f, encoding="shift_jis"):
+    sjis = ""
+    while True:
+        b1 = f.readByte()
+        if b1 == 0x0A:
+            sjis += "|"
+        elif b1 == 0x00:
+            break
+        else:
+            b2 = f.readByte()
+            if not checkShiftJIS(b1, b2):
+                if b2 == 0x01:
+                    sjis += "UNK(" + toHex(b1) + toHex(b2) + ")"
+                else:
+                    f.seek(-1, 1)
+                    sjis += chr(b1)
+            else:
+                f.seek(-2, 1)
+                try:
+                    sjis += f.read(2).decode(encoding).replace("〜", "～")
+                except UnicodeDecodeError:
+                    logError("[ERROR] UnicodeDecodeError")
+                    sjis += "[ERROR" + str(f.tell() - 2) + "]"
+    return sjis
+
+
+def detectEncodedString(f, encoding="shift_jis"):
+    ret = ""
+    sjis = 0
+    while True:
+        b1 = f.readByte()
+        if b1 == 0x0A:
+            ret += "|"
+        elif b1 == 0x00:
+            break
+        elif b1 >= 28 and b1 <= 126 and sjis > 0:
+            ret += chr(b1)
+        else:
+            b2 = f.readByte()
+            if checkShiftJIS(b1, b2):
+                f.seek(-2, 1)
+                try:
+                    ret += f.read(2).decode(encoding).replace("〜", "～")
+                    sjis += 1
+                except UnicodeDecodeError:
+                    if ret.count("UNK(") >= 5:
+                        return ""
+                    ret += "UNK(" + toHex(b1) + toHex(b2) + ")"
+            elif len(ret) > 1 and ret.count("UNK(") < 5:
+                ret += "UNK(" + toHex(b1) + toHex(b2) + ")"
+            else:
+                return ""
+    return ret
+
+
+def writeEncodedString(f, s, maxlen=0, encoding="shift_jis"):
+    i = 0
+    x = 0
+    s = s.replace("～", "〜")
+    while x < len(s):
+        c = s[x]
+        if c == "U" and x < len(s) - 4 and s[x:x+4] == "UNK(":
+            if maxlen > 0 and i+2 > maxlen:
+                return -1
+            code = s[x+4] + s[x+5]
+            f.write(bytes.fromhex(code))
+            code = s[x+6] + s[x+7]
+            f.write(bytes.fromhex(code))
+            x += 8
+            i += 2
+        elif c == "|":
+            if maxlen > 0 and i+1 > maxlen:
+                return -1
+            f.writeByte(0x0A)
+            i += 1
+        elif ord(c) < 128:
+            if maxlen > 0 and i+1 > maxlen:
+                return -1
+            f.writeByte(ord(c))
+            i += 1
+        else:
+            if maxlen > 0 and i+2 > maxlen:
+                return -1
+            f.write(c.encode(encoding))
+            i += 2
+        x += 1
+    f.writeByte(0x00)
+    return i
+
+
 # Folders
 def makeFolder(folder, clear=True):
     if clear:
