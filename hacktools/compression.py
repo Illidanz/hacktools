@@ -1,3 +1,4 @@
+import ctypes
 from hacktools import common
 
 
@@ -256,3 +257,59 @@ def getOccurrenceLength(indata, newptr, newlength, oldptr, oldlength, mindisp=1)
             if maxlength == newlength:
                 break
     return maxlength, disp
+
+
+# https://forum.xentax.com/viewtopic.php?p=30390#p30387
+def getBits(n, f, blen, fbuf):
+    retv = 0
+    while n > 0:
+        retv = retv << 1
+        if blen == 0:
+            fbuf = f.readSByte()
+            blen = 8
+        if fbuf & 0x80:
+            retv |= 1
+        fbuf = fbuf << 1
+        blen -= 1
+        n -= 1
+    return retv, blen, fbuf
+
+
+def decompressPRS(f, slen, dlen):
+    dbuf = bytearray(dlen)
+    startpos = f.tell()
+    blen = 0
+    fbuf = 0
+    dptr = 0
+    len = 0
+    pos = 0
+    while f.tell() < startpos + slen:
+        flag, blen, fbuf = getBits(1, f, blen, fbuf)
+        if flag == 1:
+            if dptr < dlen:
+                dbuf[dptr] = f.readByte()
+                dptr += 1
+        else:
+            flag, blen, fbuf = getBits(1, f, blen, fbuf)
+            if flag == 0:
+                len, blen, fbuf = getBits(2, f, blen, fbuf)
+                len += 2
+                data = f.readSByte()
+                # Use ctypes to correctly handle int overflow
+                pos = ctypes.c_int(data | 0xffffff00).value
+            else:
+                pos = ctypes.c_int((f.readSByte() << 8) | 0xffff0000).value
+                pos |= f.readSByte() & 0xff
+                len = pos & 0x07
+                pos >>= 3
+                if len == 0:
+                    len = (f.readSByte() & 0xff) + 1
+                else:
+                    len += 2
+            pos += dptr
+            for i in range(len):
+                if dptr < dlen:
+                    dbuf[dptr] = dbuf[pos]
+                    dptr += 1
+                    pos += 1
+    return dbuf
