@@ -4,6 +4,28 @@ from PIL import Image
 from hacktools import common
 
 
+# Generic extract/repack functions
+def extractARC(infolder, outfolder):
+    common.makeFolder(outfolder)
+    common.logMessage("Extracting ARC to", outfolder, "...")
+    files = common.getFiles(infolder, ".arc")
+    for file in common.showProgress(files):
+        common.logDebug("Processing", file, "...")
+        common.execute("wszst EXTRACT " + infolder + file + " -D " + outfolder + file, False)
+    common.logMessage("Done! Extracted", len(files), "files")
+
+
+def extractTPL(infolder, outfolder, splitName=True):
+    common.makeFolder(outfolder)
+    common.logMessage("Extracting TPL to", outfolder, "...")
+    files = common.getFiles(infolder, ".tpl")
+    for file in common.showProgress(files):
+        common.logDebug("Processing", file, "...")
+        filename = file.split("/")[0] if splitName else file
+        common.execute("wimgt DECODE " + infolder + file + " -D " + outfolder + filename + "/" + os.path.basename(file).replace(".tpl", ".png"), False)
+    common.logMessage("Done! Extracted", len(files), "files")
+
+
 def extractIso(isofile, extractfolder, workfolder=""):
     common.logMessage("Extracting ISO", isofile, "...")
     common.makeFolder(extractfolder)
@@ -21,6 +43,8 @@ def repackIso(isofile, isopatch, workfolder, patchfile=""):
     common.logMessage("Done!")
 
 
+# TPL files
+# http://wiki.tockdom.com/wiki/TPL_(File_Format)
 class TPL:
     imgnum = 0
     tableoff = 0
@@ -43,7 +67,6 @@ class TPLImage:
     blockheight = 0
 
 
-# http://wiki.tockdom.com/wiki/TPL_(File_Format)
 def readTPL(file):
     tpl = TPL()
     with common.Stream(file, "rb", False) as f:
@@ -110,6 +133,7 @@ def writeTPL(file, tpl, infile):
                                 f.writeByte(index)
 
 
+# Font files
 def getFontGlyphs(file):
     glyphs = {}
     with common.Stream(file, "rb", False) as f:

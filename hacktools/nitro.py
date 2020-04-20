@@ -8,18 +8,38 @@ from hacktools import common
 
 
 # Generic extract/repack functions
-def extractNSBMD(infolder, outfolder):
+def extractNSBMD(infolder, outfolder, extension=".nsbmd"):
     common.makeFolder(outfolder)
     common.logMessage("Extracting NSBMD to", outfolder, "...")
-    files = common.getFiles(infolder, ".nsbmd")
+    files = common.getFiles(infolder, extension)
     for file in common.showProgress(files):
         common.logDebug("Processing", file, "...")
         nsbmd = readNSBMD(infolder + file)
         if nsbmd is not None and len(nsbmd.textures) > 0:
             common.makeFolders(outfolder + os.path.dirname(file))
             for texi in range(len(nsbmd.textures)):
-                drawNSBMD(outfolder + file.replace(".nsbmd", "") + "_" + nsbmd.textures[texi].name + ".png", nsbmd, texi)
+                drawNSBMD(outfolder + file.replace(extension, "") + "_" + nsbmd.textures[texi].name + ".png", nsbmd, texi)
     common.logMessage("Done! Extracted", len(files), "files")
+
+
+def repackNSBMD(workfolder, infolder, outfolder, extension=".nsbmd", writefunc=None):
+    common.makeFolder(outfolder)
+    common.logMessage("Repacking NSBMD from", workfolder, "...")
+    files = common.getFiles(infolder, extension)
+    for file in common.showProgress(files):
+        common.logDebug("Processing", file, "...")
+        common.copyFile(infolder + file, outfolder + file)
+        nsbmd = readNSBMD(infolder + file)
+        if nsbmd is not None and len(nsbmd.textures) > 0:
+            fixtrasp = False
+            if writefunc is not None:
+                fixtrasp = writefunc(file, nsbmd)
+            for texi in range(len(nsbmd.textures)):
+                pngname = file.replace(extension, "") + "_" + nsbmd.textures[texi].name + ".png"
+                if os.path.isfile(workfolder + pngname):
+                    common.logDebug(" Repacking", pngname, "...")
+                    writeNSBMD(outfolder + file, nsbmd, texi, workfolder + pngname, fixtrasp)
+    common.logMessage("Done!")
 
 
 def extractIMG(infolder, outfolder, extensions=".NCGR", readfunc=None):
