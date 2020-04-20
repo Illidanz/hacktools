@@ -23,7 +23,6 @@ def extractNSBMD(infolder, outfolder, extension=".nsbmd"):
 
 
 def repackNSBMD(workfolder, infolder, outfolder, extension=".nsbmd", writefunc=None):
-    common.makeFolder(outfolder)
     common.logMessage("Repacking NSBMD from", workfolder, "...")
     files = common.getFiles(infolder, extension)
     for file in common.showProgress(files):
@@ -1225,7 +1224,14 @@ def writeNSBMD(file, nsbmd, texi, infile, fixtrasp=False):
             common.logError("Texture format 1 not implemented")
         # 4-color Palette
         elif tex.format == 2:
-            common.logError("Texture format 2 not implemented")
+            for i in range(tex.height):
+                for j in range(0, tex.width, 4):
+                    index1 = common.getPaletteIndex(paldata, pixels[j, i], fixtrasp)
+                    index2 = common.getPaletteIndex(paldata, pixels[j + 1, i], fixtrasp)
+                    index3 = common.getPaletteIndex(paldata, pixels[j + 2, i], fixtrasp)
+                    index4 = common.getPaletteIndex(paldata, pixels[j + 3, i], fixtrasp)
+                    common.logDebug(index1, index2, index3, index4, (index4 << 6) | (index3 << 4) | (index2 << 2) | index1)
+                    f.writeByte((index4 << 6) | (index3 << 4) | (index2 << 2) | index1)
         # 16/256-color Palette
         elif tex.format == 3 or tex.format == 4:
             for i in range(tex.height):
