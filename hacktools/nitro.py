@@ -1230,7 +1230,6 @@ def writeNSBMD(file, nsbmd, texi, infile, fixtrasp=False):
                     index2 = common.getPaletteIndex(paldata, pixels[j + 1, i], fixtrasp)
                     index3 = common.getPaletteIndex(paldata, pixels[j + 2, i], fixtrasp)
                     index4 = common.getPaletteIndex(paldata, pixels[j + 3, i], fixtrasp)
-                    common.logDebug(index1, index2, index3, index4, (index4 << 6) | (index3 << 4) | (index2 << 2) | index1)
                     f.writeByte((index4 << 6) | (index3 << 4) | (index2 << 2) | index1)
         # 16/256-color Palette
         elif tex.format == 3 or tex.format == 4:
