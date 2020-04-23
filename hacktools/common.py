@@ -279,7 +279,7 @@ def wordwrap(text, glyphs, width, codefunc=None, default=6, linebreak="|", secti
         return sectionsep.join(lines)
     text = text.replace(linebreak, "\n")
     pattern = re.compile(r"(\s+)")
-    lookup = dict((c, glyphs[c][2] if c in glyphs else default) for c in set(text))
+    lookup = dict((c, glyphs[c].length if c in glyphs else default) for c in set(text))
     for line in text.splitlines():
         tokens = pattern.split(line)
         tokens.append("")
@@ -346,7 +346,7 @@ def detectEncodedString(f, encoding="shift_jis"):
             ret += "|"
         elif b1 == 0x00:
             break
-        elif b1 >= 28 and b1 <= 126 and sjis > 0:
+        elif b1 >= 28 and b1 <= 126 and (len(ret) > 0 or b1 == 0x25):
             ret += chr(b1)
         else:
             b2 = f.readByte()
