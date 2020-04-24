@@ -292,7 +292,7 @@ def extractFontData(fontfiles, out):
         for fontfile in fontfiles:
             nftr = readNFTR(fontfile)
             for i in range(0x20, 0x7e):
-                f.writeByte(nftr.glyphs[chr(i)].width)
+                f.writeByte(nftr.glyphs[chr(i)].length)
 
 
 # Graphics
