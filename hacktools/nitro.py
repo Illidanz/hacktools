@@ -132,8 +132,9 @@ class FontNFTR:
     plgcsize = 0
     glyphwidth = 0
     glyphheight = 0
-    glyphbytes = 0
-    pixelbits = 0
+    glyphlength = 0
+    depth = 0
+    rotation = 0
     tilenum = 0
     firstcode = 0
     lastcode = 0
@@ -174,7 +175,7 @@ class FontGlyph:
         self.index = index
 
 
-def readNFTR(file):
+def readNFTR(file, generateglyphs=False):
     nftr = FontNFTR()
     with common.Stream(file, "rb") as f:
         # Header
@@ -191,48 +192,57 @@ def readNFTR(file):
         nftr.plgcsize = f.readUInt()
         nftr.glyphwidth = f.readByte()
         nftr.glyphheight = f.readByte()
-        nftr.glyphbytes = f.readUShort()
+        nftr.glyphlength = f.readUShort()
         f.seek(2, 1)
-        nftr.pixelbits = f.readUShort()
-        nftr.tilenum = (nftr.plgcsize - 0x10) // nftr.glyphbytes
+        nftr.depth = f.readByte()
+        nftr.rotation = f.readByte()
+        nftr.tilenum = (nftr.plgcsize - 0x10) // nftr.glyphlength
         common.logDebug(vars(nftr))
         # Generate colors
         nftr.colors = []
-        numcolors = pow(2, nftr.pixelbits)
+        numcolors = pow(2, nftr.depth)
         for i in range(numcolors):
             nftr.colors.append((0, 0, 0, int(255 * i / (numcolors - 1))))
         # Read the glyphs graphics
         nftr.plgc = []
-        data = f.readByte()
-        for i in range(nftr.tilenum):
-            glyph = Image.new("RGBA", (nftr.glyphwidth, nftr.glyphheight), nftr.colors[0])
-            pixels = glyph.load()
-            x = 0
-            y = 0
-            byteindex = 0
-            bitmask = 0x80
-            while byteindex < nftr.glyphbytes and y < nftr.glyphheight:
-                intensitymask = pow(2, nftr.pixelbits - 1)
-                intensity = 0
-                while intensitymask > 0:
-                    if data & bitmask > 0:
-                        intensity += intensitymask
-                    bitmask >>= 1
-                    if bitmask == 0:
-                        bitmask = 0x80
-                        byteindex += 1
-                        data = f.readByte()
-                    intensitymask >>= 1
-                if intensity > 0:
-                    pixels[x, y] = nftr.colors[intensity]
-                x += 1
-                if x >= nftr.glyphwidth:
-                    x = 0
-                    y += 1
-            while byteindex < nftr.glyphbytes:
-                data = f.readByte()
-                byteindex += 1
-            nftr.plgc.append(glyph)
+        if generateglyphs:
+            data = f.readByte()
+            for i in range(nftr.tilenum):
+                glyph = Image.new("RGBA", (nftr.glyphwidth, nftr.glyphheight), nftr.colors[0])
+                pixels = glyph.load()
+                x = 0
+                y = 0
+                byteindex = 0
+                bitmask = 0x80
+                while byteindex < nftr.glyphlength and y < nftr.glyphheight:
+                    intensitymask = pow(2, nftr.depth - 1)
+                    intensity = 0
+                    while intensitymask > 0:
+                        if data & bitmask > 0:
+                            intensity += intensitymask
+                        bitmask >>= 1
+                        if bitmask == 0:
+                            bitmask = 0x80
+                            byteindex += 1
+                            data = f.readByte()
+                        intensitymask >>= 1
+                    if intensity > 0:
+                        pixels[x, y] = nftr.colors[intensity]
+                    x += 1
+                    if x >= nftr.glyphwidth:
+                        x = 0
+                        y += 1
+                while byteindex < nftr.glyphlength:
+                    data = f.readByte()
+                    byteindex += 1
+                if nftr.rotation != 0:
+                    angle = 90
+                    if nftr.rotation == 2:
+                        angle = 270
+                    elif nftr.rotation == 3:
+                        angle = 180
+                    glyph = glyph.rotate(angle)
+                nftr.plgc.append(glyph)
         # HDWC
         f.seek(nftr.hdwcoffset)
         nftr.firstcode = f.readUShort()
@@ -282,7 +292,7 @@ def extractFontData(fontfiles, out):
         for fontfile in fontfiles:
             nftr = readNFTR(fontfile)
             for i in range(0x20, 0x7e):
-                f.writeByte(nftr.glyphs[chr(i)][2])
+                f.writeByte(nftr.glyphs[chr(i)].width)
 
 
 # Graphics
