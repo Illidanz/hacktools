@@ -109,11 +109,10 @@ def repackBIN(range, freeranges=None, detectFunc=common.detectEncodedString, wri
 def repackBinaryStrings(section, infile, outfile, binrange, freeranges=None, detectFunc=common.detectEncodedString, writeFunc=common.writeEncodedString, encoding="shift_jis"):
     insize = os.path.getsize(infile)
     with common.Stream(infile, "rb") as fi:
-        currentrange = 0
         if freeranges is not None:
-            rangepos = freeranges[currentrange][0]
             allbin = fi.read()
-        strpointers = {}
+            strpointers = {}
+            freeranges = [list(x) for x in freeranges]
         with common.Stream(outfile, "r+b") as fo:
             fi.seek(binrange[0])
             while fi.tell() < binrange[1] and fi.tell() < insize - 2:
@@ -128,41 +127,54 @@ def repackBinaryStrings(section, infile, outfile, binrange, freeranges=None, det
                         fo.seek(pos)
                         endpos = fi.tell() - 1
                         newlen = writeFunc(fo, newsjis, endpos - pos + 1, encoding)
+                        fo.seek(-1, 1)
+                        if fo.readByte() != 0:
+                            fo.writeZero(1)
                         if newlen < 0:
                             if freeranges is None:
-                                fo.writeZero(1)
                                 common.logError("String", newsjis, "is too long.")
-                            elif rangepos >= freeranges[currentrange][1] and newsjis not in strpointers:
-                                common.logWarning("No more room! Skipping", newsjis, "...")
                             else:
-                                # Write the string in a new portion of the rom
-                                if newsjis in strpointers:
-                                    newpointer = strpointers[newsjis]
-                                else:
-                                    common.logDebug("No room for the string, redirecting to", common.toHex(rangepos))
-                                    fo.seek(rangepos)
-                                    writeFunc(fo, newsjis)
-                                    fo.writeZero(1)
-                                    newpointer = 0x02000000 + rangepos
-                                    rangepos = fo.tell()
-                                    strpointers[newsjis] = newpointer
-                                    if rangepos >= freeranges[currentrange][1]:
-                                        if currentrange + 1 < len(freeranges):
-                                            currentrange += 1
-                                            rangepos = freeranges[currentrange][0]
-                                # Search and replace the old pointer
-                                pointer = 0x02000000 + pos
-                                pointersearch = struct.pack("<I", pointer)
-                                index = 0
-                                common.logDebug("Searching for pointer", pointersearch.hex().upper())
-                                while index < len(allbin):
-                                    index = allbin.find(pointersearch, index)
-                                    if index < 0:
+                                range = None
+                                rangelen = 0
+                                for c in newsjis:
+                                    rangelen += 1 if ord(c) < 256 else 2
+                                for freerange in freeranges:
+                                    if freerange[1] - freerange[0] > rangelen:
+                                        range = freerange
                                         break
-                                    common.logDebug("Replaced pointer at", str(index))
-                                    fo.seek(index)
-                                    fo.writeUInt(newpointer)
-                                    index += 4
+                                if range is None and newsjis not in strpointers:
+                                    common.logWarning("No more room! Skipping", newsjis, "...")
+                                else:
+                                    # Write the string in a new portion of the rom
+                                    if newsjis in strpointers:
+                                        newpointer = strpointers[newsjis]
+                                    else:
+                                        common.logDebug("No room for the string", newsjis, ", redirecting to", common.toHex(range[0]))
+                                        fo.seek(range[0])
+                                        writeFunc(fo, newsjis, 0, encoding)
+                                        fo.seek(-1, 1)
+                                        if fo.readByte() != 0:
+                                            fo.writeZero(1)
+                                        newpointer = 0x02000000 + range[0]
+                                        range[0] = fo.tell()
+                                        strpointers[newsjis] = newpointer
+                                    # Search and replace the old pointer
+                                    pointer = 0x02000000 + pos
+                                    pointersearch = struct.pack("<I", pointer)
+                                    index = 0
+                                    common.logDebug("Searching for pointer", common.toHex(pointer))
+                                    foundone = False
+                                    while index < len(allbin):
+                                        index = allbin.find(pointersearch, index)
+                                        if index < 0:
+                                            break
+                                        foundone = True
+                                        common.logDebug("Replaced pointer at", str(index))
+                                        fo.seek(index)
+                                        fo.writeUInt(newpointer)
+                                        index += 4
+                                    if not foundone:
+                                        common.logError("Pointer", common.toHex(pointer), "not found for string", newsjis)
                         else:
                             fo.writeZero(endpos - fo.tell())
                     else:

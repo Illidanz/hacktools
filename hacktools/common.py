@@ -138,8 +138,9 @@ class Stream(object):
         self.f.write(str.encode("ascii"))
 
     def writeZero(self, num):
-        for i in range(num):
-            self.writeByte(0)
+        if num > 0:
+            for i in range(num):
+                self.writeByte(0)
 
 
 # Logging
