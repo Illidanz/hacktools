@@ -45,6 +45,12 @@ class Stream(object):
     def write(self, data):
         self.f.write(data)
 
+    def peek(self, n):
+        pos = self.tell()
+        ret = self.read(n)
+        self.seek(pos)
+        return ret
+
     def writeLine(self, data):
         self.f.write(data + "\n")
 
@@ -112,20 +118,56 @@ class Stream(object):
     def writeInt(self, num):
         self.f.write(struct.pack(self.endian + "i", num))
 
+    def writeIntAt(self, pos, num):
+        current = self.tell()
+        self.seek(pos)
+        self.writeInt(num)
+        self.seek(current)
+
     def writeUInt(self, num):
         self.f.write(struct.pack(self.endian + "I", num))
+
+    def writeUIntAt(self, pos, num):
+        current = self.tell()
+        self.seek(pos)
+        self.writeUInt(num)
+        self.seek(current)
 
     def writeShort(self, num):
         self.f.write(struct.pack(self.endian + "h", num))
 
+    def writeShortAt(self, pos, num):
+        current = self.tell()
+        self.seek(pos)
+        self.writeShort(num)
+        self.seek(current)
+
     def writeUShort(self, num):
         self.f.write(struct.pack(self.endian + "H", num))
+
+    def writeUShortAt(self, pos, num):
+        current = self.tell()
+        self.seek(pos)
+        self.writeUShort(num)
+        self.seek(current)
 
     def writeByte(self, num):
         self.f.write(struct.pack("B", num))
 
+    def writeByteAt(self, pos, num):
+        current = self.tell()
+        self.seek(pos)
+        self.writeByte(num)
+        self.seek(current)
+
     def writeSByte(self, num):
         self.f.write(struct.pack("b", num))
+
+    def writeSByteAt(self, pos, num):
+        current = self.tell()
+        self.seek(pos)
+        self.writeSByte(num)
+        self.seek(current)
 
     def writeHalf(self, num):
         if self.half is None:
