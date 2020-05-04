@@ -380,7 +380,7 @@ def readEncodedString(f, encoding="shift_jis"):
     return sjis
 
 
-def detectEncodedString(f, encoding="shift_jis"):
+def detectEncodedString(f, encoding="shift_jis", startascii=[0x25]):
     ret = ""
     sjis = 0
     while True:
@@ -389,7 +389,7 @@ def detectEncodedString(f, encoding="shift_jis"):
             ret += "|"
         elif b1 == 0x00:
             break
-        elif b1 >= 28 and b1 <= 126 and (len(ret) > 0 or b1 == 0x25):
+        elif b1 >= 28 and b1 <= 126 and (len(ret) > 0 or b1 in startascii):
             ret += chr(b1)
         else:
             b2 = f.readByte()
