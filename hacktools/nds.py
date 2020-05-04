@@ -124,6 +124,7 @@ def repackBinaryStrings(section, infile, outfile, binrange, freeranges=None, det
                         newsjis = section[check][0]
                         if newsjis == "!":
                             newsjis = ""
+                        newsjislog = newsjis.encode("ascii", "ignore")
                         fo.seek(pos)
                         endpos = fi.tell() - 1
                         newlen = writeFunc(fo, newsjis, endpos - pos + 1, encoding)
@@ -132,8 +133,11 @@ def repackBinaryStrings(section, infile, outfile, binrange, freeranges=None, det
                             fo.writeZero(1)
                         if newlen < 0:
                             if freeranges is None:
-                                common.logError("String", newsjis, "is too long.")
+                                common.logError("String", newsjislog, "is too long.")
                             else:
+                                # Add this to the freeranges
+                                freeranges.append([pos, endpos])
+                                common.logDebug("Adding new freerage", pos, endpos)
                                 range = None
                                 rangelen = 0
                                 for c in newsjis:
@@ -143,13 +147,13 @@ def repackBinaryStrings(section, infile, outfile, binrange, freeranges=None, det
                                         range = freerange
                                         break
                                 if range is None and newsjis not in strpointers:
-                                    common.logWarning("No more room! Skipping", newsjis, "...")
+                                    common.logError("No more room! Skipping", newsjislog, "...")
                                 else:
                                     # Write the string in a new portion of the rom
                                     if newsjis in strpointers:
                                         newpointer = strpointers[newsjis]
                                     else:
-                                        common.logDebug("No room for the string", newsjis, ", redirecting to", common.toHex(range[0]))
+                                        common.logDebug("No room for the string", newsjislog, ", redirecting to", common.toHex(range[0]))
                                         fo.seek(range[0])
                                         writeFunc(fo, newsjis, 0, encoding)
                                         fo.seek(-1, 1)
@@ -174,7 +178,7 @@ def repackBinaryStrings(section, infile, outfile, binrange, freeranges=None, det
                                         fo.writeUInt(newpointer)
                                         index += 4
                                     if not foundone:
-                                        common.logError("Pointer", common.toHex(pointer), "not found for string", newsjis)
+                                        common.logError("Pointer", common.toHex(pointer), "not found for string", newsjislog)
                         else:
                             fo.writeZero(endpos - fo.tell())
                     else:
