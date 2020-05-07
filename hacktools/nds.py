@@ -63,31 +63,36 @@ def getHeaderID(file):
 
 
 # Binary-related functions
-def extractBIN(range, detectFunc=common.detectEncodedString, encoding="shift_jis", binin="data/extract/arm9.bin", binfile="data/bin_output.txt"):
+def extractBIN(binrange, detectFunc=common.detectEncodedString, encoding="shift_jis", binin="data/extract/arm9.bin", binfile="data/bin_output.txt", writepos=False):
     common.logMessage("Extracting BIN to", binfile, "...")
-    foundstrings = extractBinaryStrings(binin, binfile, range, detectFunc, encoding)
-    common.logMessage("Done! Extracted", len(foundstrings), "lines")
+    strings, positions = extractBinaryStrings(binin, binrange, detectFunc, encoding)
+    with codecs.open(binfile, "w", "utf-8") as out:
+        for i in range(len(strings)):
+            if writepos:
+                out.write(str(positions[i][0]) + "!")
+            out.write(strings[i] + "=\n")
+    common.logMessage("Done! Extracted", len(strings), "lines")
 
 
-def extractBinaryStrings(infile, outfile, binrange, func=common.detectEncodedString, encoding="shift_jis", writepos=False):
-    foundstrings = []
+def extractBinaryStrings(infile, binrange, func=common.detectEncodedString, encoding="shift_jis"):
+    strings = []
+    positions = []
     insize = os.path.getsize(infile)
-    with codecs.open(outfile, "w", "utf-8") as out:
-        with common.Stream(infile, "rb") as f:
-            f.seek(binrange[0])
-            while f.tell() < binrange[1] and f.tell() < insize - 2:
-                pos = f.tell()
-                check = func(f, encoding)
-                if check != "":
-                    if check not in foundstrings:
-                        common.logDebug("Found string at", pos)
-                        foundstrings.append(check)
-                        if writepos:
-                            out.write(str(pos) + "!")
-                        out.write(check + "=\n")
-                    pos = f.tell() - 1
-                f.seek(pos + 1)
-    return foundstrings
+    with common.Stream(infile, "rb") as f:
+        f.seek(binrange[0])
+        while f.tell() < binrange[1] and f.tell() < insize - 2:
+            pos = f.tell()
+            check = func(f, encoding)
+            if check != "":
+                if check not in strings:
+                    common.logDebug("Found string at", pos)
+                    strings.append(check)
+                    positions.append([pos])
+                else:
+                    positions[strings.index(check)].append(pos)
+                pos = f.tell() - 1
+            f.seek(pos + 1)
+    return strings, positions
 
 
 def repackBIN(range, freeranges=None, detectFunc=common.detectEncodedString, writeFunc=common.writeEncodedString, encoding="shift_jis", comments="#", binin="data/extract/arm9.bin", binout="data/repack/arm9.bin", binfile="data/bin_input.txt"):
@@ -122,6 +127,8 @@ def repackBinaryStrings(section, infile, outfile, binrange, freeranges=None, det
                     if check in section and section[check][0] != "":
                         common.logDebug("Replacing string at", pos)
                         newsjis = section[check][0]
+                        if len(section[check]) > 1:
+                            section[check].pop(0)
                         if newsjis == "!":
                             newsjis = ""
                         newsjislog = newsjis.encode("ascii", "ignore")
