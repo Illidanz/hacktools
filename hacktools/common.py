@@ -315,12 +315,13 @@ def getSectionPercentage(section, chartot=0, transtot=0):
 def wordwrap(text, glyphs, width, codefunc=None, default=6, linebreak="|", sectionsep=">>"):
     # Based on http://code.activestate.com/recipes/577946-word-wrap-for-proportional-fonts/
     lines = []
-    if text.count(sectionsep) > 0:
+    if sectionsep != "" and text.count(sectionsep) > 0:
         lines = text.split(sectionsep)
         for i in range(len(lines)):
             lines[i] = wordwrap(lines[i], glyphs, width, codefunc, default, linebreak, sectionsep)
         return sectionsep.join(lines)
-    text = text.replace(linebreak, "\n")
+    if linebreak != "\n":
+        text = text.replace(linebreak, "\n")
     pattern = re.compile(r"(\s+)")
     lookup = dict((c, glyphs[c].length if c in glyphs else default) for c in set(text))
     for line in text.splitlines():
