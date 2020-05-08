@@ -1364,7 +1364,7 @@ def writeNSBMD(file, nsbmd, texi, infile, fixtrasp=False):
 def readNitroGraphicNBFC(palettefile, tilefile, mapfile, lineal=False):
     if not os.path.isfile(palettefile):
         common.logError("Palette", palettefile, "not found")
-        return [], None
+        return [], None, None
     palettes = readNBFP(palettefile)
     # Read tiles
     nbfc = readNBFC(tilefile, palettes[0], lineal)
@@ -1407,7 +1407,6 @@ def readNBFP(ntfpfile):
 
 
 def readNBFC(ntftfile, palette, lineal):
-    # RawImage image = new RawImage(file.path, file.id, TileForm.Lineal, depth, true, 0, -1, file.name);
     nbfc = NCGR()
     nbfc.tiles = []
     nbfc.bpp = 4 if len(palette) <= 16 else 8
