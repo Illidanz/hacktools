@@ -12,13 +12,13 @@ def extractRom(romfile, extractfolder, workfolder=""):
     ndstool = common.bundledFile("ndstool.exe")
     if not os.path.isfile(ndstool):
         common.logError("ndstool not found")
-    else:
-        common.makeFolder(extractfolder)
-        common.execute(ndstool + " -x {rom} -9 {folder}arm9.bin -7 {folder}arm7.bin -y9 {folder}y9.bin -y7 {folder}y7.bin -t {folder}banner.bin -h {folder}header.bin -d {folder}data -y {folder}overlay".
-                       format(rom=romfile, folder=extractfolder), False)
-        if workfolder != "":
-            common.copyFolder(extractfolder, workfolder)
-        common.logMessage("Done!")
+        return
+    common.makeFolder(extractfolder)
+    common.execute(ndstool + " -x {rom} -9 {folder}arm9.bin -7 {folder}arm7.bin -y9 {folder}y9.bin -y7 {folder}y7.bin -t {folder}banner.bin -h {folder}header.bin -d {folder}data -y {folder}overlay".
+                   format(rom=romfile, folder=extractfolder), False)
+    if workfolder != "":
+        common.copyFolder(extractfolder, workfolder)
+    common.logMessage("Done!")
 
 
 def repackRom(romfile, rompatch, workfolder, patchfile=""):
@@ -26,19 +26,19 @@ def repackRom(romfile, rompatch, workfolder, patchfile=""):
     ndstool = common.bundledFile("ndstool.exe")
     if not os.path.isfile(ndstool):
         common.logError("ndstool not found")
-    else:
-        common.execute(ndstool + " -c {rom} -9 {folder}arm9.bin -7 {folder}arm7.bin -y9 {folder}y9.bin -y7 {folder}y7.bin -t {folder}banner.bin -h {folder}header.bin -d {folder}data -y {folder}overlay".
-                       format(rom=rompatch, folder=workfolder), False)
+        return
+    common.execute(ndstool + " -c {rom} -9 {folder}arm9.bin -7 {folder}arm7.bin -y9 {folder}y9.bin -y7 {folder}y7.bin -t {folder}banner.bin -h {folder}header.bin -d {folder}data -y {folder}overlay".
+                   format(rom=rompatch, folder=workfolder), False)
+    common.logMessage("Done!")
+    # Create xdelta patch
+    if patchfile != "":
+        common.logMessage("Creating xdelta patch", patchfile, "...")
+        xdelta = common.bundledFile("xdelta.exe")
+        if not os.path.isfile(xdelta):
+            common.logError("xdelta not found")
+            return
+        common.execute(xdelta + " -f -e -s {rom} {rompatch} {patch}".format(rom=romfile, rompatch=rompatch, patch=patchfile), False)
         common.logMessage("Done!")
-        # Create xdelta patch
-        if patchfile != "":
-            common.logMessage("Creating xdelta patch", patchfile, "...")
-            xdelta = common.bundledFile("xdelta.exe")
-            if not os.path.isfile(xdelta):
-                common.logError("xdelta not found")
-            else:
-                common.execute(xdelta + " -f -e -s {rom} {rompatch} {patch}".format(rom=romfile, rompatch=rompatch, patch=patchfile), False)
-                common.logMessage("Done!")
 
 
 def editBannerTitle(file, title):
@@ -95,7 +95,7 @@ def extractBinaryStrings(infile, binrange, func=common.detectEncodedString, enco
     return strings, positions
 
 
-def repackBIN(range, freeranges=None, detectFunc=common.detectEncodedString, writeFunc=common.writeEncodedString, encoding="shift_jis", comments="#", binin="data/extract/arm9.bin", binout="data/repack/arm9.bin", binfile="data/bin_input.txt"):
+def repackBIN(binrange, freeranges=None, detectFunc=common.detectEncodedString, writeFunc=common.writeEncodedString, encoding="shift_jis", comments="#", binin="data/extract/arm9.bin", binout="data/repack/arm9.bin", binfile="data/bin_input.txt"):
     if not os.path.isfile(binfile):
         common.logError("Input file", binfile, "not found")
         return False
@@ -106,7 +106,7 @@ def repackBIN(range, freeranges=None, detectFunc=common.detectEncodedString, wri
     with codecs.open(binfile, "r", "utf-8") as bin:
         section = common.getSection(bin, "", comments)
         chartot, transtot = common.getSectionPercentage(section)
-    repackBinaryStrings(section, binin, binout, range, freeranges, detectFunc, writeFunc, encoding)
+    repackBinaryStrings(section, binin, binout, binrange, freeranges, detectFunc, writeFunc, encoding)
     common.logMessage("Done! Translation is at {0:.2f}%".format((100 * transtot) / chartot))
     return True
 
