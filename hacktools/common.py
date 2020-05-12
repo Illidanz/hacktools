@@ -525,6 +525,10 @@ def armipsPatch(file):
         logMessage("Done!")
 
 
+def deltaToFrame(delta, fps=30):
+    return int((delta.seconds * fps) + math.ceil(delta.microseconds / (1000 * 1000 / fps)))
+
+
 # Generic texture
 def readPalette(p):
     return (((p >> 0) & 0x1f) << 3, ((p >> 5) & 0x1f) << 3, ((p >> 10) & 0x1f) << 3, 0xff)
@@ -571,6 +575,14 @@ def readRGB5A3(color):
         r = cc48[(color >> 8) & 0xF]
         g = cc48[(color >> 4) & 0xF]
         b = cc48[(color) & 0xF]
+    return (r, g, b, a)
+
+
+def readRGB5A1(color):
+    r = cc58[color & 0x1f]
+    g = cc58[color >> 5 & 0x1f]
+    b = cc58[color >> 10 & 0x1f]
+    a = 255 if (color >> 15 & 0x1) == 0 else 0
     return (r, g, b, a)
 
 
