@@ -515,14 +515,19 @@ def execute(cmd, show=True):
             logDebug(result)
 
 
-def armipsPatch(file):
+def armipsPatch(file, defines={}, labels={}):
     logMessage("Applying armips patch ...")
     armips = bundledFile("armips.exe")
     if not os.path.isfile(armips):
         logError("armips not found")
-    else:
-        execute(armips + " {binpatch}".format(binpatch=file), False)
-        logMessage("Done!")
+        return
+    params = ""
+    for define in defines:
+        params += " -equ " + define + " " + str(defines[define])
+    for label in labels:
+        params += " -definelabel " + label + " " + str(labels[label])
+    execute(armips + " {binpatch}{params}".format(binpatch=file, params=params), False)
+    logMessage("Done!")
 
 
 def deltaToFrame(delta, fps=30):
