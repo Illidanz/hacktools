@@ -134,14 +134,18 @@ def extractTIM(infolder, outfolder, extensions=".tim", readfunc=None):
     for file in common.showProgress(files):
         common.logDebug("Processing", file, "...")
         extension = os.path.splitext(file)[1]
-        with common.Stream(infolder + file, "rb") as f:
-            tim = readTIM(f)
+        if readfunc is not None:
+            tim, forcepal = readfunc(infolder + file)
+        else:
+            forcepal = -1
+            with common.Stream(infolder + file, "rb") as f:
+                tim = readTIM(f)
         if tim is None:
             continue
         # Export img
         common.makeFolders(outfolder + os.path.dirname(file))
         outfile = outfolder + file.replace(extension, ".png")
-        drawTIM(outfile, tim)
+        drawTIM(outfile, tim, forcepal)
     common.logMessage("Done! Extracted", len(files), "files")
 
 
@@ -152,12 +156,14 @@ class TIM:
     clutposy = 0
     clutwidth = 0
     clutheight = 0
+    clutoff = 0
     cluts = []
     posx = 0
     posy = 0
     width = 0
     height = 0
     size = 0
+    dataoff = 0
     data = []
 
 
@@ -188,6 +194,7 @@ def readTIM(f, forcesize=0):
         tim.clutposy = f.readUShort()
         tim.clutwidth = f.readUShort()
         tim.clutheight = f.readUShort()
+        tim.clutoff = f.tell()
         for i in range(tim.clutheight):
             clut = []
             for j in range(tim.clutwidth):
@@ -207,6 +214,7 @@ def readTIM(f, forcesize=0):
         tim.width *= 2
     elif tim.bpp == 24:
         tim.width //= 1.5
+    tim.dataoff = f.tell()
     common.logDebug("TIM bpp", tim.bpp, "width", tim.width, "height", tim.height, "size", tim.size)
     pixelnum = forcesize if forcesize != 0 else (((tim.size - 12) * 8) // tim.bpp)
     # Read data
@@ -227,19 +235,48 @@ def readTIM(f, forcesize=0):
     return tim
 
 
-def drawTIM(outfile, tim):
+def getUniqueCLUT(tim):
+    clut = 0
+    # Look for a palette with all different colors to export
+    for i in range(len(tim.cluts)):
+        if len(tim.cluts[i]) == len(set(tim.cluts[i])):
+            clut = i
+            break
+    return clut
+
+
+def drawTIM(outfile, tim, forcepal=-1):
     if tim.width == 0 or tim.height == 0:
         return
-    clutsize = 5 * (len(tim.cluts[0]) // 8)
+    clut = forcepal if forcepal != -1 else getUniqueCLUT(tim)
+    clutsize = 5 * (len(tim.cluts[clut]) // 8)
     img = Image.new("RGBA", (tim.width + 40, max(tim.height, clutsize)), (0, 0, 0, 0))
     pixels = img.load()
     x = 0
     for i in range(tim.height):
         for j in range(tim.width):
             if tim.bpp == 4 or tim.bpp == 8:
-                pixels[j, i] = tim.cluts[0][tim.data[x]]
+                pixels[j, i] = tim.cluts[clut][tim.data[x]]
             else:
                 pixels[j, i] = tim.data[x]
             x += 1
-    pixels = common.drawPalette(pixels, tim.cluts[0], tim.width, 0)
+    pixels = common.drawPalette(pixels, tim.cluts[clut], tim.width, 0)
     img.save(outfile, "PNG")
+
+
+def writeTIM(f, tim, infile, forcepal=-1):
+    if tim.bpp > 8:
+        common.logError("writeTIM bpp", tim.bpp, "not supported")
+        return
+    clut = forcepal if forcepal != -1 else getUniqueCLUT(tim)
+    img = Image.open(infile)
+    img = img.convert("RGBA")
+    pixels = img.load()
+    f.seek(tim.dataoff)
+    for i in range(tim.height):
+        for j in range(tim.width):
+            index = common.getPaletteIndex(tim.cluts[clut], pixels[j, i], zerotrasp=False)
+            if tim.bpp == 4:
+                f.writeHalf(index)
+            else:
+                f.writeByte(index)
