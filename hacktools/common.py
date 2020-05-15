@@ -312,6 +312,23 @@ def getSectionPercentage(section, chartot=0, transtot=0):
     return chartot, transtot
 
 
+class FontGlyph:
+    start = 0
+    width = 0
+    length = 0
+    char = ""
+    code = 0
+    index = 0
+
+    def __init__(self, start, width, length, char="", code=0, index=0):
+        self.start = start
+        self.width = width
+        self.length = length
+        self.char = char
+        self.code = code
+        self.index = index
+
+
 def wordwrap(text, glyphs, width, codefunc=None, default=6, linebreak="|", sectionsep=">>"):
     # Based on http://code.activestate.com/recipes/577946-word-wrap-for-proportional-fonts/
     lines = []

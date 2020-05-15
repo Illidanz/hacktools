@@ -158,23 +158,6 @@ class FontPAMC:
     nextoffset = 0
 
 
-class FontGlyph:
-    start = 0
-    width = 0
-    length = 0
-    char = ""
-    code = 0
-    index = 0
-
-    def __init__(self, start, width, length, char, code, index):
-        self.start = start
-        self.width = width
-        self.length = length
-        self.char = char
-        self.code = code
-        self.index = index
-
-
 def readNFTR(file, generateglyphs=False):
     nftr = FontNFTR()
     with common.Stream(file, "rb") as f:
@@ -273,7 +256,7 @@ def readNFTR(file, generateglyphs=False):
                 for i in range(pamc.lastchar - pamc.firstchar + 1):
                     c = common.codeToChar(pamc.firstchar + i)
                     hdwc = nftr.hdwc[firstcode + i]
-                    nftr.glyphs[c] = FontGlyph(hdwc.start, hdwc.width, hdwc.length, c, pamc.firstchar + i, firstcode + i)
+                    nftr.glyphs[c] = common.FontGlyph(hdwc.start, hdwc.width, hdwc.length, c, pamc.firstchar + i, firstcode + i)
             elif pamc.type == 1:
                 for i in range(pamc.lastchar - pamc.firstchar + 1):
                     charcode = f.readUShort()
@@ -281,7 +264,7 @@ def readNFTR(file, generateglyphs=False):
                         continue
                     c = common.codeToChar(pamc.firstchar + i)
                     hdwc = nftr.hdwc[charcode]
-                    nftr.glyphs[c] = FontGlyph(hdwc.start, hdwc.width, hdwc.length, c, pamc.firstchar + i, charcode)
+                    nftr.glyphs[c] = common.FontGlyph(hdwc.start, hdwc.width, hdwc.length, c, pamc.firstchar + i, charcode)
             else:
                 common.logError("Unknown section type", pamc.type)
     return nftr
