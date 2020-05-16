@@ -65,34 +65,13 @@ def getHeaderID(file):
 # Binary-related functions
 def extractBIN(binrange, detectFunc=common.detectEncodedString, encoding="shift_jis", binin="data/extract/arm9.bin", binfile="data/bin_output.txt", writepos=False):
     common.logMessage("Extracting BIN to", binfile, "...")
-    strings, positions = extractBinaryStrings(binin, binrange, detectFunc, encoding)
+    strings, positions = common.extractBinaryStrings(binin, binrange, detectFunc, encoding)
     with codecs.open(binfile, "w", "utf-8") as out:
         for i in range(len(strings)):
             if writepos:
                 out.write(str(positions[i][0]) + "!")
             out.write(strings[i] + "=\n")
     common.logMessage("Done! Extracted", len(strings), "lines")
-
-
-def extractBinaryStrings(infile, binrange, func=common.detectEncodedString, encoding="shift_jis"):
-    strings = []
-    positions = []
-    insize = os.path.getsize(infile)
-    with common.Stream(infile, "rb") as f:
-        f.seek(binrange[0])
-        while f.tell() < binrange[1] and f.tell() < insize - 2:
-            pos = f.tell()
-            check = func(f, encoding)
-            if check != "":
-                if check not in strings:
-                    common.logDebug("Found string at", pos)
-                    strings.append(check)
-                    positions.append([pos])
-                else:
-                    positions[strings.index(check)].append(pos)
-                pos = f.tell() - 1
-            f.seek(pos + 1)
-    return strings, positions
 
 
 def repackBIN(binrange, freeranges=None, detectFunc=common.detectEncodedString, writeFunc=common.writeEncodedString, encoding="shift_jis", comments="#", binin="data/extract/arm9.bin", binout="data/repack/arm9.bin", binfile="data/bin_input.txt"):
@@ -106,91 +85,11 @@ def repackBIN(binrange, freeranges=None, detectFunc=common.detectEncodedString, 
     with codecs.open(binfile, "r", "utf-8") as bin:
         section = common.getSection(bin, "", comments)
         chartot, transtot = common.getSectionPercentage(section)
-    repackBinaryStrings(section, binin, binout, binrange, freeranges, detectFunc, writeFunc, encoding)
+    if type(binrange) == tuple:
+        binrange = [binrange]
+    common.repackBinaryStrings(section, binin, binout, binrange, freeranges, detectFunc, writeFunc, encoding, 0x02000000)
     common.logMessage("Done! Translation is at {0:.2f}%".format((100 * transtot) / chartot))
     return True
-
-
-def repackBinaryStrings(section, infile, outfile, binrange, freeranges=None, detectFunc=common.detectEncodedString, writeFunc=common.writeEncodedString, encoding="shift_jis"):
-    insize = os.path.getsize(infile)
-    with common.Stream(infile, "rb") as fi:
-        if freeranges is not None:
-            allbin = fi.read()
-            strpointers = {}
-            freeranges = [list(x) for x in freeranges]
-        with common.Stream(outfile, "r+b") as fo:
-            fi.seek(binrange[0])
-            while fi.tell() < binrange[1] and fi.tell() < insize - 2:
-                pos = fi.tell()
-                check = detectFunc(fi, encoding)
-                if check != "":
-                    if check in section and section[check][0] != "":
-                        common.logDebug("Replacing string at", pos)
-                        newsjis = section[check][0]
-                        if len(section[check]) > 1:
-                            section[check].pop(0)
-                        if newsjis == "!":
-                            newsjis = ""
-                        newsjislog = newsjis.encode("ascii", "ignore")
-                        fo.seek(pos)
-                        endpos = fi.tell() - 1
-                        newlen = writeFunc(fo, newsjis, endpos - pos + 1, encoding)
-                        fo.seek(-1, 1)
-                        if fo.readByte() != 0:
-                            fo.writeZero(1)
-                        if newlen < 0:
-                            if freeranges is None:
-                                common.logError("String", newsjislog, "is too long.")
-                            else:
-                                # Add this to the freeranges
-                                freeranges.append([pos, endpos])
-                                common.logDebug("Adding new freerage", pos, endpos)
-                                range = None
-                                rangelen = 0
-                                for c in newsjis:
-                                    rangelen += 1 if ord(c) < 256 else 2
-                                for freerange in freeranges:
-                                    if freerange[1] - freerange[0] > rangelen:
-                                        range = freerange
-                                        break
-                                if range is None and newsjis not in strpointers:
-                                    common.logError("No more room! Skipping", newsjislog, "...")
-                                else:
-                                    # Write the string in a new portion of the rom
-                                    if newsjis in strpointers:
-                                        newpointer = strpointers[newsjis]
-                                    else:
-                                        common.logDebug("No room for the string", newsjislog, ", redirecting to", common.toHex(range[0]))
-                                        fo.seek(range[0])
-                                        writeFunc(fo, newsjis, 0, encoding)
-                                        fo.seek(-1, 1)
-                                        if fo.readByte() != 0:
-                                            fo.writeZero(1)
-                                        newpointer = 0x02000000 + range[0]
-                                        range[0] = fo.tell()
-                                        strpointers[newsjis] = newpointer
-                                    # Search and replace the old pointer
-                                    pointer = 0x02000000 + pos
-                                    pointersearch = struct.pack("<I", pointer)
-                                    index = 0
-                                    common.logDebug("Searching for pointer", common.toHex(pointer))
-                                    foundone = False
-                                    while index < len(allbin):
-                                        index = allbin.find(pointersearch, index)
-                                        if index < 0:
-                                            break
-                                        foundone = True
-                                        common.logDebug("Replaced pointer at", str(index))
-                                        fo.seek(index)
-                                        fo.writeUInt(newpointer)
-                                        index += 4
-                                    if not foundone:
-                                        common.logError("Pointer", common.toHex(pointer), "not found for string", newsjislog)
-                        else:
-                            fo.writeZero(endpos - fo.tell())
-                    else:
-                        pos = fi.tell() - 1
-                fi.seek(pos + 1)
 
 
 # Compression-related functions

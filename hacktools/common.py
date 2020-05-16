@@ -462,6 +462,110 @@ def writeEncodedString(f, s, maxlen=0, encoding="shift_jis"):
     return i
 
 
+def extractBinaryStrings(infile, binrange, func=detectEncodedString, encoding="shift_jis"):
+    strings = []
+    positions = []
+    insize = os.path.getsize(infile)
+    with Stream(infile, "rb") as f:
+        f.seek(binrange[0])
+        while f.tell() < binrange[1] and f.tell() < insize - 2:
+            pos = f.tell()
+            check = func(f, encoding)
+            if check != "":
+                if check not in strings:
+                    logDebug("Found string at", pos)
+                    strings.append(check)
+                    positions.append([pos])
+                else:
+                    positions[strings.index(check)].append(pos)
+                pos = f.tell() - 1
+            f.seek(pos + 1)
+    return strings, positions
+
+
+def repackBinaryStrings(section, infile, outfile, binranges, freeranges=None, detectFunc=detectEncodedString, writeFunc=writeEncodedString, encoding="shift_jis", pointerstart=0):
+    insize = os.path.getsize(infile)
+    with Stream(infile, "rb") as fi:
+        if freeranges is not None:
+            allbin = fi.read()
+            strpointers = {}
+            freeranges = [list(x) for x in freeranges]
+        with Stream(outfile, "r+b") as fo:
+            for binrange in binranges:
+                fi.seek(binrange[0])
+                while fi.tell() < binrange[1] and fi.tell() < insize - 2:
+                    pos = fi.tell()
+                    check = detectFunc(fi, encoding)
+                    if check != "":
+                        if check in section and section[check][0] != "":
+                            logDebug("Replacing string at", pos)
+                            newsjis = section[check][0]
+                            if len(section[check]) > 1:
+                                section[check].pop(0)
+                            if newsjis == "!":
+                                newsjis = ""
+                            newsjislog = newsjis.encode("ascii", "ignore")
+                            fo.seek(pos)
+                            endpos = fi.tell() - 1
+                            newlen = writeFunc(fo, newsjis, endpos - pos + 1, encoding)
+                            fo.seek(-1, 1)
+                            if fo.readByte() != 0:
+                                fo.writeZero(1)
+                            if newlen < 0:
+                                if freeranges is None or pointerstart == 0:
+                                    logError("String", newsjislog, "is too long.")
+                                else:
+                                    # Add this to the freeranges
+                                    freeranges.append([pos, endpos])
+                                    logDebug("Adding new freerage", pos, endpos)
+                                    range = None
+                                    rangelen = 0
+                                    for c in newsjis:
+                                        rangelen += 1 if ord(c) < 256 else 2
+                                    for freerange in freeranges:
+                                        if freerange[1] - freerange[0] > rangelen:
+                                            range = freerange
+                                            break
+                                    if range is None and newsjis not in strpointers:
+                                        logError("No more room! Skipping", newsjislog, "...")
+                                    else:
+                                        # Write the string in a new portion of the rom
+                                        if newsjis in strpointers:
+                                            newpointer = strpointers[newsjis]
+                                        else:
+                                            logDebug("No room for the string", newsjislog, ", redirecting to", toHex(range[0]))
+                                            fo.seek(range[0])
+                                            writeFunc(fo, newsjis, 0, encoding)
+                                            fo.seek(-1, 1)
+                                            if fo.readByte() != 0:
+                                                fo.writeZero(1)
+                                            newpointer = pointerstart + range[0]
+                                            range[0] = fo.tell()
+                                            strpointers[newsjis] = newpointer
+                                        # Search and replace the old pointer
+                                        pointer = pointerstart + pos
+                                        pointersearch = struct.pack("<I", pointer)
+                                        index = 0
+                                        logDebug("Searching for pointer", toHex(pointer))
+                                        foundone = False
+                                        while index < len(allbin):
+                                            index = allbin.find(pointersearch, index)
+                                            if index < 0:
+                                                break
+                                            foundone = True
+                                            logDebug("Replaced pointer at", str(index))
+                                            fo.seek(index)
+                                            fo.writeUInt(newpointer)
+                                            index += 4
+                                        if not foundone:
+                                            logError("Pointer", toHex(pointer), "not found for string", newsjislog)
+                            else:
+                                fo.writeZero(endpos - fo.tell())
+                        else:
+                            pos = fi.tell() - 1
+                    fi.seek(pos + 1)
+
+
 # Folders
 def makeFolder(folder, clear=True):
     if clear:

@@ -46,7 +46,7 @@ def repackBIN(binfile, binpatch, cuefile, patchfile=""):
 # Binary-related functions
 def extractEXE(binranges, detectFunc=common.detectEncodedString, encoding="shift_jis", exein="", exefile="data/exe_output.txt", writepos=False):
     common.logMessage("Extracting EXE to", exefile, "...")
-    strings, positions = extractBinaryStrings(exein, binranges, detectFunc, encoding)
+    strings, positions = common.extractBinaryStrings(exein, binranges, detectFunc, encoding)
     with codecs.open(exefile, "w", "utf-8") as out:
         for i in range(len(strings)):
             if writepos:
@@ -55,29 +55,7 @@ def extractEXE(binranges, detectFunc=common.detectEncodedString, encoding="shift
     common.logMessage("Done! Extracted", len(strings), "lines")
 
 
-def extractBinaryStrings(infile, binranges, func=common.detectEncodedString, encoding="shift_jis"):
-    strings = []
-    positions = []
-    insize = os.path.getsize(infile)
-    with common.Stream(infile, "rb") as f:
-        for binrange in binranges:
-            f.seek(binrange[0])
-            while f.tell() < binrange[1] and f.tell() < insize - 2:
-                pos = f.tell()
-                check = func(f, encoding)
-                if check != "":
-                    if check not in strings:
-                        common.logDebug("Found string at", pos)
-                        strings.append(check)
-                        positions.append([pos])
-                    else:
-                        positions[strings.index(check)].append(pos)
-                    pos = f.tell() - 1
-                f.seek(pos + 1)
-    return strings, positions
-
-
-def repackEXE(binranges, detectFunc=common.detectEncodedString, writeFunc=common.writeEncodedString, encoding="shift_jis", comments="#", exein="", exeout="", exefile="data/exe_input.txt"):
+def repackEXE(binrange, freeranges=None, detectFunc=common.detectEncodedString, writeFunc=common.writeEncodedString, encoding="shift_jis", comments="#", exein="", exeout="", exefile="data/exe_input.txt"):
     if not os.path.isfile(exefile):
         common.logError("Input file", exefile, "not found")
         return False
@@ -88,42 +66,11 @@ def repackEXE(binranges, detectFunc=common.detectEncodedString, writeFunc=common
     with codecs.open(exefile, "r", "utf-8") as bin:
         section = common.getSection(bin, "", comments)
         chartot, transtot = common.getSectionPercentage(section)
-    repackBinaryStrings(section, exein, exeout, binranges, detectFunc, writeFunc, encoding)
+    if type(binrange) == tuple:
+        binrange = [binrange]
+    common.repackBinaryStrings(section, exein, exeout, binrange, freeranges, detectFunc, writeFunc, encoding, 0x8000F800)
     common.logMessage("Done! Translation is at {0:.2f}%".format((100 * transtot) / chartot))
     return True
-
-
-def repackBinaryStrings(section, infile, outfile, binranges, detectFunc=common.detectEncodedString, writeFunc=common.writeEncodedString, encoding="shift_jis"):
-    insize = os.path.getsize(infile)
-    with common.Stream(infile, "rb") as fi:
-        with common.Stream(outfile, "r+b") as fo:
-            for binrange in binranges:
-                fi.seek(binrange[0])
-                while fi.tell() < binrange[1] and fi.tell() < insize - 2:
-                    pos = fi.tell()
-                    check = detectFunc(fi, encoding)
-                    if check != "":
-                        if check in section and section[check][0] != "":
-                            common.logDebug("Replacing string at", pos)
-                            newsjis = section[check][0]
-                            if len(section[check]) > 1:
-                                section[check].pop(0)
-                            if newsjis == "!":
-                                newsjis = ""
-                            newsjislog = newsjis.encode("ascii", "ignore")
-                            fo.seek(pos)
-                            endpos = fi.tell() - 1
-                            newlen = writeFunc(fo, newsjis, endpos - pos + 1, encoding)
-                            fo.seek(-1, 1)
-                            if fo.readByte() != 0:
-                                fo.writeZero(1)
-                            if newlen < 0:
-                                common.logError("String", newsjislog, "is too long.")
-                            else:
-                                fo.writeZero(endpos - fo.tell())
-                        else:
-                            pos = fi.tell() - 1
-                    fi.seek(pos + 1)
 
 
 # Images
