@@ -183,11 +183,17 @@ def readTIM(f, forcesize=0):
     return tim
 
 
-def getUniqueCLUT(tim):
+def getUniqueCLUT(tim, transp=False):
     clut = 0
     # Look for a palette with all different colors to export
     for i in range(len(tim.cluts)):
-        if len(tim.cluts[i]) == len(set(tim.cluts[i])):
+        checkclut = []
+        for color in tim.cluts[i]:
+            if transp:
+                checkclut.append(color)
+            else:
+                checkclut.append((color[0], color[1], color[2]))
+        if len(checkclut) == len(set(checkclut)):
             clut = i
             break
     return clut
@@ -196,7 +202,7 @@ def getUniqueCLUT(tim):
 def drawTIM(outfile, tim, transp=False, forcepal=-1):
     if tim.width == 0 or tim.height == 0:
         return
-    clut = forcepal if forcepal != -1 else getUniqueCLUT(tim)
+    clut = forcepal if forcepal != -1 else getUniqueCLUT(tim, transp)
     clutsize = 5 * (len(tim.cluts[clut]) // 8)
     img = Image.new("RGBA", (tim.width + 40, max(tim.height, clutsize)), (0, 0, 0, 0))
     pixels = img.load()
@@ -219,14 +225,14 @@ def writeTIM(f, tim, infile, transp=False, forcepal=-1):
     if tim.bpp > 8:
         common.logError("writeTIM bpp", tim.bpp, "not supported")
         return
-    clut = forcepal if forcepal != -1 else getUniqueCLUT(tim)
+    clut = forcepal if forcepal != -1 else getUniqueCLUT(tim, transp)
     img = Image.open(infile)
     img = img.convert("RGBA")
     pixels = img.load()
     f.seek(tim.dataoff)
     for i in range(tim.height):
         for j in range(tim.width):
-            index = common.getPaletteIndex(tim.cluts[clut], pixels[j, i], zerotransp=transp)
+            index = common.getPaletteIndex(tim.cluts[clut], pixels[j, i], checkalpha=transp, zerotransp=False)
             if tim.bpp == 4:
                 f.writeHalf(index)
             else:
