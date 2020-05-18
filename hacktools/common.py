@@ -462,24 +462,25 @@ def writeEncodedString(f, s, maxlen=0, encoding="shift_jis"):
     return i
 
 
-def extractBinaryStrings(infile, binrange, func=detectEncodedString, encoding="shift_jis"):
+def extractBinaryStrings(infile, binranges, func=detectEncodedString, encoding="shift_jis"):
     strings = []
     positions = []
     insize = os.path.getsize(infile)
     with Stream(infile, "rb") as f:
-        f.seek(binrange[0])
-        while f.tell() < binrange[1] and f.tell() < insize - 2:
-            pos = f.tell()
-            check = func(f, encoding)
-            if check != "":
-                if check not in strings:
-                    logDebug("Found string at", pos)
-                    strings.append(check)
-                    positions.append([pos])
-                else:
-                    positions[strings.index(check)].append(pos)
-                pos = f.tell() - 1
-            f.seek(pos + 1)
+        for binrange in binranges:
+            f.seek(binrange[0])
+            while f.tell() < binrange[1] and f.tell() < insize - 2:
+                pos = f.tell()
+                check = func(f, encoding)
+                if check != "":
+                    if check not in strings:
+                        logDebug("Found string at", pos)
+                        strings.append(check)
+                        positions.append([pos])
+                    else:
+                        positions[strings.index(check)].append(pos)
+                    pos = f.tell() - 1
+                f.seek(pos + 1)
     return strings, positions
 
 
@@ -708,18 +709,18 @@ def readRGB5A1(color):
     r = cc58[color & 0x1f]
     g = cc58[color >> 5 & 0x1f]
     b = cc58[color >> 10 & 0x1f]
-    a = 255 if (color >> 15 & 0x1) == 0 else 0
+    a = 0 if (color >> 15 & 0x1) == 0 else 255
     return (r, g, b, a)
 
 
-def getPaletteIndex(palette, color, fixtrasp=False, starti=0, palsize=-1, checkalpha=False, zerotrasp=True):
-    if color[3] == 0 and zerotrasp:
+def getPaletteIndex(palette, color, fixtransp=False, starti=0, palsize=-1, checkalpha=False, zerotransp=True):
+    if color[3] == 0 and zerotransp:
         return 0
     if palsize == -1:
         palsize = len(palette)
     zeroalpha = -1
     for i in range(starti, starti + palsize):
-        if fixtrasp and i == starti:
+        if fixtransp and i == starti:
             continue
         if palette[i][0] == color[0] and palette[i][1] == color[1] and palette[i][2] == color[2] and (not checkalpha or palette[i][3] == color[3]):
             return i - starti
@@ -760,11 +761,14 @@ def findBestPalette(palettes, colors):
     return disti
 
 
-def drawPalette(pixels, palette, width, ystart=0):
+def drawPalette(pixels, palette, width, ystart=0, transp=True):
     for x in range(len(palette)):
         j = width + ((x % 8) * 5)
         i = ystart + ((x // 8) * 5)
         for j2 in range(5):
             for i2 in range(5):
-                pixels[j + j2, i + i2] = palette[x]
+                color = palette[x]
+                if not transp:
+                    color = (color[0], color[1], color[2], 255)
+                pixels[j + j2, i + i2] = color
     return pixels

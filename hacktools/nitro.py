@@ -30,14 +30,14 @@ def repackNSBMD(workfolder, infolder, outfolder, extension=".nsbmd", writefunc=N
         common.copyFile(infolder + file, outfolder + file)
         nsbmd = readNSBMD(infolder + file)
         if nsbmd is not None and len(nsbmd.textures) > 0:
-            fixtrasp = False
+            fixtransp = False
             if writefunc is not None:
-                fixtrasp = writefunc(file, nsbmd)
+                fixtransp = writefunc(file, nsbmd)
             for texi in range(len(nsbmd.textures)):
                 pngname = file.replace(extension, "") + "_" + nsbmd.textures[texi].name + ".png"
                 if os.path.isfile(workfolder + pngname):
                     common.logDebug(" Repacking", pngname, "...")
-                    writeNSBMD(outfolder + file, nsbmd, texi, workfolder + pngname, fixtrasp)
+                    writeNSBMD(outfolder + file, nsbmd, texi, workfolder + pngname, fixtransp)
     common.logMessage("Done!")
 
 
@@ -650,12 +650,12 @@ def cellIntersect(a, b):
     return (a.x < b.x + b.width) and (a.x + a.width > b.x) and (a.y < b.y + b.height) and (a.y + a.height > b.y)
 
 
-def tileToPixels(pixels, width, ncgr, tile, i, j, palette, pali, usetrasp=True):
+def tileToPixels(pixels, width, ncgr, tile, i, j, palette, pali, usetransp=True):
     for i2 in range(ncgr.tilesize):
         for j2 in range(ncgr.tilesize):
             try:
                 index = ncgr.tiles[tile][i2 * ncgr.tilesize + j2]
-                if not usetrasp or index > 0:
+                if not usetransp or index > 0:
                     if ncgr.lineal:
                         lineal = (i * width * ncgr.tilesize) + (j * ncgr.tilesize * ncgr.tilesize) + (i2 * ncgr.tilesize + j2)
                         pixelx = lineal % width
@@ -669,7 +669,7 @@ def tileToPixels(pixels, width, ncgr, tile, i, j, palette, pali, usetrasp=True):
     return pixels
 
 
-def drawNCER(outfile, ncer, ncgr, palettes, usetrasp=True, layered=False):
+def drawNCER(outfile, ncer, ncgr, palettes, usetransp=True, layered=False):
     palsize = 0
     for palette in palettes.values():
         palsize += 5 * (len(palette) // 8)
@@ -721,7 +721,7 @@ def drawNCER(outfile, ncer, ncgr, palettes, usetrasp=True, layered=False):
             cellpixels = cellimg.load()
             for i in range(cell.height // ncgr.tilesize):
                 for j in range(cell.width // ncgr.tilesize):
-                    cellpixels = tileToPixels(cellpixels, cell.width, ncgr, x, i, j, palette, pali, usetrasp)
+                    cellpixels = tileToPixels(cellpixels, cell.width, ncgr, x, i, j, palette, pali, usetransp)
                     x += 1
             if cell.xflip or cell.yflip:
                 if cell.yflip:
@@ -752,7 +752,7 @@ def drawNCER(outfile, ncer, ncgr, palettes, usetrasp=True, layered=False):
     img.save(outfile, "PNG")
 
 
-def drawNCGR(outfile, nscr, ncgr, palettes, width, height, usetrasp=True):
+def drawNCGR(outfile, nscr, ncgr, palettes, width, height, usetransp=True):
     if width == 0xFFFF or height == 0xFFFF:
         root = int(math.sqrt(len(ncgr.tiles)))
         if math.pow(root, 2) == len(ncgr.tiles):
@@ -777,7 +777,7 @@ def drawNCGR(outfile, nscr, ncgr, palettes, width, height, usetrasp=True):
                 else:
                     pali = map.pal * 16
                     palette = palettes[0]
-                pixels = tileToPixels(pixels, width, ncgr, map.tile, i, j, palette, pali, usetrasp)
+                pixels = tileToPixels(pixels, width, ncgr, map.tile, i, j, palette, pali, usetransp)
                 # Very inefficient way to flip pixels
                 if map.xflip or map.yflip:
                     sub = img.crop(box=(j * ncgr.tilesize, i * ncgr.tilesize, j * ncgr.tilesize + ncgr.tilesize, i * ncgr.tilesize + ncgr.tilesize))
@@ -787,7 +787,7 @@ def drawNCGR(outfile, nscr, ncgr, palettes, width, height, usetrasp=True):
                         sub = ImageOps.mirror(sub)
                     img.paste(sub, box=(j * ncgr.tilesize, i * ncgr.tilesize))
             else:
-                pixels = tileToPixels(pixels, width, ncgr, x, i, j, palettes[0], 0, usetrasp)
+                pixels = tileToPixels(pixels, width, ncgr, x, i, j, palettes[0], 0, usetransp)
             x += 1
     palstart = 0
     for palette in palettes.values():
@@ -1302,7 +1302,7 @@ def drawNSBMD(file, nsbmd, texi):
     img.save(file, "PNG")
 
 
-def writeNSBMD(file, nsbmd, texi, infile, fixtrasp=False):
+def writeNSBMD(file, nsbmd, texi, infile, fixtransp=False):
     img = Image.open(infile)
     img = img.convert("RGBA")
     pixels = img.load()
@@ -1321,17 +1321,17 @@ def writeNSBMD(file, nsbmd, texi, infile, fixtrasp=False):
         elif tex.format == 2:
             for i in range(tex.height):
                 for j in range(0, tex.width, 4):
-                    index1 = common.getPaletteIndex(paldata, pixels[j, i], fixtrasp)
-                    index2 = common.getPaletteIndex(paldata, pixels[j + 1, i], fixtrasp)
-                    index3 = common.getPaletteIndex(paldata, pixels[j + 2, i], fixtrasp)
-                    index4 = common.getPaletteIndex(paldata, pixels[j + 3, i], fixtrasp)
+                    index1 = common.getPaletteIndex(paldata, pixels[j, i], fixtransp)
+                    index2 = common.getPaletteIndex(paldata, pixels[j + 1, i], fixtransp)
+                    index3 = common.getPaletteIndex(paldata, pixels[j + 2, i], fixtransp)
+                    index4 = common.getPaletteIndex(paldata, pixels[j + 3, i], fixtransp)
                     f.writeByte((index4 << 6) | (index3 << 4) | (index2 << 2) | index1)
         # 16/256-color Palette
         elif tex.format == 3 or tex.format == 4:
             for i in range(tex.height):
                 for j in range(0, tex.width, 2):
-                    index1 = common.getPaletteIndex(paldata, pixels[j, i], fixtrasp)
-                    index2 = common.getPaletteIndex(paldata, pixels[j + 1, i], fixtrasp)
+                    index1 = common.getPaletteIndex(paldata, pixels[j, i], fixtransp)
+                    index2 = common.getPaletteIndex(paldata, pixels[j + 1, i], fixtransp)
                     writeNCGRData(f, 4 if tex.format == 3 else 8, index1, index2)
         # 4x4-Texel Compressed Texture
         elif tex.format == 5:

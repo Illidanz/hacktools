@@ -44,9 +44,11 @@ def repackBIN(binfile, binpatch, cuefile, patchfile=""):
 
 
 # Binary-related functions
-def extractEXE(binranges, detectFunc=common.detectEncodedString, encoding="shift_jis", exein="", exefile="data/exe_output.txt", writepos=False):
+def extractEXE(binrange, detectFunc=common.detectEncodedString, encoding="shift_jis", exein="", exefile="data/exe_output.txt", writepos=False):
     common.logMessage("Extracting EXE to", exefile, "...")
-    strings, positions = common.extractBinaryStrings(exein, binranges, detectFunc, encoding)
+    if type(binrange) == tuple:
+        binrange = [binrange]
+    strings, positions = common.extractBinaryStrings(exein, binrange, detectFunc, encoding)
     with codecs.open(exefile, "w", "utf-8") as out:
         for i in range(len(strings)):
             if writepos:
@@ -82,8 +84,9 @@ def extractTIM(infolder, outfolder, extensions=".tim", readfunc=None):
         common.logDebug("Processing", file, "...")
         extension = os.path.splitext(file)[1]
         if readfunc is not None:
-            tim, forcepal = readfunc(infolder + file)
+            tim, transp, forcepal = readfunc(infolder + file)
         else:
+            transp = False
             forcepal = -1
             with common.Stream(infolder + file, "rb") as f:
                 tim = readTIM(f)
@@ -92,7 +95,7 @@ def extractTIM(infolder, outfolder, extensions=".tim", readfunc=None):
         # Export img
         common.makeFolders(outfolder + os.path.dirname(file))
         outfile = outfolder + file.replace(extension, ".png")
-        drawTIM(outfile, tim, forcepal)
+        drawTIM(outfile, tim, transp, forcepal)
     common.logMessage("Done! Extracted", len(files), "files")
 
 
@@ -146,7 +149,6 @@ def readTIM(f, forcesize=0):
             clut = []
             for j in range(tim.clutwidth):
                 color = common.readRGB5A1(f.readUShort())
-                color = (color[0], color[1], color[2], 255)
                 clut.append(color)
             tim.cluts.append(clut)
     # Read size
@@ -173,7 +175,6 @@ def readTIM(f, forcesize=0):
                 tim.data.append(f.readByte())
             elif tim.bpp == 16:
                 color = common.readRGB5A1(f.readUShort())
-                color = (color[0], color[1], color[2], 255)
                 tim.data.append(color)
             elif tim.bpp == 24:
                 tim.data.append((f.readByte(), f.readByte(), f.readByte(), 255))
@@ -192,7 +193,7 @@ def getUniqueCLUT(tim):
     return clut
 
 
-def drawTIM(outfile, tim, forcepal=-1):
+def drawTIM(outfile, tim, transp=False, forcepal=-1):
     if tim.width == 0 or tim.height == 0:
         return
     clut = forcepal if forcepal != -1 else getUniqueCLUT(tim)
@@ -203,15 +204,18 @@ def drawTIM(outfile, tim, forcepal=-1):
     for i in range(tim.height):
         for j in range(tim.width):
             if tim.bpp == 4 or tim.bpp == 8:
-                pixels[j, i] = tim.cluts[clut][tim.data[x]]
+                color = tim.cluts[clut][tim.data[x]]
             else:
-                pixels[j, i] = tim.data[x]
+                color = tim.data[x]
+            if not transp:
+                color = (color[0], color[1], color[2], 255)
+            pixels[j, i] = color
             x += 1
-    pixels = common.drawPalette(pixels, tim.cluts[clut], tim.width, 0)
+    pixels = common.drawPalette(pixels, tim.cluts[clut], tim.width, 0, transp)
     img.save(outfile, "PNG")
 
 
-def writeTIM(f, tim, infile, forcepal=-1):
+def writeTIM(f, tim, infile, transp=False, forcepal=-1):
     if tim.bpp > 8:
         common.logError("writeTIM bpp", tim.bpp, "not supported")
         return
@@ -222,7 +226,7 @@ def writeTIM(f, tim, infile, forcepal=-1):
     f.seek(tim.dataoff)
     for i in range(tim.height):
         for j in range(tim.width):
-            index = common.getPaletteIndex(tim.cluts[clut], pixels[j, i], zerotrasp=False)
+            index = common.getPaletteIndex(tim.cluts[clut], pixels[j, i], zerotransp=transp)
             if tim.bpp == 4:
                 f.writeHalf(index)
             else:
