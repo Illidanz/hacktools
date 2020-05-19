@@ -1,5 +1,5 @@
 import codecs
-from io import BytesIO
+from io import BytesIO, StringIO
 import distutils.dir_util
 import logging
 import math
@@ -277,6 +277,24 @@ def checkShiftJIS(first, second):
     return status
 
 
+def openSection(file, filestart=1, fileend=10):
+    if not os.path.isfile(file.format("")):
+        if os.path.isfile(file.format(str(filestart))):
+            section = StringIO()
+            for i in range(filestart, fileend + 1):
+                sectionfile = file.format(str(i))
+                if os.path.isfile(sectionfile):
+                    with codecs.open(sectionfile, "r", "utf-8") as f:
+                        section.write(f.read())
+                else:
+                    break
+            return section
+        else:
+            return None
+    else:
+        return codecs.open(file.format(""), "r", "utf-8")
+
+
 def getSection(f, title, comment="#", fixchars=[]):
     ret = {}
     found = title == ""
@@ -499,13 +517,13 @@ def repackBinaryStrings(section, infile, outfile, binranges, freeranges=None, de
                     check = detectFunc(fi, encoding)
                     if check != "":
                         if check in section and section[check][0] != "":
-                            logDebug("Replacing string at", pos)
                             newsjis = section[check][0]
                             if len(section[check]) > 1:
                                 section[check].pop(0)
                             if newsjis == "!":
                                 newsjis = ""
                             newsjislog = newsjis.encode("ascii", "ignore")
+                            logDebug("Replacing string at", pos, "with", newsjislog)
                             fo.seek(pos)
                             endpos = fi.tell() - 1
                             newlen = writeFunc(fo, newsjis, endpos - pos + 1, encoding)
