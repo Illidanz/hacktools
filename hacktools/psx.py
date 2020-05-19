@@ -202,9 +202,12 @@ def getUniqueCLUT(tim, transp=False):
 def drawTIM(outfile, tim, transp=False, forcepal=-1):
     if tim.width == 0 or tim.height == 0:
         return
-    clut = forcepal if forcepal != -1 else getUniqueCLUT(tim, transp)
-    clutsize = 5 * (len(tim.cluts[clut]) // 8)
-    img = Image.new("RGBA", (tim.width + 40, max(tim.height, clutsize)), (0, 0, 0, 0))
+    clutwidth = clutheight = 0
+    if tim.bpp == 4 or tim.bpp == 8:
+        clut = forcepal if forcepal != -1 else getUniqueCLUT(tim, transp)
+        clutwidth = 40
+        clutheight = 5 * (len(tim.cluts[clut]) // 8)
+    img = Image.new("RGBA", (tim.width + clutwidth, max(tim.height, clutheight)), (0, 0, 0, 0))
     pixels = img.load()
     x = 0
     for i in range(tim.height):
@@ -217,7 +220,8 @@ def drawTIM(outfile, tim, transp=False, forcepal=-1):
                 color = (color[0], color[1], color[2], 255)
             pixels[j, i] = color
             x += 1
-    pixels = common.drawPalette(pixels, tim.cluts[clut], tim.width, 0, transp)
+    if tim.bpp == 4 or tim.bpp == 8:
+        pixels = common.drawPalette(pixels, tim.cluts[clut], tim.width, 0, transp)
     img.save(outfile, "PNG")
 
 
