@@ -547,6 +547,7 @@ def repackBinaryStrings(section, infile, outfile, binranges, freeranges=None, de
                                             break
                                     if range is None and newsjis not in strpointers:
                                         logError("No more room! Skipping", newsjislog, "...")
+                                        freeranges.pop()
                                     else:
                                         # Write the string in a new portion of the rom
                                         if newsjis in strpointers:
@@ -578,6 +579,7 @@ def repackBinaryStrings(section, infile, outfile, binranges, freeranges=None, de
                                             index += 4
                                         if not foundone:
                                             logError("Pointer", toHex(pointer), "not found for string", newsjislog)
+                                            freeranges.pop()
                             else:
                                 fo.writeZero(endpos - fo.tell())
                         else:
