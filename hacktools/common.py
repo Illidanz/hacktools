@@ -502,8 +502,20 @@ def extractBinaryStrings(infile, binranges, func=detectEncodedString, encoding="
     return strings, positions
 
 
+class BinaryPointer:
+    old = 0
+    new = 0
+    str = ""
+
+    def __init__(self, old, new, str):
+        self.old = old
+        self.new = new
+        self.str = str
+
+
 def repackBinaryStrings(section, infile, outfile, binranges, freeranges=None, detectFunc=detectEncodedString, writeFunc=writeEncodedString, encoding="shift_jis", pointerstart=0):
     insize = os.path.getsize(infile)
+    notfound = []
     with Stream(infile, "rb") as fi:
         if freeranges is not None:
             allbin = fi.read()
@@ -578,13 +590,15 @@ def repackBinaryStrings(section, infile, outfile, binranges, freeranges=None, de
                                             fo.writeUInt(newpointer)
                                             index += 4
                                         if not foundone:
-                                            logError("Pointer", toHex(pointer), "not found for string", newsjislog)
-                                            freeranges.pop()
+                                            logWarning("Pointer", toHex(pointer), "->", toHex(newpointer) + "not found for string", newsjislog)
+                                            # freeranges.pop()
+                                            notfound.append(BinaryPointer(pointer, newpointer, newsjislog))
                             else:
                                 fo.writeZero(endpos - fo.tell())
                         else:
                             pos = fi.tell() - 1
                     fi.seek(pos + 1)
+    return notfound
 
 
 # Folders

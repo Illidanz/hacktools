@@ -57,7 +57,7 @@ def extractEXE(binrange, detectFunc=common.detectEncodedString, encoding="shift_
     common.logMessage("Done! Extracted", len(strings), "lines")
 
 
-def repackEXE(binrange, freeranges=None, detectFunc=common.detectEncodedString, writeFunc=common.writeEncodedString, encoding="shift_jis", comments="#", exein="", exeout="", exefile="data/exe_input.txt"):
+def repackEXE(binrange, freeranges=None, manualptrs=None, detectFunc=common.detectEncodedString, writeFunc=common.writeEncodedString, encoding="shift_jis", comments="#", exein="", exeout="", ptrfile="data/manualptrs.asm", exefile="data/exe_input.txt"):
     if not os.path.isfile(exefile):
         common.logError("Input file", exefile, "not found")
         return False
@@ -70,7 +70,22 @@ def repackEXE(binrange, freeranges=None, detectFunc=common.detectEncodedString, 
         chartot, transtot = common.getSectionPercentage(section)
     if type(binrange) == tuple:
         binrange = [binrange]
-    common.repackBinaryStrings(section, exein, exeout, binrange, freeranges, detectFunc, writeFunc, encoding, 0x8000F800)
+    notfound = common.repackBinaryStrings(section, exein, exeout, binrange, freeranges, detectFunc, writeFunc, encoding, 0x8000F800)
+    # Handle not found pointers by manually replacing the opcodes
+    if len(notfound) > 0 and manualptrs is not None:
+        with open(ptrfile, "w") as f:
+            for ptr in notfound:
+                if ptr.old not in manualptrs:
+                    common.logError("Manual pointer", common.toHex(ptr.old), "->", common.toHex(ptr.new), "not found for string", ptr.str)
+                    continue
+                for manualptr in manualptrs[ptr.old]:
+                    ptrloc = manualptr[0]
+                    ptrreg = manualptr[1]
+                    common.logDebug("Reassembling manual pointer", common.toHex(ptr.old), "->", common.toHex(ptr.new), "at", common.toHex(ptrloc), ptrreg)
+                    f.write(".org 0x" + common.toHex(ptrloc) + "\n")
+                    f.write(".area 0x8,0x0\n")
+                    f.write("  li " + ptrreg + ",0x" + common.toHex(ptr.new) + "\n")
+                    f.write(".endarea\n\n")
     common.logMessage("Done! Translation is at {0:.2f}%".format((100 * transtot) / chartot))
     return True
 
