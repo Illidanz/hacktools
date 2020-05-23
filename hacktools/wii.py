@@ -170,14 +170,14 @@ def getFontGlyphs(file):
                 firstcode = f.readUShort()
                 for i in range(lastchar - firstchar + 1):
                     c = common.codeToChar(firstchar + i)
-                    glyphs[c] = hdwc[firstcode + i] + (firstchar + i,)
+                    glyphs[c] = common.FontGlyph(hdwc[firstcode + i][0], hdwc[firstcode + i][1], hdwc[firstcode + i][2], c, firstchar + i, firstcode + i)
             elif sectiontype == 1:
                 for i in range(lastchar - firstchar + 1):
                     charcode = f.readUShort()
                     if charcode == 0xFFFF or charcode >= len(hdwc):
                         continue
                     c = common.codeToChar(firstchar + i)
-                    glyphs[c] = hdwc[charcode] + (firstchar + i,)
+                    glyphs[c] = common.FontGlyph(hdwc[charcode][0], hdwc[charcode][1], hdwc[charcode][2], c, firstchar + i, firstcode + i)
             else:
                 common.logError("Unknown section type", sectiontype)
     return glyphs
