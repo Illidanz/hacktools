@@ -590,13 +590,12 @@ def repackBinaryStrings(section, infile, outfile, binranges, freeranges=None, de
                                             fo.writeUInt(newpointer)
                                             index += 4
                                         if not foundone:
-                                            logWarning("Pointer", toHex(pointer), "->", toHex(newpointer) + "not found for string", newsjislog)
+                                            logWarning("Pointer", toHex(pointer), "->", toHex(newpointer), "not found for string", newsjislog)
                                             # freeranges.pop()
                                             notfound.append(BinaryPointer(pointer, newpointer, newsjislog))
                             else:
                                 fo.writeZero(endpos - fo.tell())
-                        else:
-                            pos = fi.tell() - 1
+                        pos = fi.tell() - 1
                     fi.seek(pos + 1)
     return notfound
 
