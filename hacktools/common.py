@@ -190,7 +190,7 @@ class Stream(object):
 @click.option("--log", is_flag=True, default=False)
 def cli(log):
     if log:
-        logging.basicConfig(filename="tool.log", filemode="w", format="[%(levelname)s] %(message)s", level=logging.DEBUG)
+        logging.basicConfig(handlers=[logging.FileHandler(filename="tool.log", encoding="utf-8", mode="w")], format="[%(levelname)s] %(message)s", level=logging.DEBUG)
     else:
         logging.getLogger().disabled = True
 
