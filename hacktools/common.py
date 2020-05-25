@@ -648,6 +648,8 @@ def getFiles(path, extensions=[]):
 
 
 def bundledFile(name):
+    if os.path.isfile(name):
+        return name
     try:
         return os.path.join(sys._MEIPASS, name)
     except AttributeError:
