@@ -179,5 +179,5 @@ def getFontGlyphs(file):
                     c = common.codeToChar(firstchar + i)
                     glyphs[c] = common.FontGlyph(hdwc[charcode][0], hdwc[charcode][1], hdwc[charcode][2], c, firstchar + i, firstcode + i)
             else:
-                common.logError("Unknown section type", sectiontype)
+                common.logWarning("Unknown section type", sectiontype)
     return glyphs

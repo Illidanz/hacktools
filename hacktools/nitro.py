@@ -266,7 +266,7 @@ def readNFTR(file, generateglyphs=False):
                     hdwc = nftr.hdwc[charcode]
                     nftr.glyphs[c] = common.FontGlyph(hdwc.start, hdwc.width, hdwc.length, c, pamc.firstchar + i, charcode)
             else:
-                common.logError("Unknown section type", pamc.type)
+                common.logWarning("Unknown section type", pamc.type)
     return nftr
 
 
