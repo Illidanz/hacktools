@@ -295,6 +295,19 @@ def openSection(file, filestart=1, fileend=10):
         return codecs.open(file.format(""), "r", "utf-8")
 
 
+def getSectionNames(f):
+    ret = []
+    try:
+        f.seek(0)
+        for line in f:
+            line = line.rstrip("\r\n").replace("\ufeff", "")
+            if line.startswith("!FILE:"):
+                ret.append(line[6:])
+    except UnicodeDecodeError:
+        return ret
+    return ret
+
+
 def getSection(f, title, comment="#", fixchars=[]):
     ret = {}
     found = title == ""
@@ -318,6 +331,15 @@ def getSection(f, title, comment="#", fixchars=[]):
     except UnicodeDecodeError:
         return ret
     return ret
+
+
+def getSections(file, comment="#", fixchars=[]):
+    sections = {}
+    with codecs.open(file, "r", "utf-8") as wsb:
+        files = getSectionNames(wsb)
+        for file in files:
+            sections[file] = getSection(wsb, file, comment, fixchars)
+    return sections
 
 
 def getSectionPercentage(section, chartot=0, transtot=0):
