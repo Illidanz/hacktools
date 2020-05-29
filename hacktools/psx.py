@@ -34,13 +34,7 @@ def repackBIN(binfile, binpatch, cuefile, patchfile=""):
     common.logMessage("Done!")
     # Create xdelta patch
     if patchfile != "":
-        common.logMessage("Creating xdelta patch", patchfile, "...")
-        xdelta = common.bundledFile("xdelta.exe")
-        if not os.path.isfile(xdelta):
-            common.logError("xdelta not found")
-            return
-        common.execute(xdelta + " -f -e -s \"{bin}\" \"{binpatch}\" {patch}".format(bin=binfile, binpatch=binpatch, patch=patchfile), False)
-        common.logMessage("Done!")
+        common.xdeltaPatch(patchfile, binfile, binpatch)
 
 
 # Binary-related functions

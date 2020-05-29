@@ -672,6 +672,16 @@ def execute(cmd, show=True):
             logDebug(result)
 
 
+def xdeltaPatch(patchfile, infile, outfile):
+    logMessage("Creating xdelta patch", patchfile, "...")
+    xdelta = bundledFile("xdelta.exe")
+    if not os.path.isfile(xdelta):
+        logError("xdelta not found")
+        return
+    execute(xdelta + " -f -e -s {rom} {rompatch} {patch}".format(rom=infile, rompatch=outfile, patch=patchfile), False)
+    logMessage("Done!")
+
+
 def armipsPatch(file, defines={}, labels={}):
     logMessage("Applying armips patch ...")
     armips = bundledFile("armips.exe")

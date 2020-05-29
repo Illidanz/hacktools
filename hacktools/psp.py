@@ -1,5 +1,4 @@
 import math
-import os
 import pycdlib
 from io import BytesIO
 from PIL import Image
@@ -42,13 +41,7 @@ def repackIso(isofile, isopatch, workfolder, patchfile=""):
     common.logMessage("Done!")
     # Create xdelta patch
     if patchfile != "":
-        common.logMessage("Creating xdelta patch", patchfile, "...")
-        xdelta = common.bundledFile("xdelta.exe")
-        if not os.path.isfile(xdelta):
-            common.logError("xdelta not found")
-        else:
-            common.execute(xdelta + " -f -e -s {iso} {isopatch} {patch}".format(iso=isofile, isopatch=isopatch, patch=patchfile), False)
-            common.logMessage("Done!")
+        common.xdeltaPatch(patchfile, isofile, isopatch)
 
 
 class ELF():

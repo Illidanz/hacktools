@@ -32,13 +32,7 @@ def repackRom(romfile, rompatch, workfolder, patchfile=""):
     common.logMessage("Done!")
     # Create xdelta patch
     if patchfile != "":
-        common.logMessage("Creating xdelta patch", patchfile, "...")
-        xdelta = common.bundledFile("xdelta.exe")
-        if not os.path.isfile(xdelta):
-            common.logError("xdelta not found")
-            return
-        common.execute(xdelta + " -f -e -s {rom} {rompatch} {patch}".format(rom=romfile, rompatch=rompatch, patch=patchfile), False)
-        common.logMessage("Done!")
+        common.xdeltaPatch(patchfile, romfile, rompatch)
 
 
 def editBannerTitle(file, title):
