@@ -482,6 +482,21 @@ def detectEncodedString(f, encoding="shift_jis", startascii=[0x25]):
     return ret
 
 
+def detectASCIIString(f, encoding="ascii", startascii=[]):
+    ret = ""
+    while True:
+        b1 = f.readByte()
+        if b1 == 0x0A:
+            ret += "|"
+        elif b1 == 0x00:
+            break
+        elif b1 >= 28 and b1 <= 126:
+            ret += chr(b1)
+        else:
+            return ""
+    return ret
+
+
 def writeEncodedString(f, s, maxlen=0, encoding="shift_jis"):
     i = 0
     x = 0
@@ -715,7 +730,7 @@ def xdeltaPatch(patchfile, infile, outfile):
     if not os.path.isfile(xdelta):
         logError("xdelta not found")
         return
-    execute(xdelta + " -f -e -s {rom} {rompatch} {patch}".format(rom=infile, rompatch=outfile, patch=patchfile), False)
+    execute(xdelta + " -f -e -s \"{rom}\" \"{rompatch}\" \"{patch}\"".format(rom=infile, rompatch=outfile, patch=patchfile), False)
     logMessage("Done!")
 
 
