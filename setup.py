@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name="hacktools",
-    version="0.13.8",
+    version="0.13.9",
     author="Illidan",
     description="A set of utilities and tools for rom hacking and translations.",
     long_description=long_description,

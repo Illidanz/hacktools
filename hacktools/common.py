@@ -412,6 +412,21 @@ def wordwrap(text, glyphs, width, codefunc=None, default=6, linebreak="|", secti
     return linebreak.join(lines)
 
 
+def centerLines(text, glyphs, width, default=6, linebreak="|", centercode="<<"):
+    lines = text.split(linebreak)
+    for i in range(len(lines)):
+        if not lines[i].startswith(centercode):
+            continue
+        lines[i] = lines[i][len(centercode):]
+        length = 0
+        for c in lines[i]:
+            length += glyphs[c].length if c in glyphs else default
+        spacelen = glyphs[" "].length
+        spacing = int(((width - length) / 2) / spacelen)
+        lines[i] = (" " * spacing) + lines[i]
+    return linebreak.join(lines)
+
+
 def readEncodedString(f, encoding="shift_jis"):
     sjis = ""
     while True:
