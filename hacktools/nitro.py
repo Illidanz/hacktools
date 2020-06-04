@@ -276,7 +276,7 @@ def extractFontData(fontfiles, out):
     with common.Stream(out, "wb") as f:
         for fontfile in fontfiles:
             nftr = readNFTR(fontfile)
-            for i in range(0x20, 0x7e):
+            for i in range(0x20, 0x7f):
                 f.writeByte(nftr.glyphs[chr(i)].length)
 
 
