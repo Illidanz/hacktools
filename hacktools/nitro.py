@@ -1200,8 +1200,8 @@ def drawNSBMD(file, nsbmd, texi):
             for j in range(tex.width):
                 x = i * tex.width + j
                 index = tex.data[x] & 0x1f
-                alpha = (tex.data[x] >> 5) & 7
-                alpha = ((alpha * 4) + (alpha // 2)) << 3
+                alpha = (tex.data[x] >> 5)
+                alpha = int(((alpha * 4) + (alpha / 2)) * 8)
                 if index < len(palette):
                     pixels[j, i] = (palette[index][0], palette[index][1], palette[index][2], alpha)
                 else:
@@ -1283,8 +1283,7 @@ def drawNSBMD(file, nsbmd, texi):
             for j in range(tex.width):
                 x = i * tex.width + j
                 index = tex.data[x] & 0x7
-                alpha = (tex.data[x] >> 3) & 0x1f
-                alpha = ((alpha * 4) + (alpha // 2)) << 3
+                alpha = int((tex.data[x] >> 3) * 8)
                 if index < len(palette):
                     pixels[j, i] = (palette[index][0], palette[index][1], palette[index][2], alpha)
                 else:
@@ -1316,7 +1315,11 @@ def writeNSBMD(file, nsbmd, texi, infile, fixtransp=False):
         f.seek(tex.offset)
         # A3I5 Translucent Texture (3bit Alpha, 5bit Color Index)
         if tex.format == 1:
-            common.logError("Texture format 1 not implemented")
+            for i in range(tex.height):
+                for j in range(tex.width):
+                    index = common.getPaletteIndex(paldata, pixels[j, i], fixtransp)
+                    alpha = (pixels[j, i][3] * 8) // 256
+                    f.writeByte(index | (alpha << 5))
         # 4-color Palette
         elif tex.format == 2:
             for i in range(tex.height):
@@ -1338,7 +1341,11 @@ def writeNSBMD(file, nsbmd, texi, infile, fixtransp=False):
             common.logError("Texture format 5 not implemented")
         # A5I3 Translucent Texture (5bit Alpha, 3bit Color Index)
         elif tex.format == 6:
-            common.logError("Texture format 6 not implemented")
+            for i in range(tex.height):
+                for j in range(tex.width):
+                    index = common.getPaletteIndex(paldata, pixels[j, i], fixtransp)
+                    alpha = (pixels[j, i][3] * 32) // 256
+                    f.writeByte(index | (alpha << 3))
         # Direct Color Texture
         elif tex.format == 7:
             common.logError("Texture format 7 not implemented")
