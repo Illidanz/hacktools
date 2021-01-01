@@ -1,3 +1,4 @@
+import codecs
 import math
 import os
 from PIL import Image
@@ -177,7 +178,52 @@ def getFontGlyphs(file):
                     if charcode == 0xFFFF or charcode >= len(hdwc):
                         continue
                     c = common.codeToChar(firstchar + i)
-                    glyphs[c] = common.FontGlyph(hdwc[charcode][0], hdwc[charcode][1], hdwc[charcode][2], c, firstchar + i, firstcode + i)
+                    glyphs[c] = common.FontGlyph(hdwc[charcode][0], hdwc[charcode][1], hdwc[charcode][2], c, firstchar + i, charcode)
             else:
                 common.logWarning("Unknown section type", sectiontype)
     return glyphs
+
+
+def extractFontData(file, outfile):
+    common.logMessage("Extracting font data to", outfile, "...")
+    glyphs = getFontGlyphs(file)
+    with codecs.open(outfile, "w", "utf-8") as f:
+        for glyph in glyphs.values():
+            char = glyph.char if glyph.char != "=" else "<3D>"
+            f.write(char + "=" + str(glyph.start) + "," + str(glyph.width) + "," + str(glyph.length) + "\n")
+    common.logMessage("Done!")
+
+
+def repackFontData(infile, outfile, datafile):
+    common.logMessage("Repacking font data from", datafile, "...")
+    common.copyFile(infile, outfile)
+    glyphs = getFontGlyphs(infile)
+    with codecs.open(datafile, "r", "utf-8") as f:
+        section = common.getSection(f, "")
+    if len(section) == 0:
+        return
+    with common.Stream(outfile, "rb+", False) as f:
+        # Header
+        f.seek(36)
+        hdwcoffset = f.readUInt()
+        # HDWC
+        f.seek(hdwcoffset - 4)
+        hdwclen = f.readUInt()
+        tilenum = (hdwclen - 16) // 3
+        f.seek(8, 1)
+        for i in range(tilenum):
+            found = False
+            for glyph in glyphs.values():
+                if glyph.index == i:
+                    sectionglyph = glyph.char if glyph.char != "=" else "<3D>"
+                    if sectionglyph in section:
+                        common.logDebug("Writing", section[sectionglyph][0], "at", f.tell())
+                        fontdata = section[sectionglyph][0].split(",")
+                        f.writeSByte(int(fontdata[0]))
+                        f.writeByte(int(fontdata[1]))
+                        f.writeByte(int(fontdata[2]))
+                        found = True
+                        break
+            if not found:
+                f.seek(3, 1)
+    common.logMessage("Done!")

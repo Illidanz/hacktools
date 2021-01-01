@@ -811,7 +811,7 @@ def readRGB5A1(color):
 
 
 def getPaletteIndex(palette, color, fixtransp=False, starti=0, palsize=-1, checkalpha=False, zerotransp=True):
-    if color[3] == 0 and zerotransp:
+    if zerotransp and color[3] == 0:
         return 0
     if palsize == -1:
         palsize = len(palette)
