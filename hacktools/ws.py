@@ -1,5 +1,5 @@
 import os
-from PIL import Image, ImageDraw
+from PIL import Image
 from hacktools import common
 
 
@@ -114,6 +114,17 @@ class TileData:
     vflip = False
 
 
+def readPalette(f, num=16):
+    palettes = []
+    for i in range(num):
+        c1 = f.readHalf() * 0x11
+        c2 = f.readHalf() * 0x11
+        c3 = f.readHalf() * 0x11
+        c4 = f.readHalf() * 0x11
+        palettes.append([(c1, c1, c1, 0xff), (c2, c2, c2, 0xff), (c3, c3, c3, 0xff), (c4, c4, c4, 0xff)])
+    return palettes
+
+
 def readMappedImage(f, outfile, tilestart, mapstart, num=1):
     f.seek(mapstart)
     maps = []
@@ -140,30 +151,140 @@ def readMappedImage(f, outfile, tilestart, mapstart, num=1):
             tilemap.vflip = ((tilemap.data >> 15) & 1) == 1
             map.map.append(tilemap)
         maps.append(map)
-    common.logDebug("Map data ended at", f.tell())
+    common.logDebug("Map data ended at", common.toHex(f.tell()))
     return maps
 
 
-def extractMappedImage(f, outfile, tilestart, mapstart, num=1, printnum=False):
+def extractMappedImage(f, outfile, tilestart, mapstart, num=1, readpal=False, printnum=False):
     common.logDebug("Extracting", outfile)
     if printnum:
-        from PIL import ImageFont
+        from PIL import ImageFont, ImageDraw
         fnt = ImageFont.truetype("m3x6.ttf", 16)
     maps = readMappedImage(f, outfile, tilestart, mapstart, num)
+    maxtile = 0
+    if readpal:
+        f.seek(mapstart - 32)
+        palettes = readPalette(f)
+    else:
+        palettes = bwpalette
+    common.logDebug(palettes)
     for i in range(num):
         mapdata = maps[i]
         img = Image.new("RGB", (mapdata.width * 8, mapdata.height * 8), (0x0, 0x0, 0x0))
         pixels = img.load()
         x = y = 0
         for map in mapdata.map:
+            if map.tile > maxtile:
+                maxtile = map.tile
             f.seek(tilestart + map.tile * 16)
-            readTile(f, pixels, x * 8, y * 8, bwpalette[map.pal] if map.pal in bwpalette else bwpalette[0], map.hflip, map.vflip)
+            readTile(f, pixels, x * 8, y * 8, palettes[map.pal] if map.pal < len(palettes) else palettes[0], map.hflip, map.vflip)
             if printnum:
                 d = ImageDraw.Draw(img)
-                d.text((x * 8, y * 8 - 5), str(map.tile), font=fnt, spacing=1, fill='red')
+                d.text((x * 8, y * 8 - 5), str(map.pal), font=fnt, spacing=1, fill='red')
             x += 1
             if x == mapdata.width:
                 y += 1
                 x = 0
         img.save(mapdata.name, "PNG")
-    common.logDebug("Tile data ended at", f.tell())
+    common.logDebug("Tile data ended at", common.toHex(tilestart + maxtile * 16 + 16))
+
+
+def repackMappedImage(f, infile, tilestart, mapstart, num=1, readpal=False, writepal=False):
+    common.logDebug("Repacking", infile)
+    maps = readMappedImage(f, infile, tilestart, mapstart, num)
+    tiles = {}
+    if readpal:
+        f.seek(mapstart - 32)
+        palettes = readPalette(f)
+    else:
+        palettes = bwpalette
+    common.logDebug(palettes)
+    # Figure out how many tiles we can include
+    maxtile = 0
+    mintile = 9999
+    for i in range(num):
+        for map in maps[i].map:
+            if map.tile < mintile:
+                mintile = map.tile
+            if map.tile > maxtile:
+                maxtile = map.tile
+    currtile = mintile
+    for i in range(num):
+        mapdata = maps[i]
+        imgname = mapdata.name
+        if not os.path.isfile(mapdata.name):
+            imgname = imgname.replace("work_IMG", "out_IMG")
+        if not os.path.isfile(imgname):
+            common.logError("Image", imgname, "not found")
+            continue
+        common.logDebug(" Processing", imgname)
+        img = Image.open(imgname)
+        img = img.convert("RGB")
+        pixels = img.load()
+        # Loop the tiles in the PNG
+        currmap = 0
+        x = y = 0
+        common.logDebug(mapdata.width, mapdata.height)
+        while y < mapdata.height:
+            hflip = vflip = False
+            tilecolors = []
+            # Convert the PNG tile to indexes
+            for y2 in range(8):
+                for x2 in range(8):
+                    tilecolors.append(pixels[x * 8 + x2, y * 8 + y2])
+            pal = 0
+            if writepal:
+                pal = common.findBestPalette(palettes, tilecolors)
+            elif readpal:
+                pal = mapdata.map[currmap].pal
+            tile = []
+            for tilecolor in tilecolors:
+                tile.append(common.getPaletteIndex(palettes[pal], tilecolor, zerotransp=False))
+            tile = tuple(tile)
+            # Check if we already have added this file
+            if tile in tiles:
+                maptile = tiles[tile]
+            else:
+                # Look for inverted tiles
+                hflipped = tuple(common.flipTile(tile, True, False))
+                vflipped = tuple(common.flipTile(tile, False, True))
+                hvflipped = tuple(common.flipTile(tile, True, True))
+                if hflipped in tiles:
+                    maptile = tiles[hflipped]
+                    hflip = True
+                elif vflipped in tiles:
+                    maptile = tiles[vflipped]
+                    vflip = True
+                elif hvflipped in tiles:
+                    maptile = tiles[hvflipped]
+                    hflip = vflip = True
+                else:
+                    # Check for space
+                    if currtile > maxtile:
+                        common.logError("Not enough space for tile", (str(currtile) + "/" + str(maxtile)), "in", mapdata.name)
+                        currtile += 1
+                        maptile = mintile
+                    else:
+                        # Add the new tile
+                        maptile = currtile
+                        currtile += 1
+                        tiles[tile] = maptile
+                        f.seek(tilestart + (maptile * 16))
+                        writeTile(f, pixels, x * 8, y * 8, palettes[pal])
+            # Write the map data
+            f.seek(mapdata.offset + 2 + currmap * 2)
+            originalmap = mapdata.map[currmap]
+            mapbytes = maptile
+            if writepal:
+                mapbytes |= (pal << 9)
+            else:
+                mapbytes |= (originalmap.pal << 9)
+            mapbytes |= (originalmap.bank << 13)
+            mapbytes |= ((1 if hflip else 0) << 14)
+            mapbytes |= ((1 if vflip else 0) << 15)
+            f.writeUShort(mapbytes)
+            x += 1
+            currmap += 1
+            if x == mapdata.width:
+                y += 1
+                x = 0

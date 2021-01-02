@@ -759,8 +759,16 @@ def readPalette(p):
 
 
 def getColorDistance(c1, c2, checkalpha=False):
-    (r1, g1, b1, a1) = c1
-    (r2, g2, b2, a2) = c2
+    if len(c1) == 4:
+        (r1, g1, b1, a1) = c1
+    else:
+        (r1, g1, b1) = c1
+        a1 = 255
+    if len(c2) == 4:
+        (r2, g2, b2, a2) = c2
+    else:
+        (r2, g2, b2) = c2
+        a2 = 255
     sum = (r1 - r2) ** 2 + (g1 - g2) ** 2 + (b1 - b2) ** 2
     if checkalpha:
         sum += (a1 - a2) ** 2
@@ -821,7 +829,7 @@ def getPaletteIndex(palette, color, fixtransp=False, starti=0, palsize=-1, check
             continue
         if palette[i][0] == color[0] and palette[i][1] == color[1] and palette[i][2] == color[2] and (not checkalpha or palette[i][3] == color[3]):
             return i - starti
-        if palette[i][3] == 0:
+        if checkalpha and palette[i][3] == 0:
             zeroalpha = i - starti
     if palette[starti][0] == color[0] and palette[starti][1] == color[1] and palette[starti][2] == color[2] and (not checkalpha or palette[starti][3] == color[3]):
         return 0
@@ -869,3 +877,13 @@ def drawPalette(pixels, palette, width, ystart=0, transp=True):
                     color = (color[0], color[1], color[2], 255)
                 pixels[j + j2, i + i2] = color
     return pixels
+
+
+def flipTile(tile, hflip, vflip, tilewidth=8, tileheight=8):
+    newtile = []
+    xrange = range(0, tilewidth) if not hflip else range(tilewidth - 1, -1, -1)
+    yrange = range(0, tileheight) if not vflip else range(tileheight - 1, -1, -1)
+    for y in yrange:
+        for x in xrange:
+            newtile.append(tile[y * tileheight + x])
+    return newtile
