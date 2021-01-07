@@ -35,6 +35,10 @@ def repackRom(romfile, rompatch, workfolder, patchfile=""):
             bankname += format(i, 'x')
             with common.Stream(workfolder + bankname + ".bin", "rb") as f:
                 fout.write(f.read())
+    # Calculate and write the checksum
+    with common.Stream(rompatch, "rb+") as fout:
+        checksum = sum(fout.read(filesize - 2))
+        fout.writeUShort(checksum & 0xffff)
     common.logMessage("Done!")
     # Create xdelta patch
     if patchfile != "":
