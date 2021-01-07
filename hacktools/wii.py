@@ -27,6 +27,31 @@ def extractTPL(infolder, outfolder, splitName=True):
     common.logMessage("Done! Extracted", len(files), "files")
 
 
+def extractBRFNT(infile, outfile):
+    brfnt2tpl = common.bundledFile("brfnt2tpl.exe")
+    if not os.path.isfile(brfnt2tpl):
+        common.logError("brfnt2tpl not found")
+        return
+    common.execute(brfnt2tpl + " {file}".format(file=infile), False)
+    common.execute("wimgt DECODE " + infile.replace(".brfnt", ".tpl") + " -D " + outfile, False)
+    os.remove(infile.replace(".brfnt", ".tpl"))
+    os.remove(infile.replace(".brfnt", ".vbfta"))
+
+
+def repackBRFNT(outfile, workfile):
+    brfnt2tpl = common.bundledFile("brfnt2tpl.exe")
+    if not os.path.isfile(brfnt2tpl):
+        common.logError("brfnt2tpl not found")
+        return
+    common.execute(brfnt2tpl + " {file}".format(file=outfile), False)
+    tplfile = outfile.replace(".brfnt", ".tpl")
+    tpl = readTPL(tplfile)
+    writeTPL(tplfile, tpl, workfile)
+    common.execute(brfnt2tpl + " {file}".format(file=outfile.replace(".brfnt", ".tpl")), False)
+    os.remove(outfile.replace(".brfnt", ".tpl"))
+    os.remove(outfile.replace(".brfnt", ".vbfta"))
+
+
 def extractIso(isofile, extractfolder, workfolder=""):
     common.logMessage("Extracting ISO", isofile, "...")
     common.makeFolder(extractfolder)
@@ -81,25 +106,26 @@ def readTPL(file):
             f.seek(tpl.tableoff + i * 8)
             image.imgoff = f.readUInt()
             image.paloff = f.readUInt()
-            f.seek(image.paloff)
-            palcount = f.readUShort()
-            f.seek(1, 1)  # Unpacked
-            f.seek(1, 1)  # Padding
-            image.palformat = f.readUInt()
-            image.paldataoff = f.readUInt()
-            if image.palformat != 0x02:
-                common.logError("Unimplemented palette format:", image.palformat)
-                continue
-            f.seek(image.paldataoff)
-            image.palette = []
-            for j in range(palcount):
-                image.palette.append(common.readRGB5A3(f.readShort()))
+            if image.paloff > 0:
+                f.seek(image.paloff)
+                palcount = f.readUShort()
+                f.seek(1, 1)  # Unpacked
+                f.seek(1, 1)  # Padding
+                image.palformat = f.readUInt()
+                image.paldataoff = f.readUInt()
+                if image.palformat != 0x02:
+                    common.logError("Unimplemented palette format:", image.palformat)
+                    continue
+                f.seek(image.paldataoff)
+                image.palette = []
+                for j in range(palcount):
+                    image.palette.append(common.readRGB5A3(f.readShort()))
             f.seek(image.imgoff)
             image.height = f.readUShort()
             image.width = f.readUShort()
             image.format = f.readUInt()
             image.dataoff = f.readUInt()
-            if image.format != 0x08 and image.format != 0x09:
+            if image.format != 0x02 and image.format != 0x08 and image.format != 0x09:
                 common.logError("Unimplemented image format:", image.format)
                 continue
             image.tilewidth = 8
@@ -127,7 +153,10 @@ def writeTPL(file, tpl, infile):
                             index = 0
                             if x + x2 < img.width and y + y2 < img.height:
                                 color = pixels[x + x2, y + y2]
-                                index = common.getPaletteIndex(image.palette, color, False, 0, -1, True, False)
+                                if image.format == 0x02:
+                                    index = ((color[3] // 0x11) << 4) | (color[0] // 0x11)
+                                else:
+                                    index = common.getPaletteIndex(image.palette, color, False, 0, -1, True, False)
                             if image.format == 0x08:
                                 f.writeHalf(index)
                             else:
