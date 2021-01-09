@@ -33,6 +33,9 @@ class Stream(object):
     def __exit__(self, exc_type, exc_value, traceback):
         self.f.close()
 
+    def close(self):
+        self.f.close()
+
     def tell(self):
         return self.f.tell()
 
@@ -369,7 +372,7 @@ class FontGlyph:
         self.index = index
 
 
-def wordwrap(text, glyphs, width, codefunc=None, default=6, linebreak="|", sectionsep=">>"):
+def wordwrap(text, glyphs, width, codefunc=None, default=6, linebreak="|", sectionsep=">>", strip=True):
     # Based on http://code.activestate.com/recipes/577946-word-wrap-for-proportional-fonts/
     lines = []
     if sectionsep != "" and text.count(sectionsep) > 0:
@@ -408,7 +411,8 @@ def wordwrap(text, glyphs, width, codefunc=None, default=6, linebreak="|", secti
             total += widths[index] + widths[index + 1]
         if start < len(tokens):
             lines.append("".join(tokens[start:]))
-    lines = [line.strip() for line in lines]
+    if strip:
+        lines = [line.strip() for line in lines]
     return linebreak.join(lines)
 
 
