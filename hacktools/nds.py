@@ -9,7 +9,7 @@ from hacktools import common, compression
 
 def extractRom(romfile, extractfolder, workfolder=""):
     common.logMessage("Extracting ROM", romfile, "...")
-    ndstool = common.bundledFile("ndstool.exe")
+    ndstool = common.bundledExecutable("ndstool.exe")
     if not os.path.isfile(ndstool):
         common.logError("ndstool not found")
         return
@@ -23,7 +23,7 @@ def extractRom(romfile, extractfolder, workfolder=""):
 
 def repackRom(romfile, rompatch, workfolder, patchfile=""):
     common.logMessage("Repacking ROM", rompatch, "...")
-    ndstool = common.bundledFile("ndstool.exe")
+    ndstool = common.bundledExecutable("ndstool.exe")
     if not os.path.isfile(ndstool):
         common.logError("ndstool not found")
         return

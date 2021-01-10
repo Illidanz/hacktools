@@ -56,7 +56,8 @@ def run(asmfile):
             # Write the nasm lines to a file and compile them
             with codecs.open(tempfile, "w", "utf-8") as tempf:
                 tempf.write(nasmlines)
-            common.execute("nasm -O1 -o " + tempout + " -f bin " + tempfile, False)
+            nasm = common.bundledExecutable("nasm.exe")
+            common.execute(nasm + " -O1 -o " + tempout + " -f bin " + tempfile, False)
             # Read the temp file and write it to the opened one
             with common.Stream(tempout, "rb") as tempf:
                 currf.write(tempf.read())

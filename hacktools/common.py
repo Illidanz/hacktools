@@ -712,6 +712,19 @@ def bundledFile(name):
         return name
 
 
+def bundledExecutable(name):
+    if os.name != 'nt':
+        name = name.replace(".exe", "")
+    if os.path.isfile(name):
+        if os.name != 'nt':
+            name = "./" + name
+        return name
+    try:
+        return os.path.join(sys._MEIPASS, name)
+    except AttributeError:
+        return name
+
+
 def execute(cmd, show=True):
     try:
         result = str(subprocess.check_output(cmd))
@@ -730,7 +743,7 @@ def execute(cmd, show=True):
 
 def xdeltaPatch(patchfile, infile, outfile):
     logMessage("Creating xdelta patch", patchfile, "...")
-    xdelta = bundledFile("xdelta.exe")
+    xdelta = bundledExecutable("xdelta.exe")
     if not os.path.isfile(xdelta):
         logError("xdelta not found")
         return
@@ -740,7 +753,7 @@ def xdeltaPatch(patchfile, infile, outfile):
 
 def armipsPatch(file, defines={}, labels={}):
     logMessage("Applying armips patch ...")
-    armips = bundledFile("armips.exe")
+    armips = bundledExecutable("armips.exe")
     if not os.path.isfile(armips):
         logError("armips not found")
         return

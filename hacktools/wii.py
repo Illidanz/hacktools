@@ -28,7 +28,7 @@ def extractTPL(infolder, outfolder, splitName=True):
 
 
 def extractBRFNT(infile, outfile):
-    brfnt2tpl = common.bundledFile("brfnt2tpl.exe")
+    brfnt2tpl = common.bundledExecutable("brfnt2tpl.exe")
     if not os.path.isfile(brfnt2tpl):
         common.logError("brfnt2tpl not found")
         return
@@ -39,7 +39,7 @@ def extractBRFNT(infile, outfile):
 
 
 def repackBRFNT(outfile, workfile):
-    brfnt2tpl = common.bundledFile("brfnt2tpl.exe")
+    brfnt2tpl = common.bundledExecutable("brfnt2tpl.exe")
     if not os.path.isfile(brfnt2tpl):
         common.logError("brfnt2tpl not found")
         return
