@@ -417,6 +417,12 @@ def wordwrap(text, glyphs, width, codefunc=None, default=6, linebreak="|", secti
             lines.append("".join(tokens[start:]))
     if strip:
         lines = [line.strip() for line in lines]
+    else:
+        for line in lines:
+            if line.startswith(" "):
+                line = line[1:]
+            if line.endswith(" "):
+                line = line[:-1]
     return linebreak.join(lines)
 
 
