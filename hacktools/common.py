@@ -183,9 +183,12 @@ class Stream(object):
         self.f.write(str.encode("ascii"))
 
     def writeZero(self, num):
+        self.writeBytes(0x0, num)
+
+    def writeBytes(self, byte, num):
         if num > 0:
             for i in range(num):
-                self.writeByte(0)
+                self.writeByte(byte)
 
 
 # Logging
@@ -264,7 +267,7 @@ def shiftPointer(pointer, pointerdiff):
         if k < pointer:
             newpointer += v
     if newpointer != pointer:
-        logDebug("Shifted pointer", pointer, "to", newpointer)
+        logDebug("Shifted pointer", toHex(pointer), "to", toHex(newpointer))
     return newpointer
 
 
