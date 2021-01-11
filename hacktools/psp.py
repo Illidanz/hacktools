@@ -1,6 +1,6 @@
 import math
+import os
 import pycdlib
-from io import BytesIO
 from PIL import Image
 from hacktools import common
 
@@ -13,11 +13,8 @@ def extractIso(isofile, extractfolder, workfolder=""):
     for dirname, dirlist, filelist in iso.walk(iso_path="/"):
         common.makeFolders(extractfolder + dirname[1:])
         for file in filelist:
-            extracted = BytesIO()
-            iso.get_file_from_iso_fp(extracted, iso_path=dirname + "/" + file)
-            extracted.seek(0)
             with open(extractfolder + dirname[1:] + "/" + file, "wb") as f:
-                f.write(extracted.read())
+                iso.get_file_from_iso_fp(f, iso_path=dirname + "/" + file)
     iso.close()
     if workfolder != "":
         common.copyFolder(extractfolder, workfolder)
@@ -31,12 +28,9 @@ def repackIso(isofile, isopatch, workfolder, patchfile=""):
     iso.open(isopatch, "r+b")
     files = common.getFiles(workfolder)
     for file in common.showProgress(files):
-        filebytes = BytesIO()
+        filelen = os.path.getsize(workfolder + file)
         with open(workfolder + file, "rb") as f:
-            filebytes.write(f.read())
-        filelen = filebytes.tell()
-        filebytes.seek(0)
-        iso.modify_file_in_place(filebytes, filelen, "/" + file)
+            iso.modify_file_in_place(f, filelen, "/" + file)
     iso.close()
     common.logMessage("Done!")
     # Create xdelta patch
