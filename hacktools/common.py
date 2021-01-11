@@ -5,6 +5,7 @@ import logging
 import math
 import os
 import re
+import shlex
 import shutil
 import sys
 import struct
@@ -730,7 +731,10 @@ def bundledExecutable(name):
 
 def execute(cmd, show=True):
     try:
-        result = str(subprocess.check_output(cmd))
+        if os.name != 'nt':
+            result = str(subprocess.check_output(shlex.split(cmd)))
+        else:
+            result = str(subprocess.check_output(cmd))
     except FileNotFoundError:
         logError("Command too long:", len(cmd))
         return
