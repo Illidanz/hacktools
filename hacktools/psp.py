@@ -1,3 +1,4 @@
+import codecs
 import math
 import os
 import pycdlib
@@ -445,3 +446,25 @@ def drawGIMPixel(image, pixels, x, y, i):
         pixels[x, y] = image.palette[image.colors[i]]
     else:
         pixels[x, y] = image.colors[i]
+
+
+# Font files
+def extractFontData(file, outfile):
+    common.logMessage("Extracting font data to", outfile, "...")
+    # dump_pgf = common.bundledExecutable("dump_pgf.exe")
+    # common.execute(dump_pgf + " -i " + file + " > info.txt")
+    if os.path.isfile("info.txt"):
+        with codecs.open(outfile, "w", "utf-8") as fout:
+            with codecs.open("info.txt", "r", "utf-8") as fin:
+                lines = fin.readlines()
+            char = ""
+            for line in lines:
+                line = line.strip()
+                if line.startswith("----"):
+                    charcode = int(line.split("U_")[1].split(" ")[0], 16)
+                    char = chr(charcode)
+                elif line.startswith("dimension"):
+                    width = int(float(line.split("h=")[1].split("v=")[0].strip()))
+                    fout.write(char + "=" + str(width) + "\n")
+        # os.remove("info.txt")
+    common.logMessage("Done!")
