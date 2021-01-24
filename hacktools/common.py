@@ -309,32 +309,34 @@ def getSectionNames(f):
         for line in f:
             line = line.rstrip("\r\n").replace("\ufeff", "")
             if line.startswith("!FILE:"):
-                ret.append(line[6:])
+                ret.append(line[6:].split("#")[0])
     except UnicodeDecodeError:
         return ret
     return ret
 
 
-def getSection(f, title, comment="#", fixchars=[]):
+def getSection(f, title, comment="#", fixchars=[], justone=True):
     ret = {}
     found = title == ""
     try:
         f.seek(0)
         for line in f:
             line = line.rstrip("\r\n").replace("\ufeff", "")
+            if found and line.startswith("!FILE:"):
+                if not justone:
+                    found = False
+                else:
+                    break
             if not found and line.startswith("!FILE:" + title):
                 found = True
-            elif found:
-                if title != "" and line.startswith("!FILE:"):
-                    break
-                elif line.find("=") > 0:
-                    split = line.split("=", 1)
-                    split[1] = split[1].split(comment)[0]
-                    if split[0] not in ret:
-                        ret[split[0]] = []
-                    for fixchar in fixchars:
-                        split[1] = split[1].replace(fixchar[0], fixchar[1])
-                    ret[split[0]].append(split[1])
+            elif found and line.find("=") > 0:
+                split = line.split("=", 1)
+                split[1] = split[1].split(comment)[0]
+                if split[0] not in ret:
+                    ret[split[0]] = []
+                for fixchar in fixchars:
+                    split[1] = split[1].replace(fixchar[0], fixchar[1])
+                ret[split[0]].append(split[1])
     except UnicodeDecodeError:
         return ret
     return ret
