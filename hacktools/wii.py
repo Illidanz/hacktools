@@ -144,6 +144,14 @@ def writeTPL(file, tpl, infile):
                 imgfile = imgfile.replace(".png", ".mm" + str(i) + ".png")
             img = Image.open(imgfile)
             img = img.convert("RGBA")
+            if img.width != image.width or img.height != image.height:
+                image.width = img.width
+                image.height = img.height
+                image.blockwidth = math.ceil(image.width / image.tilewidth) * image.tilewidth
+                image.blockheight = math.ceil(image.height / image.tileheight) * image.tileheight
+                f.seek(image.imgoff)
+                f.writeUShort(image.height)
+                f.writeUShort(image.width)
             pixels = img.load()
             f.seek(image.dataoff)
             for y in range(0, image.blockheight, image.tileheight):
