@@ -64,6 +64,9 @@ class Stream(object):
     def readUInt(self):
         return struct.unpack(self.endian + "I", self.read(4))[0]
 
+    def readFloat(self):
+        return struct.unpack(self.endian + "f", self.read(4))[0]
+
     def readShort(self):
         return struct.unpack(self.endian + "h", self.read(2))[0]
 
@@ -135,6 +138,15 @@ class Stream(object):
         current = self.tell()
         self.seek(pos)
         self.writeUInt(num)
+        self.seek(current)
+
+    def writeFloat(self, num):
+        self.f.write(struct.pack(self.endian + "f", num))
+
+    def writeFloatAt(self, pos, num):
+        current = self.tell()
+        self.seek(pos)
+        self.writeFloat(num)
         self.seek(current)
 
     def writeShort(self, num):
