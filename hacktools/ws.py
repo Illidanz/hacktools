@@ -227,7 +227,7 @@ def writePalette(f, palettes, bpp=2):
                 f.writeUShort(col)
 
 
-def readMappedImage(f, outfile, mapstart=0, num=1, bpp=2):
+def readMappedImage(f, outfile, mapstart=0, num=1, bpp=2, width=0, height=0):
     f.seek(mapstart)
     maps = []
     for j in range(num):
@@ -237,8 +237,12 @@ def readMappedImage(f, outfile, mapstart=0, num=1, bpp=2):
         else:
             map.name = outfile
         map.offset = f.tell()
-        map.width = f.readByte()
-        map.height = f.readByte()
+        map.width = width
+        if map.width == 0:
+            map.width = f.readByte()
+        map.height = height
+        if map.height == 0:
+            map.height = f.readByte()
         map.bpp = bpp
         common.logDebug(" ", mapstart, vars(map))
         map.map = []
@@ -258,9 +262,9 @@ def readMappedImage(f, outfile, mapstart=0, num=1, bpp=2):
     return maps
 
 
-def extractMappedImage(f, outfile, tilestart, mapstart, num=1, readpal=False):
+def extractMappedImage(f, outfile, tilestart, mapstart, num=1, readpal=False, bpp=2, forcewidth=0, forceheight=0):
     common.logDebug("Extracting", outfile)
-    maps = readMappedImage(f, outfile, mapstart, num)
+    maps = readMappedImage(f, outfile, mapstart, num, bpp, forcewidth, forceheight)
     if readpal:
         f.seek(mapstart - 32)
         palettes = readPalette(f, maps[0].bpp)
@@ -291,6 +295,8 @@ def writeMappedImage(f, tilestart, maps, palettes, num=1):
                 try:
                     readTile(f, pixels, x * 8, y * 8, palettes[map.pal] if map.pal < len(palettes) else palettes[0], map.hflip, map.vflip, mapdata.bpp)
                 except struct.error:
+                    pass
+                except IndexError:
                     pass
             x += 1
             if x == mapdata.width:
