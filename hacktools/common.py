@@ -61,23 +61,72 @@ class Stream(object):
     def readInt(self):
         return struct.unpack(self.endian + "i", self.read(4))[0]
 
+    def readIntAt(self, pos):
+        current = self.tell()
+        self.seek(pos)
+        ret = self.readInt()
+        self.seek(current)
+        return ret
+
     def readUInt(self):
         return struct.unpack(self.endian + "I", self.read(4))[0]
+
+    def readUIntAt(self, pos):
+        current = self.tell()
+        self.seek(pos)
+        ret = self.readUInt()
+        self.seek(current)
+        return ret
 
     def readFloat(self):
         return struct.unpack(self.endian + "f", self.read(4))[0]
 
+    def readFloatAt(self, pos):
+        current = self.tell()
+        self.seek(pos)
+        ret = self.readFloat()
+        self.seek(current)
+        return ret
+
     def readShort(self):
         return struct.unpack(self.endian + "h", self.read(2))[0]
+
+    def readShortAt(self, pos):
+        current = self.tell()
+        self.seek(pos)
+        ret = self.readShort()
+        self.seek(current)
+        return ret
 
     def readUShort(self):
         return struct.unpack(self.endian + "H", self.read(2))[0]
 
+    def readUShortAt(self, pos):
+        current = self.tell()
+        self.seek(pos)
+        ret = self.readUShort()
+        self.seek(current)
+        return ret
+
     def readByte(self):
         return struct.unpack("B", self.read(1))[0]
 
+    def readByteAt(self, pos):
+        current = self.tell()
+        self.seek(pos)
+        ret = self.readByte()
+        self.seek(current)
+        return ret
+
     def readSByte(self):
         return struct.unpack("b", self.read(1))[0]
+
+    def readSByteAt(self, pos):
+        current = self.tell()
+        self.seek(pos)
+        ret = self.readSByte()
+        self.seek(current)
+        return ret
 
     def readHalf(self):
         if self.half is None:
