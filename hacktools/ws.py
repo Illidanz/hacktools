@@ -283,7 +283,17 @@ def writeMappedImage(f, tilestart, maps, palettes, num=1):
         if mapdata.height == 0:
             common.logError("Height is 0")
             continue
-        img = Image.new("RGB", (mapdata.width * 8, mapdata.height * 8), (0x0, 0x0, 0x0))
+        imgwidth = mapdata.width * 8
+        imgheight = mapdata.height * 8
+        pali = 0
+        if mapdata.bpp == 4 and palettes != colpalette:
+            imgwidth += 40
+            for palette in palettes:
+                if palette.count((0x0, 0x0, 0x0, 0xff)) == 16:
+                    break
+                pali += 1
+            imgheight = max(imgheight, pali * 10)
+        img = Image.new("RGB", (imgwidth, imgheight), (0x0, 0x0, 0x0))
         pixels = img.load()
         x = y = 0
         for map in mapdata.map:
@@ -302,6 +312,11 @@ def writeMappedImage(f, tilestart, maps, palettes, num=1):
             if x == mapdata.width:
                 y += 1
                 x = 0
+        if pali > 0:
+            palstart = 0
+            for i in range(pali):
+                pixels = common.drawPalette(pixels, palettes[i], imgwidth - 40, palstart * 10)
+                palstart += 1
         img.save(mapdata.name, "PNG")
     common.logDebug("Tile data ended at", common.toHex(tilestart + maxtile * tilesize + tilesize))
 
