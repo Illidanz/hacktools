@@ -10,6 +10,7 @@ def run(asmfile):
     # .org 0x100: seek opened file to 0x100
     #      Everything between this and the next .org/.close
     #      is compiled and wrote to the file with nasm
+    # .import 0x200 file: imports the specified file and writes it to the address
     # .close: close the opened file (required)
     tempfile = "asm.tmp"
     tempout = "asm.bin"
@@ -32,6 +33,21 @@ def run(asmfile):
                 common.logError("File", filename, "not found.")
                 break
             currf = common.Stream(filename, "rb+").__enter__()
+        elif line.startswith(".import"):
+            filename = line[7:].strip()
+            parameters = shlex.split(line[7:].strip())
+            filename = parameters[1]
+            if not os.path.isfile(filename):
+                common.logError("File", filename, "not found.")
+                break
+            importpos = parameters[0]
+            if importpos.startswith("0x"):
+                importpos = int(importpos.replace("0x", ""), 16)
+            else:
+                importpos = int(importpos)
+            currf.seek(importpos)
+            with common.Stream(filename, "rb") as importfile:
+                currf.write(importfile.read())
         elif line.startswith(".org"):
             orgpos = line[4:].strip()
             if orgpos.startswith("0x"):
@@ -45,7 +61,7 @@ def run(asmfile):
             nasmlines = "[BITS 16]\ncpu 186\norg " + str(orgpos) + "\n"
             while j < len(lines):
                 nasmline = lines[j].strip()
-                if nasmline.startswith(".org") or nasmline.startswith(".close"):
+                if nasmline.startswith(".org") or nasmline.startswith(".close") or nasmline.startswith(".import"):
                     i = j - 1
                     break
                 else:
