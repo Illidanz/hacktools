@@ -376,8 +376,8 @@ def getSectionNames(f):
     return ret
 
 
-def getSection(f, title, comment="#", fixchars=[], justone=True):
-    ret = {}
+def getSection(f, title, comment="#", fixchars=[], justone=True, inorder=False):
+    ret = {} if not inorder else []
     found = title == ""
     try:
         f.seek(0)
@@ -390,25 +390,30 @@ def getSection(f, title, comment="#", fixchars=[], justone=True):
                     break
             if not found and line.startswith("!FILE:" + title):
                 found = True
+            elif found and line.startswith(comment) and inorder:
+                ret.append({"name": line, "value": ""})
             elif found and line.find("=") > 0:
                 split = line.split("=", 1)
                 split[1] = split[1].split(comment)[0]
-                if split[0] not in ret:
+                if split[0] not in ret and not inorder:
                     ret[split[0]] = []
                 for fixchar in fixchars:
                     split[1] = split[1].replace(fixchar[0], fixchar[1])
-                ret[split[0]].append(split[1])
+                if inorder:
+                    ret.append({"name": split[0], "value": split[1]})
+                else:
+                    ret[split[0]].append(split[1])
     except UnicodeDecodeError:
         return ret
     return ret
 
 
-def getSections(file, comment="#", fixchars=[]):
+def getSections(file, comment="#", fixchars=[], inorder=False):
     sections = {}
     with codecs.open(file, "r", "utf-8") as wsb:
         files = getSectionNames(wsb)
         for file in files:
-            sections[file] = getSection(wsb, file, comment, fixchars)
+            sections[file] = getSection(wsb, file, comment, fixchars, inorder=inorder)
     return sections
 
 
@@ -420,6 +425,26 @@ def getSectionPercentage(section, chartot=0, transtot=0):
             if s2 != "":
                 transtot += strlen
     return chartot, transtot
+
+
+def mergeSections(file1, file2, output, comment="#", fixchars=[]):
+    sections1 = getSections(file1, comment, fixchars, inorder=True)
+    sections2 = getSections(file2, comment, fixchars)
+    with codecs.open(output, "w", "utf-8") as out:
+        for section in sections1.keys():
+            out.write("!FILE:" + section + "\n")
+            for v in sections1[section]:
+                s = v["name"]
+                if s.startswith(comment):
+                    out.write(s + "\n")
+                    continue
+                sectionstr = v["value"]
+                if sectionstr == '':
+                    for section2 in sections2.keys():
+                        if s in sections2[section2] and sections2[section2][s][0] != '':
+                            sectionstr = sections2[section2][s][0]
+                            break
+                out.write(s + "=" + sectionstr + "\n")
 
 
 class FontGlyph:
