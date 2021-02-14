@@ -193,6 +193,12 @@ class TileData:
     hflip = False
     vflip = False
 
+    def __init__(self, tile, pal=0, hflip=False, vflip=False):
+        self.tile = tile
+        self.pal = pal
+        self.hflip = hflip
+        self.vflip = vflip
+
 
 def readPalette(f, bpp=2, num=16):
     palettes = []
@@ -420,3 +426,24 @@ def repackMappedImage(f, infile, tilestart, mapstart, num=1, readpal=False, writ
             if x == mapdata.width:
                 y += 1
                 x = 0
+
+
+def repackMappedTiles(f, tilestart, mapdata, palettes):
+    imgname = mapdata.name
+    if not os.path.isfile(mapdata.name):
+        imgname = imgname.replace("work_IMG", "out_IMG")
+    if not os.path.isfile(imgname):
+        common.logError("Image", imgname, "not found")
+        return
+    img = Image.open(imgname)
+    img = img.convert("RGB")
+    pixels = img.load()
+    x = y = 0
+    for tiledata in mapdata.map:
+        if not tiledata.hflip and not tiledata.vflip:
+            f.seek(tilestart + (tiledata.tile * 16))
+            writeTile(f, pixels, x * 8, y * 8, palettes[0], mapdata.bpp)
+        x += 1
+        if x == mapdata.width:
+            y += 1
+            x = 0
