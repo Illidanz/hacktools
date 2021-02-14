@@ -439,18 +439,22 @@ def readNCGR(ncgrfile):
             ncgr.width *= ncgr.tilesize
             ncgr.height *= ncgr.tilesize
         common.logDebug(vars(ncgr))
-        for i in range(ncgr.tilelen // (8 * ncgr.bpp)):
-            singletile = []
-            for j in range(ncgr.tilesize * ncgr.tilesize):
-                x = i * (ncgr.tilesize * ncgr.tilesize) + j
-                if ncgr.bpp == 4:
-                    index = (tiledata[x // 2] >> ((x % 2) << 2)) & 0x0f
-                else:
-                    index = tiledata[x]
-                singletile.append(index)
-            ncgr.tiles.append(singletile)
+        readNCGRTiles(ncgr, tiledata)
     common.logDebug("Loaded", len(ncgr.tiles), "tiles")
     return ncgr
+
+
+def readNCGRTiles(ncgr, tiledata):
+    for i in range(ncgr.tilelen // (8 * ncgr.bpp)):
+        singletile = []
+        for j in range(ncgr.tilesize * ncgr.tilesize):
+            x = i * (ncgr.tilesize * ncgr.tilesize) + j
+            if ncgr.bpp == 4:
+                index = (tiledata[x // 2] >> ((x % 2) << 2)) & 0x0f
+            else:
+                index = tiledata[x]
+            singletile.append(index)
+        ncgr.tiles.append(singletile)
 
 
 def readNSCR(nscrfile):
