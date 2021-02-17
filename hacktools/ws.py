@@ -306,14 +306,15 @@ def writeMappedImage(f, tilestart, maps, palettes, num=1):
             tilesize = (16 if mapdata.bpp == 2 else 32)
             if map.tile > maxtile:
                 maxtile = map.tile
-            if map.bank == 0:
-                f.seek(tilestart + map.tile * tilesize)
-                try:
-                    readTile(f, pixels, x * 8, y * 8, palettes[map.pal] if map.pal < len(palettes) else palettes[0], map.hflip, map.vflip, mapdata.bpp)
-                except struct.error:
-                    pass
-                except IndexError:
-                    pass
+            if mapdata.bpp == 2 and map.bank > 0:
+                continue
+            f.seek(tilestart + map.bank * 0x4000 + map.tile * tilesize)
+            try:
+                readTile(f, pixels, x * 8, y * 8, palettes[map.pal] if map.pal < len(palettes) else palettes[0], map.hflip, map.vflip, mapdata.bpp)
+            except struct.error:
+                pass
+            except IndexError:
+                pass
             x += 1
             if x == mapdata.width:
                 y += 1
