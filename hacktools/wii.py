@@ -27,6 +27,21 @@ def extractTPL(infolder, outfolder, splitName=True):
     common.logMessage("Done! Extracted", len(files), "files")
 
 
+def extractBREFT(infolder, tempfolder, outfolder):
+    common.makeFolder(tempfolder)
+    common.makeFolder(outfolder)
+    common.logMessage("Extracting BREFT to", outfolder, "...")
+    files = common.getFiles(infolder, ".breft")
+    for file in common.showProgress(files):
+        common.logDebug("Processing", file, "...")
+        outfile = file.split("/")
+        outfile = "/" + outfile[1] + "/" + outfile[3]
+        common.execute("wszst EXTRACT " + infolder + file + " -D " + tempfolder + outfile, False)
+        for imgfile in os.listdir(tempfolder + outfile + "/files"):
+            common.execute("wimgt DECODE " + tempfolder + outfile + "/files/" + imgfile + " -D " + outfolder + outfile + "/" + imgfile + ".png", False)
+    common.logMessage("Done! Extracted", len(files), "files")
+
+
 def extractBRFNT(infile, outfile):
     brfnt2tpl = common.bundledExecutable("brfnt2tpl.exe")
     if not os.path.isfile(brfnt2tpl):
