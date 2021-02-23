@@ -41,9 +41,30 @@ def repackRom(romfile, rompatch, workfolder, patchfile=""):
         checksum = sum(fout.read(filesize - 2))
         fout.writeUShort(checksum & 0xffff)
     common.logMessage("Done!")
-    # Create xdelta patch
+    # Create patch
     if patchfile != "":
         common.xdeltaPatch(patchfile, romfile, rompatch)
+        common.ipsPatch(patchfile.replace(".xdelta", ".ips"), romfile, rompatch)
+
+
+# rom0 = 0xc2, rom1 = 0xc3, rom2 = 0xc0, sram = 0xc1
+def memoryToBank(segment, address, rom0, rom1, rom2, sram=0, nbanks=64, justbank=False):
+    j = (rom2 << 4) & 0xf0
+    rommap = [0] * 0x100
+    for i in range(nbanks):
+        rommap[0x100 - nbanks + i] = i
+    pages = []
+    for i in range(0xf + 1):
+        pages.append(rommap[i | j])
+    pages[0] = rommap[0xff]
+    pages[1] = rommap[sram]
+    pages[2] = rommap[rom0]
+    pages[3] = rommap[rom1]
+    ptr = (segment << 4) + address
+    ptrbank = (ptr >> 16) & 0xf
+    if justbank:
+        return pages[ptrbank]
+    return (pages[ptrbank] * 0x10000) + ptr & 0xffff
 
 
 def readPointer(f, bankoff=0):
@@ -195,9 +216,21 @@ class TileData:
 
     def __init__(self, tile, pal=0, hflip=False, vflip=False):
         self.tile = tile
+        self.data = 0
         self.pal = pal
+        self.bank = 0
         self.hflip = hflip
         self.vflip = vflip
+
+
+class SpriteData:
+    tile = 0
+    data = 0
+    pal = 0
+    hflip = False
+    vflip = False
+    xpos = 0
+    ypos = 0
 
 
 def readPalette(f, bpp=2, num=16):
@@ -266,6 +299,61 @@ def readMappedImage(f, outfile, mapstart=0, num=1, bpp=2, width=0, height=0):
         maps.append(map)
     common.logDebug("Map data ended at", common.toHex(f.tell()))
     return maps
+
+
+# Sprite format:
+# 24-31 X position
+# 16-23 Y position
+# 15    Vertical flip
+# 14    Horizontal flip
+# 13    SCR2 priority
+# 12    Window clip mode (0=Display Outside, 1=Inside)
+# 9-11  Palette
+# 0-8   Tile
+def readSprite(f, spritelen, outfile, spritestart=0, bpp=2, width=0, height=0, ignorepal=False):
+    f.seek(spritestart)
+    xmax = ymax = 0
+    tiles = []
+    for i in range(spritelen):
+        spritemap = SpriteData()
+        spritemap.data = f.readUInt()
+        spritemap.tile = spritemap.data & 0x1ff
+        spritemap.pal = (spritemap.data >> 9) & 0x7
+        spritemap.hflip = ((spritemap.data >> 14) & 1) == 1
+        spritemap.vflip = ((spritemap.data >> 15) & 1) == 1
+        spritemap.ypos = (spritemap.data >> 16) & 0xff
+        if spritemap.ypos % 8 != 0:
+            common.logError("Sprite ypos is not a multiple of 8", spritemap.ypos)
+        spritemap.xpos = (spritemap.data >> 24) & 0xff
+        if spritemap.xpos % 8 != 0:
+            common.logError("Sprite xpos is not a multiple of 8", spritemap.xpos)
+        if spritemap.ypos > ymax:
+            ymax = spritemap.ypos
+        if spritemap.xpos > xmax:
+            xmax = spritemap.xpos
+        tiles.append(spritemap)
+    # Convert this to map data
+    map = TileMap()
+    map.name = outfile
+    map.offset = spritestart
+    map.width = (xmax + 8) // 8
+    map.height = (ymax + 8) // 8
+    map.bpp = bpp
+    map.map = []
+    for y in range(map.height):
+        for x in range(map.width):
+            data = TileData(0)
+            # Search for a sprite with these coordinates
+            for i in range(len(tiles)):
+                if tiles[i].ypos == y * 8 and tiles[i].xpos == x * 8:
+                    data.tile = tiles[i].tile
+                    if not ignorepal:
+                        data.pal = tiles[i].pal
+                    data.hflip = tiles[i].hflip
+                    data.vflip = tiles[i].vflip
+                    break
+            map.map.append(data)
+    return [map]
 
 
 def extractMappedImage(f, outfile, tilestart, mapstart, num=1, readpal=False, bpp=2, forcewidth=0, forceheight=0):

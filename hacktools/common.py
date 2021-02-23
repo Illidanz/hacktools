@@ -12,6 +12,7 @@ import struct
 import subprocess
 import click
 from tqdm import tqdm
+from ips_util import Patch
 
 table = {}
 
@@ -849,6 +850,18 @@ def xdeltaPatch(patchfile, infile, outfile):
         logError("xdelta not found")
         return
     execute(xdelta + " -f -e -s \"{rom}\" \"{rompatch}\" \"{patch}\"".format(rom=infile, rompatch=outfile, patch=patchfile), False)
+    logMessage("Done!")
+
+
+def ipsPatch(patchfile, infile, outfile):
+    logMessage("Creating ips patch", patchfile, "...")
+    with Stream(infile, "rb") as f:
+        indata = f.read()
+    with Stream(outfile, "rb") as f:
+        outdata = f.read()
+    result = Patch.create(indata, outdata)
+    with Stream(patchfile, "wb") as f:
+        f.write(result.encode())
     logMessage("Done!")
 
 
