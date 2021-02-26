@@ -181,7 +181,7 @@ def writeTPL(file, tpl, infile):
                                 else:
                                     index = common.getPaletteIndex(image.palette, color, False, 0, -1, True, False)
                             if image.format == 0x08:
-                                f.writeHalf(index)
+                                f.writeHalf(index, False)
                             else:
                                 f.writeByte(index)
 

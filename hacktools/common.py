@@ -235,11 +235,14 @@ class Stream(object):
         self.writeSByte(num)
         self.seek(current)
 
-    def writeHalf(self, num):
+    def writeHalf(self, num, little=True):
         if self.half is None:
             self.half = num
         else:
-            self.writeByte((num << 4) | self.half)
+            if little:
+                self.writeByte((num << 4) | self.half)
+            else:
+                self.writeByte((self.half << 4) | num)
             self.half = None
 
     def writeString(self, str):
