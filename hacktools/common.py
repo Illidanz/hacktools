@@ -518,15 +518,22 @@ def wordwrap(text, glyphs, width, codefunc=None, default=6, linebreak="|", secti
     return linebreak.join(lines)
 
 
-def centerLines(text, glyphs, width, default=6, linebreak="|", centercode="<<"):
+def centerLines(text, glyphs, width, codefunc=None, default=6, linebreak="|", centercode="<<"):
     lines = text.split(linebreak)
     for i in range(len(lines)):
         if not lines[i].startswith(centercode):
             continue
         lines[i] = lines[i][len(centercode):]
         length = 0
-        for c in lines[i]:
-            length += glyphs[c].length if c in glyphs else default
+        j = 0
+        while j < len(lines[i]):
+            if codefunc is not None:
+                skip = codefunc(lines[i], j)
+                if skip > 0:
+                    j += skip
+                    continue
+            length += glyphs[lines[i][j]].length if lines[i][j] in glyphs else default
+            j += 1
         spacelen = glyphs[" "].length
         spacing = int(((width - length) / 2) / spacelen)
         lines[i] = (" " * spacing) + lines[i]
