@@ -367,7 +367,7 @@ def extractMappedImage(f, outfile, tilestart, mapstart, num=1, readpal=False, bp
     writeMappedImage(f, tilestart, maps, palettes, num)
 
 
-def writeMappedImage(f, tilestart, maps, palettes, num=1):
+def writeMappedImage(f, tilestart, maps, palettes, num=1, skipzero=False):
     maxtile = tilesize = 0
     for i in range(num):
         mapdata = maps[i]
@@ -394,15 +394,14 @@ def writeMappedImage(f, tilestart, maps, palettes, num=1):
             tilesize = (16 if mapdata.bpp == 2 else 32)
             if map.tile > maxtile:
                 maxtile = map.tile
-            if mapdata.bpp == 2 and map.bank > 0:
-                continue
-            f.seek(tilestart + map.bank * 0x4000 + map.tile * tilesize)
-            try:
-                readTile(f, pixels, x * 8, y * 8, palettes[map.pal] if map.pal < len(palettes) else palettes[0], map.hflip, map.vflip, mapdata.bpp)
-            except struct.error:
-                pass
-            except IndexError:
-                pass
+            if (map.tile > 0 or not skipzero) and (mapdata.bpp != 2 or map.bank == 0):
+                f.seek(tilestart + map.bank * 0x4000 + map.tile * tilesize)
+                try:
+                    readTile(f, pixels, x * 8, y * 8, palettes[map.pal] if map.pal < len(palettes) else palettes[0], map.hflip, map.vflip, mapdata.bpp)
+                except struct.error:
+                    pass
+                except IndexError:
+                    pass
             x += 1
             if x == mapdata.width:
                 y += 1
