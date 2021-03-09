@@ -70,7 +70,8 @@ def extractBIN(binrange, detectFunc=common.detectEncodedString, encoding="shift_
     common.logMessage("Done! Extracted", len(strings), "lines")
 
 
-def repackBIN(binrange, freeranges=None, detectFunc=common.detectEncodedString, writeFunc=common.writeEncodedString, encoding="shift_jis", comments="#", binin="data/extract/arm9.bin", binout="data/repack/arm9.bin", binfile="data/bin_input.txt"):
+def repackBIN(binrange, freeranges=None, detectFunc=common.detectEncodedString, writeFunc=common.writeEncodedString, encoding="shift_jis", comments="#",
+              binin="data/extract/arm9.bin", binout="data/repack/arm9.bin", binfile="data/bin_input.txt", fixchars=[]):
     if not os.path.isfile(binfile):
         common.logError("Input file", binfile, "not found")
         return False
@@ -79,7 +80,7 @@ def repackBIN(binrange, freeranges=None, detectFunc=common.detectEncodedString, 
     common.logMessage("Repacking BIN from", binfile, "...")
     section = {}
     with codecs.open(binfile, "r", "utf-8") as bin:
-        section = common.getSection(bin, "", comments)
+        section = common.getSection(bin, "", comments, fixchars=fixchars)
         chartot, transtot = common.getSectionPercentage(section)
     if type(binrange) == tuple:
         binrange = [binrange]
