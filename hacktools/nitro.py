@@ -358,11 +358,11 @@ class Cell:
     layer = -1
 
 
-def readNitroGraphic(palettefile, tilefile, mapfile, cellfile):
+def readNitroGraphic(palettefile, tilefile, mapfile, cellfile, ignorepalindex=False):
     if not os.path.isfile(palettefile):
         common.logError("Palette", palettefile, "not found")
         return [], None, None, None, 0, 0
-    palettes = readNCLR(palettefile)
+    palettes = readNCLR(palettefile, ignorepalindex)
     # Read tiles
     ncgr = readNCGR(tilefile)
     width = ncgr.width
@@ -380,7 +380,7 @@ def readNitroGraphic(palettefile, tilefile, mapfile, cellfile):
     return palettes, ncgr, nscr, ncer, width, height
 
 
-def readNCLR(nclrfile):
+def readNCLR(nclrfile, ignoreindex=False):
     palettes = []
     with common.Stream(nclrfile, "rb") as f:
         # Read header
@@ -406,7 +406,7 @@ def readNCLR(nclrfile):
                 palette.append(common.readPalette(f.readUShort()))
             palettes.append(palette)
         # Read index
-        if sections == 2:
+        if sections == 2 and not ignoreindex:
             f.seek(16, 1)
             indexedpalettes = {}
             for i in range(len(palettes)):
@@ -598,7 +598,7 @@ def readNCER(ncerfile):
                 maxy = max(maxy, cell.y + cell.height)
             if ncer.tbank == 0x01 and (maxx - minx > bank.width or maxy - miny > bank.height):
                 malformedtbank = True
-                common.logWarning("Malformed tbank", ncerfile, bank.width, maxx, bank.height, maxy)
+                common.logWarning("Malformed tbank", ncerfile, bank.width, minx, maxx, bank.height, miny, maxy)
             if ncer.tbank == 0x00 or malformedtbank:
                 bank.width = maxx - minx
                 bank.height = maxy - miny
