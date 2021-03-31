@@ -262,9 +262,17 @@ class Stream(object):
 @click.option("--log", is_flag=True, default=False)
 def cli(log):
     if log:
-        logging.basicConfig(handlers=[logging.FileHandler(filename="tool.log", encoding="utf-8", mode="w")], format="[%(levelname)s] %(message)s", level=logging.DEBUG)
+        enableLogging()
     else:
-        logging.getLogger().disabled = True
+        disableLogging()
+
+
+def enableLogging():
+    logging.basicConfig(handlers=[logging.FileHandler(filename="tool.log", encoding="utf-8", mode="w")], format="[%(levelname)s] %(message)s", level=logging.DEBUG)
+
+
+def disableLogging():
+    logging.getLogger().disabled = True
 
 
 def logMessage(*messages):
@@ -763,6 +771,22 @@ def repackBinaryStrings(section, infile, outfile, binranges, freeranges=None, de
                         pos = fi.tell() - 1
                     fi.seek(pos + 1)
     return notfound
+
+
+def runCLI(command):
+    if len(sys.argv) > 1:
+        command()
+        return
+    with click.Context(command) as ctx:
+        click.echo(command.get_help(ctx))
+        click.echo("")
+    while True:
+        cmd = click.prompt('Type a command').strip()
+        cmdlow = cmd.lower()
+        if cmdlow == "exit" or cmdlow == "quit" or cmdlow == "q":
+            break
+        sys.argv = shlex.split(sys.argv[0] + " " + cmd)
+        command()
 
 
 # Folders
