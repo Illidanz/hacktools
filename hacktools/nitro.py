@@ -914,6 +914,63 @@ def writeMappedNSCR(file, mapfile, ncgr, nscr, infile, palettes, width=-1, heigh
             f.writeUInt(len(tiles) * (8 * ncgr.bpp))
 
 
+def writeMultiMappedNSCR(file, mapfiles, ncgr, nscrs, infiles, palettes, width=-1, height=-1, trasnptile=False):
+    with common.Stream(file, "rb+") as f:
+        tiles = []
+        if trasnptile:
+            # Start with a completely transparent tile
+            tile = []
+            for i2 in range(ncgr.tilesize):
+                for j2 in range(ncgr.tilesize):
+                    tile.append(0)
+            tiles.append(tile)
+            f.seek(ncgr.tileoffset)
+            for i2 in range(ncgr.tilesize):
+                for j2 in range(0, ncgr.tilesize, 2):
+                    writeNCGRData(f, ncgr.bpp, 0, 0)
+        for n in range(len(infiles)):
+            imgwidth = width
+            imgheight = height
+            if imgwidth < 0:
+                imgwidth = nscrs[n].width
+            if imgheight < 0:
+                imgheight = nscrs[n].height
+            img = Image.open(infiles[n])
+            img = img.convert("RGBA")
+            pixels = img.load()
+            with common.Stream(mapfiles[n], "rb+") as mapf:
+                mapf.seek(nscrs[n].mapoffset)
+                for i in range(imgheight // ncgr.tilesize):
+                    for j in range(imgwidth // ncgr.tilesize):
+                        tilecolors = []
+                        for i2 in range(ncgr.tilesize):
+                            for j2 in range(ncgr.tilesize):
+                                tilecolors.append(pixels[j * ncgr.tilesize + j2, i * ncgr.tilesize + i2])
+                        pal = common.findBestPalette(palettes, tilecolors)
+                        tile = []
+                        for tilecolor in tilecolors:
+                            tile.append(common.getPaletteIndex(palettes[pal], tilecolor))
+                        # Search for a repeated tile
+                        found = -1
+                        for ti in range(len(tiles)):
+                            if tiles[ti] == tile:
+                                found = ti
+                                break
+                        map = Map()
+                        map.pal = pal
+                        if found != -1:
+                            map.tile = found
+                        else:
+                            tiles.append(tile)
+                            map.tile = len(tiles) - 1
+                            f.seek(ncgr.tileoffset + map.tile * (8 * ncgr.bpp))
+                            writeNCGRTile(f, pixels, imgwidth, ncgr, i, j, palettes[map.pal])
+                        mapdata = (map.pal << 12) + (map.xflip << 11) + (map.yflip << 10) + map.tile
+                        mapf.writeUShort(mapdata)
+        f.seek(40)
+        f.writeUInt(len(tiles) * (8 * ncgr.bpp))
+
+
 def writeNCER(file, ncerfile, ncgr, ncer, infile, palettes, width, height, appendTiles=False):
     psd = infile.endswith(".psd")
     if psd:
@@ -1355,13 +1412,13 @@ def writeNSBMD(file, nsbmd, texi, infile, fixtransp=False):
             common.logError("Texture format 7 not implemented")
 
 
-def readNitroGraphicNBFC(palettefile, tilefile, mapfile, lineal=False):
+def readNitroGraphicNBFC(palettefile, tilefile, mapfile, lineal=False, bpp=0):
     if not os.path.isfile(palettefile):
         common.logError("Palette", palettefile, "not found")
         return [], None, None
-    palettes = readNBFP(palettefile)
+    palettes = readNBFP(palettefile, bpp)
     # Read tiles
-    nbfc = readNBFC(tilefile, palettes[0], lineal)
+    nbfc = readNBFC(tilefile, palettes[0], lineal, bpp)
     # Read maps
     nbfs = None
     if os.path.isfile(mapfile):
@@ -1381,7 +1438,7 @@ def readNitroGraphicNTFT(palettefile, tilefile, lineal=True):
     return palettes, ntft
 
 
-def readNBFP(ntfpfile):
+def readNBFP(ntfpfile, bpp=8):
     indexedpalettes = {}
     palettes = []
     size = os.path.getsize(ntfpfile)
@@ -1389,6 +1446,8 @@ def readNBFP(ntfpfile):
         pallen = 0x200
         if size < pallen:
             pallen = size
+        if bpp == 4:
+            pallen = 32
         colornum = pallen // 2
         for i in range(size // pallen):
             palette = []
@@ -1400,10 +1459,13 @@ def readNBFP(ntfpfile):
     return indexedpalettes
 
 
-def readNBFC(ntftfile, palette, lineal):
+def readNBFC(ntftfile, palette, lineal, bpp=0):
     nbfc = NCGR()
     nbfc.tiles = []
-    nbfc.bpp = 4 if len(palette) <= 16 else 8
+    if bpp == 0:
+        nbfc.bpp = 4 if len(palette) <= 16 else 8
+    else:
+        nbfc.bpp = bpp
     nbfc.width = 0x0100
     nbfc.height = 0x00C0
     nbfc.lineal = lineal
@@ -1441,7 +1503,6 @@ def readNBFS(nscrfile):
     for i in range(0, len(mapdata), 2):
         data = struct.unpack("<h", mapdata[i:i+2])[0]
         map = readMapData(data)
-        map.pal = 0
         nbfs.maps.append(map)
     maplen = len(nbfs.maps)
     root = int(math.sqrt(maplen))
