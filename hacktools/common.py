@@ -311,7 +311,7 @@ def toHex(byte):
 
 def isAscii(s):
     for i in range(len(s)):
-        if ord(s[i]) >= 128:
+        if ord(s[i]) >= 128 or ord(s[i]) < 0x20:
             return False
     return True
 
@@ -786,7 +786,7 @@ def runCLI(command):
         if cmdlow == "exit" or cmdlow == "quit" or cmdlow == "q":
             break
         sys.argv = shlex.split(sys.argv[0] + " " + cmd)
-        command()
+        command(standalone_mode=False)
 
 
 # Folders
