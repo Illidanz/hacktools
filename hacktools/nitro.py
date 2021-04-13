@@ -861,7 +861,7 @@ def writeNSCR(file, ncgr, nscr, infile, palettes, width=-1, height=-1):
                 x += 1
 
 
-def writeMappedNSCR(file, mapfile, ncgr, nscr, infile, palettes, width=-1, height=-1, trasnptile=False):
+def writeMappedNSCR(file, mapfile, ncgr, nscr, infile, palettes, width=-1, height=-1, trasnptile=False, writelen=True):
     if width < 0:
         width = nscr.width
         # height = nscr.height
@@ -910,11 +910,12 @@ def writeMappedNSCR(file, mapfile, ncgr, nscr, infile, palettes, width=-1, heigh
                         writeNCGRTile(f, pixels, width, ncgr, i, j, palettes[map.pal])
                     mapdata = (map.pal << 12) + (map.xflip << 11) + (map.yflip << 10) + map.tile
                     mapf.writeUShort(mapdata)
-            f.seek(40)
-            f.writeUInt(len(tiles) * (8 * ncgr.bpp))
+            if writelen:
+                f.seek(40)
+                f.writeUInt(len(tiles) * (8 * ncgr.bpp))
 
 
-def writeMultiMappedNSCR(file, mapfiles, ncgr, nscrs, infiles, palettes, width=-1, height=-1, trasnptile=False):
+def writeMultiMappedNSCR(file, mapfiles, ncgr, nscrs, infiles, palettes, width=-1, height=-1, trasnptile=False, writelen=True):
     with common.Stream(file, "rb+") as f:
         tiles = []
         if trasnptile:
@@ -967,8 +968,9 @@ def writeMultiMappedNSCR(file, mapfiles, ncgr, nscrs, infiles, palettes, width=-
                             writeNCGRTile(f, pixels, imgwidth, ncgr, i, j, palettes[map.pal])
                         mapdata = (map.pal << 12) + (map.xflip << 11) + (map.yflip << 10) + map.tile
                         mapf.writeUShort(mapdata)
-        f.seek(40)
-        f.writeUInt(len(tiles) * (8 * ncgr.bpp))
+        if writelen:
+            f.seek(40)
+            f.writeUInt(len(tiles) * (8 * ncgr.bpp))
 
 
 def writeNCER(file, ncerfile, ncgr, ncer, infile, palettes, width, height, appendTiles=False):

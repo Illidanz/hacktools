@@ -10,6 +10,7 @@ import shutil
 import sys
 import struct
 import subprocess
+import zlib
 import click
 from tqdm import tqdm
 from ips_util import Patch
@@ -875,6 +876,12 @@ def execute(cmd, show=True):
             logMessage(result)
         else:
             logDebug(result)
+
+
+def crcFile(f):
+    with open(f, "rb") as crcf:
+        crc = zlib.crc32(crcf.read())
+    return crc
 
 
 def xdeltaPatch(patchfile, infile, outfile):
