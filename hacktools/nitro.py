@@ -485,6 +485,38 @@ def readMapData(data):
     return map
 
 
+def getNCERCellSize(shape, size):
+    cellsize = (0, 0)
+    if shape == 0:
+        if size == 0:
+            cellsize = (8, 8)
+        elif size == 1:
+            cellsize = (16, 16)
+        elif size == 2:
+            cellsize = (32, 32)
+        elif size == 3:
+            cellsize = (64, 64)
+    elif shape == 1:
+        if size == 0:
+            cellsize = (16, 8)
+        elif size == 1:
+            cellsize = (32, 8)
+        elif size == 2:
+            cellsize = (32, 16)
+        elif size == 3:
+            cellsize = (64, 32)
+    elif shape == 2:
+        if size == 0:
+            cellsize = (8, 16)
+        elif size == 1:
+            cellsize = (8, 32)
+        elif size == 2:
+            cellsize = (16, 32)
+        elif size == 3:
+            cellsize = (32, 64)
+    return cellsize
+
+
 def readNCER(ncerfile):
     ncer = NCER()
     ncer.banks = []
@@ -556,33 +588,7 @@ def readNCER(ncerfile):
                     cell.selectparam = (obj1 >> 9) & 0x1F
                 cell.priority = (obj2 >> 10) & 3
                 cell.pal = (obj2 >> 12) & 0xF
-                if cell.shape == 0:
-                    if cell.size == 0:
-                        cellsize = (8, 8)
-                    elif cell.size == 1:
-                        cellsize = (16, 16)
-                    elif cell.size == 2:
-                        cellsize = (32, 32)
-                    elif cell.size == 3:
-                        cellsize = (64, 64)
-                elif cell.shape == 1:
-                    if cell.size == 0:
-                        cellsize = (16, 8)
-                    elif cell.size == 1:
-                        cellsize = (32, 8)
-                    elif cell.size == 2:
-                        cellsize = (32, 16)
-                    elif cell.size == 3:
-                        cellsize = (64, 32)
-                elif cell.shape == 2:
-                    if cell.size == 0:
-                        cellsize = (8, 16)
-                    elif cell.size == 1:
-                        cellsize = (8, 32)
-                    elif cell.size == 2:
-                        cellsize = (16, 32)
-                    elif cell.size == 3:
-                        cellsize = (32, 64)
+                cellsize = getNCERCellSize(cell.shape, cell.size)
                 cell.width = cellsize[0]
                 cell.height = cellsize[1]
                 cell.numcell = j
@@ -973,7 +979,7 @@ def writeMultiMappedNSCR(file, mapfiles, ncgr, nscrs, infiles, palettes, width=-
             f.writeUInt(len(tiles) * (8 * ncgr.bpp))
 
 
-def writeNCER(file, ncerfile, ncgr, ncer, infile, palettes, width, height, appendTiles=False):
+def writeNCER(file, ncerfile, ncgr, ncer, infile, palettes, width=0, height=0, appendTiles=False, checkRepeat=True, writelen=True):
     psd = infile.endswith(".psd")
     if psd:
         psd = PSDImage.open(infile)
@@ -1024,7 +1030,7 @@ def writeNCER(file, ncerfile, ncgr, ncer, infile, palettes, width, height, appen
                     else:
                         pali = cell.pal * 16
                         palette = palettes[0]
-                    sametile = tile in donetiles
+                    sametile = checkRepeat and tile in donetiles
                     addingtiles = False
                     if sametile and appendTiles:
                         tiledata = []
@@ -1087,7 +1093,7 @@ def writeNCER(file, ncerfile, ncgr, ncer, infile, palettes, width, height, appen
                                 if addingtiles:
                                     nexttile += 1
                 currheight += bank.height
-        if nexttile > len(ncgr.tiles):
+        if writelen and nexttile > len(ncgr.tiles):
             tottiles = nexttile
             f.seek(32)
             f.writeUInt(tottiles)
