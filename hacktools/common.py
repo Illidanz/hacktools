@@ -879,9 +879,14 @@ def execute(cmd, show=True):
 
 
 def crcFile(f):
+    buffersize = 65536
+    crc = 0
     with open(f, "rb") as crcf:
-        crc = zlib.crc32(crcf.read())
-    return crc
+        buffer = crcf.read(buffersize)
+        while len(buffer) > 0:
+            crc = zlib.crc32(buffer, crc)
+            buffer = crcf.read(buffersize)
+    return crc & 0xffffffff
 
 
 def xdeltaPatch(patchfile, infile, outfile):

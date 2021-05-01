@@ -867,7 +867,7 @@ def writeNSCR(file, ncgr, nscr, infile, palettes, width=-1, height=-1):
                 x += 1
 
 
-def writeMappedNSCR(file, mapfile, ncgr, nscr, infile, palettes, width=-1, height=-1, trasnptile=False, writelen=True):
+def writeMappedNSCR(file, mapfile, ncgr, nscr, infile, palettes, width=-1, height=-1, transptile=False, writelen=True):
     if width < 0:
         width = nscr.width
         # height = nscr.height
@@ -878,7 +878,7 @@ def writeMappedNSCR(file, mapfile, ncgr, nscr, infile, palettes, width=-1, heigh
         with common.Stream(mapfile, "rb+") as mapf:
             mapf.seek(nscr.mapoffset)
             tiles = []
-            if trasnptile:
+            if transptile:
                 # Start with a completely transparent tile
                 tile = []
                 for i2 in range(ncgr.tilesize):
@@ -921,10 +921,10 @@ def writeMappedNSCR(file, mapfile, ncgr, nscr, infile, palettes, width=-1, heigh
                 f.writeUInt(len(tiles) * (8 * ncgr.bpp))
 
 
-def writeMultiMappedNSCR(file, mapfiles, ncgr, nscrs, infiles, palettes, width=-1, height=-1, trasnptile=False, writelen=True):
+def writeMultiMappedNSCR(file, mapfiles, ncgr, nscrs, infiles, palettes, width=-1, height=-1, transptile=False, writelen=True):
     with common.Stream(file, "rb+") as f:
         tiles = []
-        if trasnptile:
+        if transptile:
             # Start with a completely transparent tile
             tile = []
             for i2 in range(ncgr.tilesize):
@@ -979,7 +979,7 @@ def writeMultiMappedNSCR(file, mapfiles, ncgr, nscrs, infiles, palettes, width=-
             f.writeUInt(len(tiles) * (8 * ncgr.bpp))
 
 
-def writeNCER(file, ncerfile, ncgr, ncer, infile, palettes, width=0, height=0, appendTiles=False, checkRepeat=True, writelen=True):
+def writeNCER(file, ncerfile, ncgr, ncer, infile, palettes, width=0, height=0, appendTiles=False, checkRepeat=True, writelen=True, fixtransp=False, checkalpha=False, zerotransp=True):
     psd = infile.endswith(".psd")
     if psd:
         psd = PSDImage.open(infile)
@@ -1045,8 +1045,8 @@ def writeNCER(file, ncerfile, ncgr, ncer, infile, palettes, width=0, height=0, a
                                         else:
                                             pixelx = cell.x + j * ncgr.tilesize + j2
                                             pixely = currheight + cell.y + i * ncgr.tilesize + i2
-                                        index1 = common.getPaletteIndex(palette, pixels[pixelx, pixely], False, pali, 16 if ncgr.bpp == 4 else -1)
-                                        index2 = common.getPaletteIndex(palette, pixels[pixelx + 1, pixely], False, pali, 16 if ncgr.bpp == 4 else -1)
+                                        index1 = common.getPaletteIndex(palette, pixels[pixelx, pixely], fixtransp, pali, 16 if ncgr.bpp == 4 else -1, checkalpha, zerotransp)
+                                        index2 = common.getPaletteIndex(palette, pixels[pixelx + 1, pixely], fixtransp, pali, 16 if ncgr.bpp == 4 else -1, checkalpha, zerotransp)
                                         tiledata.append(index1)
                                         tiledata.append(index2)
                         sametile = tiledata == cellboxes[tile]
@@ -1084,8 +1084,8 @@ def writeNCER(file, ncerfile, ncgr, ncer, infile, palettes, width=0, height=0, a
                                             else:
                                                 pixelx = cell.x + j * ncgr.tilesize + j2
                                                 pixely = currheight + cell.y + i * ncgr.tilesize + i2
-                                            index1 = common.getPaletteIndex(palette, pixels[pixelx, pixely], False, pali, 16 if ncgr.bpp == 4 else -1)
-                                            index2 = common.getPaletteIndex(palette, pixels[pixelx + 1, pixely], False, pali, 16 if ncgr.bpp == 4 else -1)
+                                            index1 = common.getPaletteIndex(palette, pixels[pixelx, pixely], fixtransp, pali, 16 if ncgr.bpp == 4 else -1, checkalpha, zerotransp)
+                                            index2 = common.getPaletteIndex(palette, pixels[pixelx + 1, pixely], fixtransp, pali, 16 if ncgr.bpp == 4 else -1, checkalpha, zerotransp)
                                             cellboxes[currtile].append(index1)
                                             cellboxes[currtile].append(index2)
                                             writeNCGRData(f, ncgr.bpp, index1, index2)
