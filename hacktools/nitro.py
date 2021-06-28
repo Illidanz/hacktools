@@ -280,6 +280,131 @@ def extractFontData(fontfiles, out):
                 f.writeByte(nftr.glyphs[chr(i)].length)
 
 
+# Archives
+class NARC:
+    btaf = 0
+    btnf = 0
+    gmif = 0
+    files = []
+
+
+class NARCFile:
+    start = 0
+    size = 0
+    path = ""
+    name = ""
+    fullname = ""
+
+
+def readNARC(narcfile):
+    common.logDebug("Reading", narcfile)
+    narc = NARC()
+    narc.files = []
+    with common.Stream(narcfile, "rb") as f:
+        # Read BTAF
+        f.seek(16)
+        narc.btaf = f.tell()
+        check = f.readString(4)
+        if check != "BTAF":
+            common.logError("Encountered", check, "instead of BTAF")
+            return None
+        sectionsize = f.readUInt()
+        narc.btnf = narc.btaf + sectionsize
+        filenum = f.readUInt()
+        common.logDebug("filenum:", filenum)
+        for i in range(filenum):
+            subfile = NARCFile()
+            subfile.start = narc.gmif + 8 + f.readUInt()
+            subfile.size = narc.gmif + 8 + f.readUInt() - subfile.start
+            common.logDebug(vars(subfile))
+            narc.files.append(subfile)
+        # Read BTNF
+        f.seek(narc.btnf)
+        check = f.readString(4)
+        if check != "BTNF":
+            common.logError("Encountered", check, "instead of BTNF")
+            return None
+        sectionsize = f.readUInt()
+        narc.gmif = narc.btnf + sectionsize
+        # TODO: handle directories
+        f.seek(8, 1)
+        for i in range(filenum):
+            namelen = f.readByte()
+            narc.files[i].name = f.readString(namelen)
+            narc.files[i].fullname = narc.files[i].path + narc.files[i].name
+        # Read GMIF
+        f.seek(narc.gmif)
+        check = f.readString(4)
+        if check != "GMIF":
+            common.logError("Encountered", check, "instead of GMIF")
+            return None
+    return narc
+
+
+def extractNARCFile(narcfile, outfolder):
+    narc = readNARC(narcfile)
+    if narc is None:
+        return
+    extractNARC(narcfile, outfolder, narc)
+
+
+def extractNARC(narcfile, outfolder, narc):
+    common.logDebug("Extracting", narcfile, "to", outfolder)
+    if not outfolder.endswith("/"):
+        outfolder = outfolder + "/"
+    common.makeFolder(outfolder)
+    with common.Stream(narcfile, "rb") as f:
+        for i in range(len(narc.files)):
+            file = narc.files[i]
+            f.seek(file.start)
+            with common.Stream(outfolder + file.fullname, "wb") as fout:
+                fout.write(f.read(file.size))
+
+
+def repackNARCFile(narcfilein, narcfileout, infolder):
+    narc = readNARC(narcfilein)
+    if narc is None:
+        return
+    repackNARC(narcfilein, narcfileout, infolder, narc)
+
+
+def repackNARC(narcfilein, narcfileout, infolder, narc):
+    common.logDebug("Repacking", narcfileout, "from", infolder)
+    with common.Stream(narcfilein, "rb") as fin:
+        with common.Stream(narcfileout, "wb") as f:
+            f.write(fin.read(narc.gmif + 8))
+            filepos = f.tell()
+            for i in range(len(narc.files)):
+                file = narc.files[i]
+                # Read file data
+                filepath = infolder + "/" + file.fullname
+                if not os.path.isfile(filepath):
+                    fin.seek(file.start)
+                    filedata = fin.read(file.size)
+                else:
+                    with common.Stream(filepath, "rb") as subf:
+                        filedata = subf.read()
+                # Write it in the archive
+                f.seek(filepos)
+                filestart = f.tell()
+                f.write(filedata)
+                fileend = f.tell()
+                # Pad with 0s
+                if f.tell() % 4 > 0:
+                    f.writeZero(f.tell() % 4)
+                filepos = f.tell()
+                # Update the pointers
+                f.seek(narc.btaf + 12 + i * 8)
+                f.writeUInt(filestart - narc.gmif - 8)
+                f.writeUInt(fileend - narc.gmif - 8)
+            # Write the new GMIF section size
+            f.seek(narc.gmif + 4)
+            f.writeUInt(filepos - narc.gmif)
+            # Write the new NARC size
+            f.seek(8)
+            f.writeUInt(filepos)
+
+
 # Graphics
 class NCGR:
     width = 0
