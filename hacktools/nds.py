@@ -108,12 +108,16 @@ def decompress(f, complength):
     decomplength = ((header & 0xFFFFFF00) >> 8)
     common.logDebug("Compression header:", common.toHex(header), "type:", common.toHex(type), "length:", decomplength)
     with common.Stream() as data:
-        data.write(f.read(complength - 4))
+        data.write(f.read(complength))
         data.seek(0)
         if type == CompressionType.LZ10:
             return compression.decompressLZ10(data, complength, decomplength)
         elif type == CompressionType.LZ11:
             return compression.decompressLZ11(data, complength, decomplength)
+        elif type == CompressionType.Huff4:
+            return compression.decompressHuffman(data, complength, decomplength, 4)
+        elif type == CompressionType.Huff8:
+            return compression.decompressHuffman(data, complength, decomplength, 8)
         else:
             common.logError("Unsupported compression type", common.toHex(type))
             return data.read()
@@ -130,6 +134,10 @@ def compress(data, type):
             out.write(compression.compressLZ10(data))
         elif type == CompressionType.LZ11:
             out.write(compression.compressLZ11(data))
+        elif type == CompressionType.Huff4:
+            out.write(compression.compressHuffman(data, 4))
+        elif type == CompressionType.Huff8:
+            out.write(compression.compressHuffman(data, 8))
         else:
             common.logError("Unsupported compression type", common.toHex(type))
             out.write(data)
