@@ -6,29 +6,29 @@ from hacktools import common
 
 
 # Image functions
-def extractBIN(infolder, outfolder, cuefile):
+def extractBIN(infolder, outfolder, cuefile, data="data/"):
     common.logMessage("Extracting BIN", cuefile, "...")
     if not os.path.isfile("psximager\\psxrip.exe"):
         common.logError("psximager not found")
         return
     common.clearFolder(infolder)
     common.execute("psximager\\psxrip.exe \"{iso}\" \"{folder}\"".format(iso=cuefile, folder=infolder[:-1]), False)
-    common.copyFile("data/extract.sys", "data/repack.sys")
-    with open("data/extract.cat", "r") as fin:
-        with open("data/repack.cat", "w") as fout:
-            fout.write(fin.read().replace("data/extract", "data/repack"))
+    common.copyFile(data + "extract.sys", data + "repack.sys")
+    with open(data + "extract.cat", "r") as fin:
+        with open(data + "repack.cat", "w") as fout:
+            fout.write(fin.read().replace(data + "extract", data + "repack"))
     common.copyFolder(infolder, outfolder)
     common.logMessage("Done!")
 
 
-def repackBIN(binfile, binpatch, cuefile, patchfile=""):
+def repackBIN(binfile, binpatch, cuefile, patchfile="", data="data/"):
     common.logMessage("Repacking BIN", binpatch, "...")
     if not os.path.isfile("psximager\\psxbuild.exe"):
         common.logError("psximager not found")
         return
-    common.execute("psximager\\psxbuild.exe \"{cat}\" \"{bin}\"".format(cat="data/repack.cat", bin=binpatch), False)
+    common.execute("psximager\\psxbuild.exe \"{cat}\" \"{bin}\"".format(cat=data + "repack.cat", bin=binpatch), False)
     with open(cuefile, "w") as fout:
-        fout.write("FILE \"" + binpatch.replace("data/", "") + "\" BINARY\r\n")
+        fout.write("FILE \"" + binpatch.replace(data, "") + "\" BINARY\r\n")
         fout.write("  TRACK 01 MODE2/2352\r\n")
         fout.write("    INDEX 01 00:00:00\r\n")
     common.logMessage("Done!")
