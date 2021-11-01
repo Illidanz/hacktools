@@ -94,44 +94,46 @@ def readELF(infile):
     return elf
 
 
-def extractBinaryStrings(elf, foundstrings, infile, func, encoding="shift_jis"):
+def extractBinaryStrings(elf, foundstrings, infile, func, encoding="shift_jis", elfsections=[".rodata"]):
     with common.Stream(infile, "rb") as f:
-        rodata = elf.sectionsdict[".rodata"]
-        f.seek(rodata.offset)
-        while f.tell() < rodata.offset + rodata.size:
-            pos = f.tell()
-            check = func(f, encoding)
-            if check != "":
-                if check not in foundstrings:
-                    common.logDebug("Found string at", pos)
-                    foundstrings.append(check)
-                pos = f.tell() - 1
-            f.seek(pos + 1)
+        for sectionname in elfsections:
+            rodata = elf.sectionsdict[sectionname]
+            f.seek(rodata.offset)
+            while f.tell() < rodata.offset + rodata.size:
+                pos = f.tell()
+                check = func(f, encoding)
+                if check != "":
+                    if check not in foundstrings:
+                        common.logDebug("Found string at", common.toHex(pos), check)
+                        foundstrings.append(check)
+                    pos = f.tell() - 1
+                f.seek(pos + 1)
     return foundstrings
 
 
-def repackBinaryStrings(elf, section, infile, outfile, detectFunc, writeFunc, encoding="shift_jis"):
-    rodata = elf.sectionsdict[".rodata"]
+def repackBinaryStrings(elf, section, infile, outfile, detectFunc, writeFunc, encoding="shift_jis", elfsections=[".rodata"]):
     with common.Stream(infile, "rb") as fi:
         with common.Stream(outfile, "r+b") as fo:
-            fi.seek(rodata.offset)
-            while fi.tell() < rodata.offset + rodata.size:
-                pos = fi.tell()
-                check = detectFunc(fi, encoding)
-                if check != "":
-                    if check in section and section[check][0] != "":
-                        common.logDebug("Replacing string at", pos)
-                        fo.seek(pos)
-                        endpos = fi.tell() - 1
-                        newlen = writeFunc(fo, section[check][0], endpos - pos + 1)
-                        if newlen < 0:
-                            fo.writeZero(1)
-                            common.logError("String", section[check][0], "is too long.")
+            for sectionname in elfsections:
+                rodata = elf.sectionsdict[sectionname]
+                fi.seek(rodata.offset)
+                while fi.tell() < rodata.offset + rodata.size:
+                    pos = fi.tell()
+                    check = detectFunc(fi, encoding)
+                    if check != "":
+                        if check in section and section[check][0] != "":
+                            common.logDebug("Replacing string at", pos)
+                            fo.seek(pos)
+                            endpos = fi.tell() - 1
+                            newlen = writeFunc(fo, section[check][0], endpos - pos + 1)
+                            if newlen < 0:
+                                fo.writeZero(1)
+                                common.logError("String", section[check][0], "is too long.")
+                            else:
+                                fo.writeZero(endpos - fo.tell())
                         else:
-                            fo.writeZero(endpos - fo.tell())
-                    else:
-                        pos = fi.tell() - 1
-                fi.seek(pos + 1)
+                            pos = fi.tell() - 1
+                    fi.seek(pos + 1)
 
 
 # https://www.psdevwiki.com/ps3/Graphic_Image_Map_(GIM)
@@ -163,6 +165,15 @@ class GIMImage:
     colors = []
 
 
+class TGAImage:
+    rootoff = 0
+    format = 0
+    width = 0
+    height = 0
+    imgoff = 0
+    colors = []
+
+
 class GMO:
     size = 0
     names = []
@@ -180,49 +191,75 @@ def readGMO(file):
         gmo.size = f.readUInt()
         f.seek(8, 1)
         while f.tell() < gmo.size + 16:
-            offset = f.tell()
-            id = f.readUShort()
-            if id <= 0x06 or (id >= 0x08 and id <= 0x0B):
-                blocklen = f.readUShort()
-                if id == 0x0A:  # Texture name
-                    f.seek(12, 1)
-                    texname = f.readNullString()
-                    common.logDebug("0x0A at", offset, texname)
-                    gmo.names.append(texname)
-                f.seek(offset + blocklen)
-            elif id == 0x07 or id == 0x0C or (id >= 0x8000 and id < 0x9000):
-                f.seek(2, 1)
-                blocklen = f.readUInt()
-                if id == 0x8013:  # Texture data
-                    f.seek(4, 1)
-                    gmo.offsets.append(f.tell())
-                    common.logDebug("0x8013 at", offset)
-                f.seek(offset + blocklen)
-            else:
-                common.logError("Unknown ID", id, "at", offset)
-                break
+            readGMOChunk(f, gmo, gmo.size + 16)
     for gimoffset in gmo.offsets:
-        gmo.gims.append(readGIM(file, gimoffset))
+        common.logDebug("Reading GIM at", common.toHex(gimoffset))
+        gim = readGIM(file, gimoffset)
+        gmo.gims.append(gim)
     return gmo
+
+
+def readGMOChunk(f, gmo, maxsize, nesting=""):
+    offset = f.tell()
+    id = f.readUShort()
+    headerlen = f.readUShort()
+    blocklen = f.readUInt()
+    common.logDebug(nesting + "GMO ID", common.toHex(id), "at", common.toHex(offset), "len", common.toHex(headerlen), common.toHex(blocklen))
+    if id == 0xa:  # Texture name
+        f.seek(8, 1)
+        texname = f.readNullString()
+        common.logDebug(nesting + "0x0A at", common.toHex(offset), common.toHex(offset + blocklen), texname)
+        gmo.names.append(texname)
+    elif id == 0x8013:  # Texture data
+        f.seek(4, 1)
+        gmo.offsets.append(f.tell())
+        common.logDebug(nesting + "0x8013 at", common.toHex(f.tell()), common.toHex(offset), common.toHex(offset + blocklen))
+    if id != 0x7 and id != 0xc and headerlen > 0:
+        f.seek(offset + headerlen)
+        common.logDebug(nesting + "Raeding nested blocks:")
+        while f.tell() < offset + blocklen - 1 and f.tell() < maxsize:
+            readGMOChunk(f, gmo, maxsize, nesting + " ")
+        common.logDebug(nesting + "Done")
+        f.seek(offset + blocklen)
+    else:
+        f.seek(offset + blocklen)
 
 
 def readGIM(file, start=0):
     gim = GIM()
     gim.images = []
     with common.Stream(file, "rb") as f:
-        f.seek(start + 16)
-        gim.rootoff = f.tell()
-        id = f.readUShort()
-        if id != 0x02:
-            common.logError("Unexpected id in block 0:", id)
-            return None
-        f.seek(2, 1)
-        gim.rootsize = f.readUInt()
-        nextblock = gim.rootoff + f.readUInt()
-        image = None
-        while nextblock > 0 and nextblock < start + gim.rootsize + 16:
-            f.seek(nextblock)
-            nextblock, image = readGIMBlock(f, gim, image)
+        f.seek(start)
+        if f.readString(3) == 'MIG':
+            f.seek(start + 16)
+            gim.rootoff = f.tell()
+            id = f.readUShort()
+            if id != 0x02:
+                common.logError("Unexpected id in block 0:", common.toHex(id), common.toHex(f.tell() - 2))
+                return None
+            f.seek(2, 1)
+            gim.rootsize = f.readUInt()
+            nextblock = gim.rootoff + f.readUInt()
+            image = None
+            while nextblock > 0 and nextblock < start + gim.rootsize + 16:
+                f.seek(nextblock)
+                nextblock, image = readGIMBlock(f, gim, image)
+        else:
+            # This is a TGA file, assuming 32bit RGBA
+            image = TGAImage()
+            image.rootoff = f.tell()
+            f.seek(start + 2)
+            image.format = f.readByte()
+            f.seek(9, 1)
+            image.width = f.readUShort()
+            image.height = f.readUShort()
+            f.seek(2, 1)
+            image.imgoff = f.tell()
+            image.colors = []
+            for i in range(image.height):
+                for j in range(image.width):
+                    image.colors.append(readColor(f, 0x03))
+            gim = image
     return gim
 
 
@@ -232,11 +269,11 @@ def readGIMBlock(f, gim, image):
     f.seek(2, 1)
     if id == 0xFF:
         # Info block
-        common.logDebug("GIM 0xFF at", offset)
+        common.logDebug("GIM 0xFF at", common.toHex(offset))
         return 0, image
     elif id == 0x03:
         # Picture block
-        common.logDebug("GIM 0x03 at", offset)
+        common.logDebug("GIM 0x03 at", common.toHex(offset))
         image = GIMImage()
         image.palette = []
         image.colors = []
@@ -248,7 +285,7 @@ def readGIMBlock(f, gim, image):
         return image.picoff + nextblock, image
     elif id == 0x04:
         # Image block
-        common.logDebug("GIM 0x04 at", offset)
+        common.logDebug("GIM 0x04 at", common.toHex(offset))
         image.imgoff = offset
         image.imgsize = f.readUInt()
         nextblock = f.readUInt()
@@ -292,7 +329,7 @@ def readGIMBlock(f, gim, image):
         return image.imgoff + nextblock, image
     elif id == 0x05:
         # Palette
-        common.logDebug("GIM 0x05 at", offset)
+        common.logDebug("GIM 0x05 at", common.toHex(offset))
         image.paloff = offset
         image.palsize = f.readUInt()
         nextblock = f.readUInt()
@@ -318,28 +355,34 @@ def writeGIM(file, gim, infile):
     pixels = img.load()
     currheight = 0
     with common.Stream(file, "rb+") as f:
-        for image in gim.images:
-            f.seek(image.imgoff + 32 + image.imgframeoff)
-            if image.tiled == 0x00:
-                for i in range(image.height):
-                    for j in range(image.width):
-                        writeGIMPixel(f, image, pixels[j, currheight + i])
-            else:
-                for blocky in range(image.blockedheight // image.tileheight):
-                    for blockx in range(image.blockedwidth // image.tilewidth):
-                        for y in range(image.tileheight):
-                            for x in range(image.tilewidth):
-                                pixelx = blockx * image.tilewidth + x
-                                pixely = currheight + blocky * image.tileheight + y
-                                if pixelx >= image.width or pixely >= currheight + image.height:
-                                    writeGIMPixel(f, image, None)
-                                else:
-                                    writeGIMPixel(f, image, pixels[pixelx, pixely])
-            if len(image.palette) > 0:
-                palsize = 5 * (len(image.palette) // 8)
-                currheight += max(image.height, palsize)
-            else:
-                currheight += image.height
+        if isinstance(gim, GIM):
+            for image in gim.images:
+                f.seek(image.imgoff + 32 + image.imgframeoff)
+                if image.tiled == 0x00:
+                    for i in range(image.height):
+                        for j in range(image.width):
+                            writeGIMPixel(f, image, pixels[j, currheight + i])
+                else:
+                    for blocky in range(image.blockedheight // image.tileheight):
+                        for blockx in range(image.blockedwidth // image.tilewidth):
+                            for y in range(image.tileheight):
+                                for x in range(image.tilewidth):
+                                    pixelx = blockx * image.tilewidth + x
+                                    pixely = currheight + blocky * image.tileheight + y
+                                    if pixelx >= image.width or pixely >= currheight + image.height:
+                                        writeGIMPixel(f, image, None)
+                                    else:
+                                        writeGIMPixel(f, image, pixels[pixelx, pixely])
+                if len(image.palette) > 0:
+                    palsize = 5 * (len(image.palette) // 8)
+                    currheight += max(image.height, palsize)
+                else:
+                    currheight += image.height
+        else:
+            f.seek(gim.imgoff)
+            for i in range(gim.height):
+                for j in range(gim.width):
+                   writeColor(f, 0x03, pixels[j, gim.height - 1 - i])
 
 
 def writeGIMPixel(f, image, color):
@@ -402,42 +445,53 @@ def drawGIM(outfile, gim):
     width = 0
     height = 0
     palette = False
-    for image in gim.images:
-        width = max(width, image.width)
-        if len(image.palette) > 0:
-            palette = True
-            palsize = 5 * (len(image.palette) // 8)
-            height += max(image.height, palsize)
-        else:
-            height += image.height
+    if isinstance(gim, GIM):
+        for image in gim.images:
+            width = max(width, image.width)
+            if len(image.palette) > 0:
+                palette = True
+                palsize = 5 * (len(image.palette) // 8)
+                height += max(image.height, palsize)
+            else:
+                height += image.height
+    else:
+        width = gim.width
+        height = gim.height
     img = Image.new("RGBA", (width + (40 if palette else 0), height), (0, 0, 0, 0))
     pixels = img.load()
     currheight = 0
-    for image in gim.images:
-        i = 0
-        if image.tiled == 0x00:
-            for y in range(image.height):
-                for x in range(image.width):
-                    drawGIMPixel(image, pixels, x, currheight + y, i)
-                    i += 1
-        else:
-            for blocky in range(image.blockedheight // image.tileheight):
-                for blockx in range(image.blockedwidth // image.tilewidth):
-                    for y in range(image.tileheight):
-                        for x in range(image.tilewidth):
-                            pixelx = blockx * image.tilewidth + x
-                            pixely = currheight + blocky * image.tileheight + y
-                            if pixelx >= image.width or pixely >= currheight + image.height:
+    if isinstance(gim, GIM):
+        for image in gim.images:
+            i = 0
+            if image.tiled == 0x00:
+                for y in range(image.height):
+                    for x in range(image.width):
+                        drawGIMPixel(image, pixels, x, currheight + y, i)
+                        i += 1
+            else:
+                for blocky in range(image.blockedheight // image.tileheight):
+                    for blockx in range(image.blockedwidth // image.tilewidth):
+                        for y in range(image.tileheight):
+                            for x in range(image.tilewidth):
+                                pixelx = blockx * image.tilewidth + x
+                                pixely = currheight + blocky * image.tileheight + y
+                                if pixelx >= image.width or pixely >= currheight + image.height:
+                                    i += 1
+                                    continue
+                                drawGIMPixel(image, pixels, pixelx, pixely, i)
                                 i += 1
-                                continue
-                            drawGIMPixel(image, pixels, pixelx, pixely, i)
-                            i += 1
-        if len(image.palette) > 0:
-            pixels = common.drawPalette(pixels, image.palette, image.width, currheight)
-            palsize = 5 * (len(image.palette) // 8)
-            currheight += max(image.height, palsize)
-        else:
-            currheight += image.height
+            if len(image.palette) > 0:
+                pixels = common.drawPalette(pixels, image.palette, image.width, currheight)
+                palsize = 5 * (len(image.palette) // 8)
+                currheight += max(image.height, palsize)
+            else:
+                currheight += image.height
+    else:
+        i = 0
+        for y in range(gim.height):
+            for x in range(gim.width):
+                pixels[x, gim.height - 1 - y] = gim.colors[i]
+                i += 1
     img.save(outfile, "PNG")
 
 
