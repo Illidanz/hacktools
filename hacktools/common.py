@@ -48,8 +48,21 @@ class Stream(object):
     def read(self, n=-1):
         return self.f.read(n)
 
+    def readAt(self, pos, n=-1):
+        current = self.tell()
+        self.seek(pos)
+        ret = self.read(n)
+        self.seek(current)
+        return ret
+
     def write(self, data):
         self.f.write(data)
+
+    def writeAt(self, pos, data):
+        current = self.tell()
+        self.seek(pos)
+        self.write(data)
+        self.seek(current)
 
     def peek(self, n):
         pos = self.tell()
@@ -59,6 +72,29 @@ class Stream(object):
 
     def writeLine(self, data):
         self.f.write(data + "\n")
+
+    def setEndian(self, little):
+        self.endian = "<" if little else ">"
+
+    def readLong(self):
+        return struct.unpack(self.endian + "q", self.read(8))[0]
+
+    def readLongAt(self, pos):
+        current = self.tell()
+        self.seek(pos)
+        ret = self.readLong()
+        self.seek(current)
+        return ret
+
+    def readULong(self):
+        return struct.unpack(self.endian + "Q", self.read(8))[0]
+
+    def readULongAt(self, pos):
+        current = self.tell()
+        self.seek(pos)
+        ret = self.readULong()
+        self.seek(current)
+        return ret
 
     def readInt(self):
         return struct.unpack(self.endian + "i", self.read(4))[0]
@@ -153,25 +189,57 @@ class Stream(object):
         return ret
 
     def readString(self, length):
-        str = ""
-        for i in range(length):
+        ret = ""
+        for _ in range(length):
             byte = self.readByte()
             # These control characters can be found in texture names, replace them with a space
             if byte == 0x82 or byte == 0x86:
                 byte = 0x20
             if byte != 0:
-                str += chr(byte)
-        return str
+                ret += chr(byte)
+        return ret
+
+    def readStringAt(self, pos, length):
+        current = self.tell()
+        self.seek(pos)
+        ret = self.readString(length)
+        self.seek(current)
+        return ret
 
     def readNullString(self):
-        str = ""
+        ret = ""
         while True:
             byte = self.readByte()
             if byte == 0:
                 break
             else:
-                str += chr(byte)
-        return str
+                ret += chr(byte)
+        return ret
+
+    def readNullStringAt(self, pos):
+        current = self.tell()
+        self.seek(pos)
+        ret = self.readNullString()
+        self.seek(current)
+        return ret
+
+    def writeLong(self, num):
+        self.f.write(struct.pack(self.endian + "q", num))
+
+    def writeLongAt(self, pos, num):
+        current = self.tell()
+        self.seek(pos)
+        self.writeLong(num)
+        self.seek(current)
+
+    def writeULong(self, num):
+        self.f.write(struct.pack(self.endian + "Q", num))
+
+    def writeULongAt(self, pos, num):
+        current = self.tell()
+        self.seek(pos)
+        self.writeULong(num)
+        self.seek(current)
 
     def writeInt(self, num):
         self.f.write(struct.pack(self.endian + "i", num))
@@ -834,6 +902,15 @@ def getFiles(path, extensions=[]):
             if len(extensions) > 0 and os.path.splitext(file)[1] not in extensions:
                 continue
             ret.append(file)
+    return ret
+
+
+def getFolders(path):
+    ret = []
+    for (root, dirs, files) in os.walk(path):
+        for dir in dirs:
+            dir = os.path.join(root, dir).replace(path, "").replace("\\", "/")
+            ret.append(dir)
     return ret
 
 
