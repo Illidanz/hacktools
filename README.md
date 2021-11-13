@@ -20,14 +20,14 @@ External dependencies not included are marked as `(through *dependency*)`
 - TIM images
 ### WonderSwan / WonderSwan Color
 - ROM banks
-- Assembly code (through NASM)
+- Assembly (through NASM)
 - Raw and tiled images
 - Sprites
 ### GameBoy
 - ROM banks
 - Assembly (through wla-gb and wlalink)
 ### Wii
-- ISOs (through wit)
+- ISO (through wit)
 - TPL images
 - ARC archives (through wszst)
 - BRFNT fonts (through brfnt2tpl and wimgt)
