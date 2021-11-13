@@ -42,28 +42,56 @@ def repackIso(isofile, isopatch, workfolder, patchfile=""):
         common.xdeltaPatch(patchfile, isofile, isopatch)
 
 
+def repackUMD(isofile, isopatch, workfolder, patchfile=""):
+    common.logMessage("Repacking ISO", isopatch, "...")
+    common.copyFile(isofile, isopatch)
+    umdreplace = common.bundledExecutable("UMD-replace.exe")
+    if not os.path.isfile(umdreplace):
+        common.logError("UMD-replace not found")
+        return
+    files = common.getFiles(workfolder)
+    for file in common.showProgress(files):
+        common.execute(umdreplace + " \"{imagename}\" \"{filename}\" \"{newfile}\"".format(imagename=isopatch, filename=file, newfile=workfolder + file), False)
+    common.logMessage("Done!")
+    # Create xdelta patch
+    if patchfile != "":
+        common.xdeltaPatch(patchfile, isofile, isopatch)
+
+
+def signBIN(binout, ebinout, tag):
+    common.logMessage("Signing BIN ...")
+    sign_np = common.bundledExecutable("sign_np.exe")
+    if not os.path.isfile(sign_np):
+        common.logMessage("sign_np not found, copying BOOT to EBOOT...")
+        common.copyFile(binout, ebinout)
+    else:
+        common.execute(sign_np + " -elf {binout} {ebinout} {tag}".format(binout=binout, ebinout=ebinout, tag=str(tag)), False)
+        common.logMessage("Done!")
+
+
 class ELF():
-    sections = []
-    sectionsdict = {}
+    def __init__(self):
+        self.sections = []
+        self.sectionsdict = {}
 
 
 class ELFSection():
-    name = ""
-    nameoff = 0
-    type = 0
-    flags = 0
-    addr = 0
-    offset = 0
-    size = 0
-    link = 0
-    info = 0
-    addralign = 0
-    entsize = 0
+    def __init__(self):
+        self.name = ""
+        self.nameoff = 0
+        self.type = 0
+        self.flags = 0
+        self.addr = 0
+        self.offset = 0
+        self.size = 0
+        self.link = 0
+        self.info = 0
+        self.addralign = 0
+        self.entsize = 0
 
 
 def readELF(infile):
     elf = ELF()
-    elf.sections = []
     with common.Stream(infile, "rb") as f:
         f.seek(0x20)
         sectionsoff = f.readUInt()
@@ -141,54 +169,55 @@ def repackBinaryStrings(elf, section, infile, outfile, detectFunc, writeFunc, en
 
 # https://www.psdevwiki.com/ps3/Graphic_Image_Map_(GIM)
 class GIM:
-    rootoff = 0
-    rootsize = 0
-    images = []
+    def __init__(self):
+        self.rootoff = 0
+        self.rootsize = 0
+        self.images = []
 
 
 class GIMImage:
-    picoff = 0
-    picsize = 0
-    imgoff = 0
-    imgsize = 0
-    imgframeoff = 0
-    format = 0
-    width = 0
-    height = 0
-    tiled = 0
-    blockedwidth = 0
-    blockedheight = 0
-    tilewidth = 0
-    tileheight = 0
-    paloff = 0
-    palsize = 0
-    palframeoff = 0
-    palformat = 0
-    palette = []
-    colors = []
+    def __init__(self):
+        self.picoff = 0
+        self.picsize = 0
+        self.imgoff = 0
+        self.imgsize = 0
+        self.imgframeoff = 0
+        self.format = 0
+        self.width = 0
+        self.height = 0
+        self.tiled = 0
+        self.blockedwidth = 0
+        self.blockedheight = 0
+        self.tilewidth = 0
+        self.tileheight = 0
+        self.paloff = 0
+        self.palsize = 0
+        self.palframeoff = 0
+        self.palformat = 0
+        self.palette = []
+        self.colors = []
 
 
 class TGAImage:
-    rootoff = 0
-    format = 0
-    width = 0
-    height = 0
-    imgoff = 0
-    colors = []
+    def __init__(self):
+        self.rootoff = 0
+        self.format = 0
+        self.width = 0
+        self.height = 0
+        self.imgoff = 0
+        self.colors = []
 
 
 class GMO:
-    size = 0
-    names = []
-    offsets = []
-    gims = []
+    def __init__(self):
+        self.size = 0
+        self.names = []
+        self.offsets = []
+        self.gims = []
 
 
 def readGMO(file):
     gmo = GMO()
-    gmo.names = []
-    gmo.offsets = []
-    gmo.gims = []
     with common.Stream(file, "rb") as f:
         f.seek(16 + 4)
         gmo.size = f.readUInt()
@@ -230,7 +259,6 @@ def readGMOChunk(f, gmo, maxsize, nesting=""):
 
 def readGIM(file, start=0):
     gim = GIM()
-    gim.images = []
     with common.Stream(file, "rb") as f:
         f.seek(start)
         if f.readString(3) == 'MIG':
@@ -258,7 +286,6 @@ def readGIM(file, start=0):
             image.height = f.readUShort()
             f.seek(2, 1)
             image.imgoff = f.tell()
-            image.colors = []
             for i in range(image.height):
                 for j in range(image.width):
                     image.colors.append(readColor(f, 0x03))
@@ -278,8 +305,6 @@ def readGIMBlock(f, gim, image):
         # Picture block
         common.logDebug("GIM 0x03 at", common.toHex(offset))
         image = GIMImage()
-        image.palette = []
-        image.colors = []
         gim.images.append(image)
         image.picoff = offset
         image.picsize = f.readUInt()
@@ -776,7 +801,6 @@ def extractPGFBitmap(f, pgf, glyph, outfile):
 
 
 def extractPGFData(file, outfile, bitmapout="", justadvance=False):
-    common.logMessage("Extracting PGF data to", outfile, "...")
     pgf = readPGFData(file)
     with common.Stream(file, "rb") as fin:
         with codecs.open(outfile, "w", "utf-8") as f:
@@ -795,7 +819,6 @@ def extractPGFData(file, outfile, bitmapout="", justadvance=False):
 
 
 def repackPGFData(fontin, fontout, configfile):
-    common.logMessage("Repacking PGF data from", configfile, "...")
     pgf = readPGFData(fontin)
     common.copyFile(fontin, fontout)
     with codecs.open(configfile, "r", "utf-8") as f:
