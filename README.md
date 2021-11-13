@@ -2,15 +2,16 @@
 A set of utilities and tools for rom hacking and translations.
 
 ## Supported platforms and formats
+External dependencies not included are marked as `(through *dependency*)`
 ### NDS
-- NDS roms (through ndstool)
+- ROM (through ndstool)
 - NCGR/NSCR/NCER/NCLR images
 - NBFC/NTFT/NBFS/NBFP images
 - NFTR fonts
 - NARC archives
-- Textures in NSBMD 3D files (reads all format, writes all except 4x4-texel compressed and direct color)
+- Textures in NSBMD 3D files
 ### PSP
-- ISOs
+- ISO
 - GIM/GMO images
 - PGF fonts
 - BIN signing (through sign_np)
@@ -34,3 +35,5 @@ A set of utilities and tools for rom hacking and translations.
 - CPK archives
 - ARCH archives
 - LZ10, LZ11 and Huffman compression/decompression
+- IPS patch creation
+- xdelta patch creation (through xdelta)
