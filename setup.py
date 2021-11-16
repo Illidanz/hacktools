@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name="hacktools",
-    version="0.21.0",
+    version="0.21.1",
     author="Illidan",
     description="A set of utilities and tools for rom hacking and translations.",
     long_description=long_description,
@@ -25,6 +25,7 @@ setup(
         "Pillow",
         "pycdlib",
         "ips_util",
+        "bitarray",
         "psd-tools>=1.8,<1.9",
     ],
     python_requires=">=3.7",

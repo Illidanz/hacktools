@@ -875,3 +875,57 @@ def repackPGFData(fontin, fontout, configfile):
                 f.writeInt(int(pgf.advancemap[i]["x"] * 64))
                 f.writeInt(int(pgf.advancemap[i]["y"] * 64))
             f.write(otherdata)
+
+
+def mpstopmf(infile, outfile, duration):
+    with common.Stream(infile, "rb", False) as fin:
+        # Check header
+        check1 = fin.readUInt()
+        check2 = fin.readByte()
+        if check1 != 0x1ba or check2 != 0x44:
+            common.logError("Input header is wrong", common.toHex(check1), common.toHeck(check2))
+            return
+        fin.seek(0)
+        mpsdata = fin.read()
+    # https://github.com/TeamPBCN/pmftools/blob/main/mps2pmf/mps2pmf.cpp
+    with common.Stream(outfile, "wb", False) as f:
+        # Magic
+        f.writeString("PSMF")
+        f.writeString("0012")
+        # Header size
+        f.writeUInt(0x800)
+        # MPS size
+        f.writeUInt(len(mpsdata))
+        f.seek(0x50)
+        # Other header values
+        f.writeUInt(0x4e)
+        f.writeUInt(1)
+        f.writeUShort(0x5f90)
+        f.writeUShort(0)
+        f.writeUInt(duration)
+        f.writeUInt(0x61a8)
+        f.writeUShort(1)
+        f.writeUShort(0x5f90)
+        f.writeUShort(0x201)
+        f.writeUShort(0)
+        f.writeUShort(0x34)
+        f.writeUShort(0)
+        f.writeUShort(1)
+        f.writeUShort(0x5f90)
+        f.writeUShort(0)
+        f.writeUInt(duration)
+        f.writeUShort(1)
+        f.writeUInt(0x22)
+        f.writeUShort(0x2)
+        f.writeUShort(0xe000)
+        f.writeUShort(0x21ef)
+        f.writeUShort(0)
+        f.writeUInt(0x0)
+        f.writeUInt(0x1e11)
+        f.writeUInt(0xbd00)
+        f.writeUShort(0x2004)
+        f.seek(0xa0)
+        f.writeUShort(0x202)
+        # Everything else is 0, write the MPS data
+        f.seek(0x800)
+        f.write(mpsdata)
