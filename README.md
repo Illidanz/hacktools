@@ -14,6 +14,7 @@ External dependencies not included are marked as `(through *dependency*)`
 - ISO
 - GIM/GMO images
 - PGF fonts
+- PMF header for MPS movies
 - BIN signing (through sign_np)
 ### PSX
 - BIN (through psximager)
