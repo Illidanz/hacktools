@@ -1,4 +1,5 @@
 import ctypes
+from bitarray import bitarray
 from hacktools import common
 
 
@@ -468,3 +469,79 @@ def decompressPRS(f, slen, dlen):
                     dptr += 1
                     pos += 1
     return dbuf
+
+
+class CompressedBitInput:
+    def __init__(self, data):
+        self.b = bitarray()
+        self.b.frombytes(data[::-1])
+        self.pos = 0
+
+    def read(self, length):
+        data = self.b[self.pos:self.pos + length]
+        self.pos += length
+        return data
+
+    def read01(self, length):
+        return self.read(length).to01()
+
+    def readnum(self, length):
+        return int(self.read01(length), 2)
+
+    def readbyte(self, length = 1):
+        return self.read(length * 8).tobytes()
+
+    def close(self):
+        self.b = None
+
+
+class CompressedBitOutput:
+    def __init__(self):
+        self.b = bitarray()
+    # TODO
+
+
+def decompressCRILAYLA(f, fileoffset):
+    def deflatelevels():
+        for v in [2, 3, 5, 8]:
+            yield v
+        while True:
+            yield 8
+    uncsize = f.readUInt()
+    uncheaderoffset = f.readUInt()
+    # common.logDebug("decompressCRILAYLA uncsize", uncsize, "uncheaderoffset", uncheaderoffset)
+    with common.Stream() as decmp:
+        cmp = CompressedBitInput(f.read(uncheaderoffset))
+        while True:
+            bit = cmp.read01(1)
+            if bit == '':
+                break
+            if int(bit, 2):
+                offset = cmp.readnum(13) + 3
+                refc = 3
+
+                for lv in deflatelevels():
+                    bits = cmp.read(lv)
+                    refc += int(bits.to01(), 2)
+                    if not bits.all():
+                        break
+
+                while refc > 0:
+                    decmp.seek(-offset, 1)
+                    ref = decmp.read(refc)
+                    decmp.seek(0, 2)
+                    decmp.write(ref)
+                    refc -= len(ref)
+            else:
+                b = cmp.readbyte()
+                decmp.write(b)
+        cmp.close()
+        with common.Stream() as result:
+            # Copy the uncompressed 0x100 header
+            f.seek(fileoffset + 0x10 + uncheaderoffset)
+            result.write(f.read(0x100))
+            # Copy the uncompressed data, reversed
+            decmp.seek(0)
+            result.write(decmp.read()[:uncsize][::-1])
+            result.seek(0)
+            return result.read()
