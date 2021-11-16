@@ -86,7 +86,7 @@ def repackBIN(binrange, freeranges=None, detectFunc=common.detectEncodedString, 
         binrange = [binrange]
     notfound = common.repackBinaryStrings(section, binin, binout, binrange, freeranges, detectFunc, writeFunc, encoding, 0x02000000)
     for pointer in notfound:
-        common.logError("Pointer", common.toHex(pointer.old), "->", common.toHex(pointer.new) + "not found for string", pointer.str)
+        common.logError("Pointer", common.toHex(pointer.old), "->", common.toHex(pointer.new), "not found for string", pointer.str)
     common.logMessage("Done! Translation is at {0:.2f}%".format((100 * transtot) / chartot))
     return True
 

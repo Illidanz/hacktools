@@ -8,13 +8,16 @@ from hacktools import common
 
 
 # Generic extract/repack functions
-def extractNSBMD(infolder, outfolder, extension=".nsbmd"):
+def extractNSBMD(infolder, outfolder, extension=".nsbmd", readfunc=None):
     common.makeFolder(outfolder)
     common.logMessage("Extracting NSBMD to", outfolder, "...")
     files = common.getFiles(infolder, extension)
     for file in common.showProgress(files):
         common.logDebug("Processing", file, "...")
-        nsbmd = readNSBMD(infolder + file)
+        zerotransp = False
+        if readfunc is not None:
+            zerotransp = readfunc(file)
+        nsbmd = readNSBMD(infolder + file, zerotransp)
         if nsbmd is not None and len(nsbmd.textures) > 0:
             common.makeFolders(outfolder + os.path.dirname(file))
             for texi in range(len(nsbmd.textures)):
@@ -22,13 +25,16 @@ def extractNSBMD(infolder, outfolder, extension=".nsbmd"):
     common.logMessage("Done! Extracted", len(files), "files")
 
 
-def repackNSBMD(workfolder, infolder, outfolder, extension=".nsbmd", writefunc=None):
+def repackNSBMD(workfolder, infolder, outfolder, extension=".nsbmd", readfunc=None, writefunc=None):
     common.logMessage("Repacking NSBMD from", workfolder, "...")
     files = common.getFiles(infolder, extension)
     for file in common.showProgress(files):
         common.logDebug("Processing", file, "...")
         common.copyFile(infolder + file, outfolder + file)
-        nsbmd = readNSBMD(infolder + file)
+        zerotransp = False
+        if readfunc is not None:
+            zerotransp = readfunc(file)
+        nsbmd = readNSBMD(infolder + file, zerotransp)
         if nsbmd is not None and len(nsbmd.textures) > 0:
             fixtransp = False
             if writefunc is not None:
@@ -1263,7 +1269,7 @@ class NSBMDPalette:
     data = []
 
 
-def readNSBMD(nsbmdfile):
+def readNSBMD(nsbmdfile, zerotransp=False):
     nsbmd = NSBMD()
     with common.Stream(nsbmdfile, "rb") as f:
         nsbmdstart = 0
@@ -1355,7 +1361,10 @@ def readNSBMD(nsbmdfile):
             f.seek(pal.offset)
             pal.data = []
             for i in range(pal.size // 2):
-                pal.data.append(common.readPalette(f.readShort()))
+                palcolor = common.readPalette(f.readShort())
+                if i == 0 and zerotransp:
+                    palcolor = (palcolor[0], palcolor[1], palcolor[2], 0)
+                pal.data.append(palcolor)
         # Traverse texture
         spdataoffset = nsbmd.spdataoffset
         for texi in range(len(nsbmd.textures)):
