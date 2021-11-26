@@ -1,5 +1,4 @@
 import ctypes
-from bitarray import bitarray
 from hacktools import common
 
 
@@ -473,6 +472,7 @@ def decompressPRS(f, slen, dlen):
 
 class CompressedBitInput:
     def __init__(self, data):
+        from bitarray import bitarray
         self.b = bitarray()
         self.b.frombytes(data[::-1])
         self.pos = 0
@@ -497,6 +497,7 @@ class CompressedBitInput:
 
 class CompressedBitOutput:
     def __init__(self):
+        from bitarray import bitarray
         self.b = bitarray()
     # TODO
 

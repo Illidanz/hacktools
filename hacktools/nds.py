@@ -57,7 +57,7 @@ def getHeaderID(file):
 
 
 # Binary-related functions
-def extractBIN(binrange, detectFunc=common.detectEncodedString, encoding="shift_jis", binin="data/extract/arm9.bin", binfile="data/bin_output.txt", writepos=False):
+def extractBIN(binrange, detectFunc=common.detectEncodedString, encoding="shift_jis", binin="data/extract/arm9.bin", binfile="data/bin_output.txt", writepos=False, writedupes=False):
     common.logMessage("Extracting BIN to", binfile, "...")
     if type(binrange) == tuple:
         binrange = [binrange]
@@ -65,8 +65,9 @@ def extractBIN(binrange, detectFunc=common.detectEncodedString, encoding="shift_
     with codecs.open(binfile, "w", "utf-8") as out:
         for i in range(len(strings)):
             if writepos:
-                out.write(str(positions[i][0]) + "!")
-            out.write(strings[i] + "=\n")
+                out.write(str(positions[i]) + "!")
+            for j in range(1 if writedupes is False else len(positions[i])):
+                out.write(strings[i] + "=\n")
     common.logMessage("Done! Extracted", len(strings), "lines")
 
 

@@ -246,7 +246,7 @@ def repack(file, outfile, infolder, outfolder):
             fout.write(fin.read(contentoffset))
             # Sort the list by original offset, to keep the file order the same
             sortedfiletable = sorted(cpk.filetable, key=lambda e: e.fileoffset)
-            for i in range(len(sortedfiletable)):
+            for i in common.showProgress(range(len(sortedfiletable))):
                 entry = sortedfiletable[i]
                 if entry.filetype != "FILE":
                     continue
