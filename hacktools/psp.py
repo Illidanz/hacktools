@@ -531,27 +531,6 @@ def drawGIMPixel(image, pixels, x, y, i):
 
 
 # Font files
-def extractFontData(file, outfile):
-    common.logMessage("Extracting font data to", outfile, "...")
-    # dump_pgf = common.bundledExecutable("dump_pgf.exe")
-    # common.execute(dump_pgf + " -i " + file + " > info.txt")
-    if os.path.isfile("info.txt"):
-        with codecs.open(outfile, "w", "utf-8") as fout:
-            with codecs.open("info.txt", "r", "utf-8") as fin:
-                lines = fin.readlines()
-            char = ""
-            for line in lines:
-                line = line.strip()
-                if line.startswith("----"):
-                    charcode = int(line.split("U_")[1].split(" ")[0], 16)
-                    char = chr(charcode)
-                elif line.startswith("dimension"):
-                    width = int(float(line.split("h=")[1].split("v=")[0].strip()))
-                    fout.write(char + "=" + str(width) + "\n")
-        # os.remove("info.txt")
-    common.logMessage("Done!")
-
-
 # https://github.com/tpunix/pgftool/blob/master/pgf.h
 class PGF:
     def __init__(self):
@@ -612,6 +591,7 @@ class PGFGlyph:
         self.bearingx = {"x": 0, "y": 0}
         self.bearingy = {"x": 0, "y": 0}
         self.advance = {"x": 0, "y": 0}
+        self.bitmap = None
 
 
 def getBPEValue(bpe, buf, pos, float=False):
@@ -635,7 +615,9 @@ def readBPETable(f, num, bpe):
     return table
 
 
-def setBPEValue(bpe, buf, pos, data):
+def setBPEValue(bpe, buf, pos, data, float=False):
+    if float:
+        data = ctypes.c_int(data * 64).value
     for i in range(bpe):
         mask = 1 << (pos % 8)
         bit = ((data >> i) << (pos % 8)) & mask
@@ -643,6 +625,14 @@ def setBPEValue(bpe, buf, pos, data):
         buf[pos // 8] |= bit
         pos += 1
     return pos
+
+
+def setBPETable(f, num, bpe, table):
+    buf = bytearray(((num * bpe + 31) // 32) * 4)
+    pos = 0
+    for i in range(len(table)):
+        pos = setBPEValue(bpe, buf, pos, table[i])
+    f.write(buf)
 
 
 # https://github.com/tpunix/pgftool/blob/master/libpgf.c
@@ -765,9 +755,7 @@ fontpalette = [(0x0,  0x0,  0x0,  0xff), (0x1f, 0x1f, 0x1f, 0xff), (0x2f, 0x2f, 
                (0xcf, 0xcf, 0xcf, 0xff), (0xdf, 0xdf, 0xdf, 0xff), (0xef, 0xef, 0xef, 0xff), (0xff, 0xff, 0xff, 0xff)]
 
 
-def extractPGFBitmap(f, pgf, glyph, outfile):
-    f.seek(pgf.glyphpos + pgf.charptr[glyph.index] + glyph.totlen // 8)
-    buf = f.read(1024)
+def extractPGFBitmap(buf, glyph, outfile):
     pos = 0
     i = 0
     bitmapdata = []
@@ -800,6 +788,80 @@ def extractPGFBitmap(f, pgf, glyph, outfile):
     img.save(outfile)
 
 
+def bitmapRLE(pixels):
+    data = bytearray(1024)
+    i = j = pos = rcnt = scnt = rlen = slen = 0
+    while i < len(pixels):
+        k = i
+        rcnt = scnt = 0
+        while k < len(pixels):
+            rlen = 0
+            slen = 0
+            j = k + 1
+            while j < k + 9 and j < len(pixels):
+                if pixels[j - 1] == pixels[j]:
+                    j -= 1
+                    break
+                j += 1
+            rlen = j - k
+            j = k + 1
+            while j < k + 8 and j < len(pixels):
+                if pixels[j - 1] != pixels[j]:
+                    break
+                j += 1
+            slen = j - k
+
+            if slen > 2:
+                scnt = slen
+                break
+            elif slen == 2:
+                scnt += 2
+                k += slen
+                if scnt > 6 or rcnt == 0:
+                    break
+            else:
+                rcnt += rlen + scnt
+                k += rlen
+                scnt = 0
+                if rcnt > 7:
+                    break
+
+        if rcnt > 8:
+            rcnt = 8
+        if scnt > 8:
+            scnt = 8
+
+        if rcnt > 0:
+            pos = setBPEValue(4, data, pos, 16 - rcnt)
+            for j in range(rcnt):
+                pos = setBPEValue(4, data, pos, pixels[i + j])
+            i += rcnt
+        elif scnt > 0:
+            pos = setBPEValue(4, data, pos, scnt - 1)
+            pos = setBPEValue(4, data, pos, pixels[i])
+            i += scnt
+    return data[:int(math.ceil(pos / 8))]
+
+
+def repackPGFBitmap(glyph, infile):
+    img = Image.open(infile)
+    img = img.convert("RGBA")
+    pixels = img.load()
+    bmph = []
+    bmpv = []
+    for y in range(img.height):
+        for x in range(img.width):
+            bmph.append(common.getPaletteIndex(fontpalette, pixels[x, y]))
+    for x in range(img.width):
+        for y in range(img.height):
+            bmpv.append(common.getPaletteIndex(fontpalette, pixels[x, y]))
+    rleh = bitmapRLE(bmph)
+    rlev = bitmapRLE(bmpv)
+    if len(rleh) <= len(rlev):
+        return rleh, 0x01, img.width, img.height
+    return rlev, 0x02, img.width, img.height
+
+
 def extractPGFData(file, outfile, bitmapout="", justadvance=False):
     pgf = readPGFData(file)
     with common.Stream(file, "rb") as fin:
@@ -814,67 +876,163 @@ def extractPGFData(file, outfile, bitmapout="", justadvance=False):
                         "dimension": glyph.dimension, "bearingx": glyph.bearingx, "bearingy": glyph.bearingy, "advance": glyph.advance
                     })
                     f.write(char + "=" + data + "\n")
-                if bitmapout != "" and glyph.index < 200 and glyph.width > 0 and glyph.height > 0:
-                    extractPGFBitmap(fin, pgf, glyph, bitmapout + str(glyph.index) + ".png")
+                if bitmapout != "" and glyph.width > 0 and glyph.height > 0:
+                    fin.seek(pgf.glyphpos + pgf.charptr[glyph.index] + glyph.totlen // 8)
+                    buf = fin.read(1024)
+                    extractPGFBitmap(buf, glyph, bitmapout + str(glyph.index).zfill(4) + ".png")
 
 
-def repackPGFData(fontin, fontout, configfile):
+def checkPGFDataMap(datamap, newvalue):
+    mapid = -1
+    newvaluex = int(newvalue["x"] * 64)
+    newvaluey = int(newvalue["y"] * 64)
+    for j in range(len(datamap)):
+        mapvaluex = int(float(datamap[j]["x"]) * 64)
+        mapvaluey = int(float(datamap[j]["y"]) * 64)
+        if mapvaluex == newvaluex and mapvaluey == newvaluey:
+            mapid = j
+            break
+    if mapid == -1 and len(datamap) < 255:
+        datamap.append({"x": newvalue["x"], "y": newvalue["y"]})
+        mapid = len(datamap)
+    return mapid
+
+
+def repackPGFData(fontin, fontout, configfile, bitmapin=""):
     pgf = readPGFData(fontin)
-    common.copyFile(fontin, fontout)
-    with codecs.open(configfile, "r", "utf-8") as f:
-        section = common.getSection(f, "")
-    with common.Stream(fontout, "rb+") as f:
+    section = {}
+    if os.path.isfile(configfile):
+        with codecs.open(configfile, "r", "utf-8") as f:
+            section = common.getSection(f, "", "##")
+    with common.Stream(fontin, "rb") as fin:
+        # Set the new glyphs information
         for char in section:
             jsondata = json.loads(section[char][0])
             char = char.replace("<3D>", "=")
             for glyphindex in pgf.reversetable[char]:
                 glyph = pgf.glyphs[glyphindex]
-                f.seek(pgf.glyphpos + pgf.charptr[glyph.index])
-                data = bytearray(f.read(8))
-                pos = 0
-                pos = setBPEValue(14, data, pos, glyph.size)
-                pos = setBPEValue(7, data, pos, jsondata["width"])
-                pos = setBPEValue(7, data, pos, jsondata["height"])
-                pos = setBPEValue(7, data, pos, jsondata["left"])
-                pos = setBPEValue(7, data, pos, jsondata["top"])
-                pos = setBPEValue(6, data, pos, glyph.flag)
-                f.seek(-8, 1)
-                f.write(data)
-                f.seek(1 if glyph.flag & 0x04 else 8, 1)
-                f.seek(1 if glyph.flag & 0x08 else 8, 1)
-                f.seek(1 if glyph.flag & 0x10 else 8, 1)
-                newadvancex = int(float(jsondata["advance"]["x"]) * 64)
-                newadvancey = int(float(jsondata["advance"]["y"]) * 64)
-                if glyph.flag & 0x20:
-                    # Need to use an advance ID
-                    advanceid = -1
-                    for j in range(len(pgf.advancemap)):
-                        mapadvancex = int(float(pgf.advancemap[j]["x"]) * 64)
-                        mapadvancey = int(float(pgf.advancemap[j]["y"]) * 64)
-                        if mapadvancex == newadvancex and mapadvancey == newadvancey:
-                            advanceid = j
-                            break
-                    if advanceid >= 0:
-                        f.writeByte(advanceid)
-                    else:
-                        common.logDebug("Advance not found in map, adding it", section[char][0])
-                        newadvanceid = len(pgf.advancemap)
-                        f.writeByte(newadvanceid)
-                        pgf.advancemap.append({"x": float(jsondata["advance"]["x"]), "y": float(jsondata["advance"]["y"])})
+                newsize = 8
+                glyph.width = int(jsondata["width"])
+                glyph.height = int(jsondata["height"])
+                glyph.left = int(jsondata["left"])
+                glyph.top = int(jsondata["top"])
+                glyph.dimension["x"] = float(jsondata["dimension"]["x"])
+                glyph.dimension["y"] = float(jsondata["dimension"]["y"])
+                glyph.dimensionid = checkPGFDataMap(pgf.dimensionmap, glyph.dimension)
+                newsize += 1 if glyph.dimensionid >= 0 else 8
+                glyph.bearingx["x"] = float(jsondata["bearingx"]["x"])
+                glyph.bearingx["y"] = float(jsondata["bearingx"]["y"])
+                glyph.bearingxid = checkPGFDataMap(pgf.bearingxmap, glyph.bearingx)
+                newsize += 1 if glyph.bearingxid >= 0 else 8
+                glyph.bearingy["x"] = float(jsondata["bearingy"]["x"])
+                glyph.bearingy["y"] = float(jsondata["bearingy"]["y"])
+                glyph.bearingyid = checkPGFDataMap(pgf.bearingymap, glyph.bearingy)
+                newsize += 1 if glyph.bearingyid >= 0 else 8
+                glyph.advance["x"] = float(jsondata["advance"]["x"])
+                glyph.advance["y"] = float(jsondata["advance"]["y"])
+                glyph.advanceid = checkPGFDataMap(pgf.advancemap, glyph.advance)
+                newsize += 1 if glyph.advanceid >= 0 else 8
+                bitmapfile = bitmapin + str(glyph.index).zfill(4) + ".png"
+                if not os.path.isfile(bitmapfile):
+                    fin.seek(pgf.glyphpos + pgf.charptr[glyph.index] + glyph.totlen // 8)
+                    glyph.bitmap = fin.read(glyph.size - glyph.totlen // 8)
+                    rleflag = glyph.flag & 0b11
                 else:
-                    # Just write the advance
-                    f.writeInt(newadvancex)
-                    f.writeInt(newadvancey)
-        if len(pgf.advancemap) > pgf.advancelen:
-            f.seek(0x105)
-            f.writeByte(len(pgf.advancemap))
-            f.seek(pgf.mapend)
-            otherdata = f.read()
-            f.seek(pgf.mapend)
-            for i in range(pgf.advancelen, len(pgf.advancemap)):
+                    glyph.bitmap, rleflag, glyph.width, glyph.height = repackPGFBitmap(glyph, bitmapfile)
+                glyph.size = newsize + len(glyph.bitmap)
+                # TODO: shadow support
+                glyph.flag = rleflag
+                if glyph.dimensionid >= 0:
+                    glyph.flag |= 0b000100
+                if glyph.bearingxid >= 0:
+                    glyph.flag |= 0b001000
+                if glyph.bearingyid >= 0:
+                    glyph.flag |= 0b010000
+                if glyph.advanceid >= 0:
+                    glyph.flag |= 0b100000
+        pgf.dimensionlen = len(pgf.dimensionmap)
+        pgf.bearingxlen = len(pgf.bearingxmap)
+        pgf.bearingylen = len(pgf.bearingymap)
+        pgf.advancelen = len(pgf.advancemap)
+        # Write the file
+        with common.Stream(fontout, "wb") as f:
+            # Copy the header
+            fin.seek(0)
+            f.write(fin.read(pgf.headerlen))
+            # Write the new lengths
+            f.seek(0x102)
+            f.writeByte(pgf.dimensionlen)
+            f.writeByte(pgf.bearingxlen)
+            f.writeByte(pgf.bearingylen)
+            f.writeByte(pgf.advancelen)
+            # Write the maps
+            f.seek(pgf.headerlen)
+            for i in range(pgf.dimensionlen):
+                f.writeInt(int(pgf.dimensionmap[i]["x"] * 64))
+                f.writeInt(int(pgf.dimensionmap[i]["y"] * 64))
+            for i in range(pgf.bearingxlen):
+                f.writeInt(int(pgf.bearingxmap[i]["x"] * 64))
+                f.writeInt(int(pgf.bearingxmap[i]["y"] * 64))
+            for i in range(pgf.bearingylen):
+                f.writeInt(int(pgf.bearingymap[i]["x"] * 64))
+                f.writeInt(int(pgf.bearingymap[i]["y"] * 64))
+            for i in range(pgf.advancelen):
                 f.writeInt(int(pgf.advancemap[i]["x"] * 64))
                 f.writeInt(int(pgf.advancemap[i]["y"] * 64))
-            f.write(otherdata)
+            # Copy other tables
+            fin.seek(pgf.mapend)
+            if pgf.shadowmaplen > 0:
+                f.write(fin.read(((pgf.shadowmaplen * pgf.shadowmapbpe + 31) // 32) * 4))
+            f.write(fin.read(((pgf.charmaplen * pgf.charmapbpe + 31) // 32) * 4))
+            charptrpos = f.tell()
+            f.write(fin.read(((pgf.charptrlen * pgf.charptrbpe + 31) // 32) * 4))
+            # Write the characters and store the pointers
+            charptrs = []
+            glyphpos = f.tell()
+            for i in range(len(pgf.glyphs)):
+                glyph = pgf.glyphs[i]
+                glyphptr = f.tell() - glyphpos
+                charptrs.append(glyphptr // pgf.charptrscale)
+                data = bytearray(8)
+                pos = 0
+                pos = setBPEValue(14, data, pos, glyph.size)
+                pos = setBPEValue(7, data, pos, glyph.width)
+                pos = setBPEValue(7, data, pos, glyph.height)
+                pos = setBPEValue(7, data, pos, glyph.left)
+                pos = setBPEValue(7, data, pos, glyph.top)
+                pos = setBPEValue(6, data, pos, glyph.flag)
+                pos = setBPEValue(7, data, pos, glyph.shadowflag)
+                pos = setBPEValue(9, data, pos, glyph.shadowid)
+                f.write(data)
+                if glyph.dimensionid >= 0:
+                    f.writeByte(glyph.dimensionid)
+                else:
+                    f.writeInt(int(glyph.dimension["x"] * 64))
+                    f.writeInt(int(glyph.dimension["y"] * 64))
+                if glyph.bearingxid >= 0:
+                    f.writeByte(glyph.bearingxid)
+                else:
+                    f.writeInt(int(glyph.bearingx["x"] * 64))
+                    f.writeInt(int(glyph.bearingx["y"] * 64))
+                if glyph.bearingyid >= 0:
+                    f.writeByte(glyph.bearingyid)
+                else:
+                    f.writeInt(int(glyph.bearingy["x"] * 64))
+                    f.writeInt(int(glyph.bearingy["y"] * 64))
+                if glyph.advanceid >= 0:
+                    f.writeByte(glyph.advanceid)
+                else:
+                    f.writeInt(int(glyph.advance["x"] * 64))
+                    f.writeInt(int(glyph.advance["y"] * 64))
+                if glyph.bitmap is None:
+                    fin.seek(pgf.glyphpos + pgf.charptr[glyph.index] + glyph.totlen // 8)
+                    glyph.bitmap = fin.read(glyph.size - glyph.totlen // 8)
+                f.write(glyph.bitmap)
+                if (f.tell() - glyphpos) % pgf.charptrscale > 0:
+                    f.writeZero(pgf.charptrscale - ((f.tell() - pgf.glyphpos) % pgf.charptrscale))
+            # Write the new char ptr table
+            f.seek(charptrpos)
+            setBPETable(f, pgf.charptrlen, pgf.charptrbpe, charptrs)
 
 
 def mpstopmf(infile, outfile, duration):
