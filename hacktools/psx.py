@@ -38,11 +38,11 @@ def repackBIN(binfile, binpatch, cuefile, patchfile="", data="data/"):
 
 
 # Binary-related functions
-def extractEXE(binrange, detectFunc=common.detectEncodedString, encoding="shift_jis", exein="", exefile="data/exe_output.txt", writepos=False):
+def extractEXE(binrange, readfunc=common.detectEncodedString, encoding="shift_jis", exein="", exefile="data/exe_output.txt", writepos=False):
     common.logMessage("Extracting EXE to", exefile, "...")
     if type(binrange) == tuple:
         binrange = [binrange]
-    strings, positions = common.extractBinaryStrings(exein, binrange, detectFunc, encoding)
+    strings, positions = common.extractBinaryStrings(exein, binrange, readfunc, encoding)
     with codecs.open(exefile, "w", "utf-8") as out:
         for i in range(len(strings)):
             if writepos:
@@ -51,7 +51,7 @@ def extractEXE(binrange, detectFunc=common.detectEncodedString, encoding="shift_
     common.logMessage("Done! Extracted", len(strings), "lines")
 
 
-def repackEXE(binrange, freeranges=None, manualptrs=None, detectFunc=common.detectEncodedString, writeFunc=common.writeEncodedString, encoding="shift_jis", comments="#", exein="", exeout="", ptrfile="data/manualptrs.asm", exefile="data/exe_input.txt"):
+def repackEXE(binrange, freeranges=None, manualptrs=None, readfunc=common.detectEncodedString, writefunc=common.writeEncodedString, encoding="shift_jis", comments="#", exein="", exeout="", ptrfile="data/manualptrs.asm", exefile="data/exe_input.txt"):
     if not os.path.isfile(exefile):
         common.logError("Input file", exefile, "not found")
         return False
@@ -64,7 +64,7 @@ def repackEXE(binrange, freeranges=None, manualptrs=None, detectFunc=common.dete
         chartot, transtot = common.getSectionPercentage(section)
     if type(binrange) == tuple:
         binrange = [binrange]
-    notfound = common.repackBinaryStrings(section, exein, exeout, binrange, freeranges, detectFunc, writeFunc, encoding, 0x8000F800)
+    notfound = common.repackBinaryStrings(section, exein, exeout, binrange, freeranges, readfunc, writefunc, encoding, 0x8000F800)
     # Handle not found pointers by manually replacing the opcodes
     if len(notfound) > 0 and manualptrs is not None:
         with open(ptrfile, "w") as f:

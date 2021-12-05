@@ -57,21 +57,24 @@ def getHeaderID(file):
 
 
 # Binary-related functions
-def extractBIN(binrange, detectFunc=common.detectEncodedString, encoding="shift_jis", binin="data/extract/arm9.bin", binfile="data/bin_output.txt", writepos=False, writedupes=False):
+def extractBIN(binrange, readfunc=common.detectEncodedString, encoding="shift_jis", binin="data/extract/arm9.bin", binfile="data/bin_output.txt", writepos=False, writedupes=False):
     common.logMessage("Extracting BIN to", binfile, "...")
     if type(binrange) == tuple:
         binrange = [binrange]
-    strings, positions = common.extractBinaryStrings(binin, binrange, detectFunc, encoding)
+    strings, positions = common.extractBinaryStrings(binin, binrange, readfunc, encoding)
     with codecs.open(binfile, "w", "utf-8") as out:
         for i in range(len(strings)):
             if writepos:
-                out.write(str(positions[i]) + "!")
+                allpositions = []
+                for strpos in positions[i]:
+                    allpositions.append(common.toHex(strpos))
+                out.write(str(allpositions) + "!")
             for j in range(1 if writedupes is False else len(positions[i])):
                 out.write(strings[i] + "=\n")
     common.logMessage("Done! Extracted", len(strings), "lines")
 
 
-def repackBIN(binrange, freeranges=None, detectFunc=common.detectEncodedString, writeFunc=common.writeEncodedString, encoding="shift_jis", comments="#",
+def repackBIN(binrange, freeranges=None, readfunc=common.detectEncodedString, writefunc=common.writeEncodedString, encoding="shift_jis", comments="#",
               binin="data/extract/arm9.bin", binout="data/repack/arm9.bin", binfile="data/bin_input.txt", fixchars=[]):
     if not os.path.isfile(binfile):
         common.logError("Input file", binfile, "not found")
@@ -85,7 +88,7 @@ def repackBIN(binrange, freeranges=None, detectFunc=common.detectEncodedString, 
         chartot, transtot = common.getSectionPercentage(section)
     if type(binrange) == tuple:
         binrange = [binrange]
-    notfound = common.repackBinaryStrings(section, binin, binout, binrange, freeranges, detectFunc, writeFunc, encoding, 0x02000000)
+    notfound = common.repackBinaryStrings(section, binin, binout, binrange, freeranges, readfunc, writefunc, encoding, 0x02000000)
     for pointer in notfound:
         common.logError("Pointer", common.toHex(pointer.old), "->", common.toHex(pointer.new), "not found for string", pointer.str)
     common.logMessage("Done! Translation is at {0:.2f}%".format((100 * transtot) / chartot))

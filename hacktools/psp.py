@@ -142,7 +142,7 @@ def extractBinaryStrings(elf, foundstrings, infile, func, encoding="shift_jis", 
     return foundstrings
 
 
-def repackBinaryStrings(elf, section, infile, outfile, detectFunc, writeFunc, encoding="shift_jis", elfsections=[".rodata"]):
+def repackBinaryStrings(elf, section, infile, outfile, readfunc, writefunc, encoding="shift_jis", elfsections=[".rodata"]):
     with common.Stream(infile, "rb") as fi:
         with common.Stream(outfile, "r+b") as fo:
             for sectionname in elfsections:
@@ -150,13 +150,13 @@ def repackBinaryStrings(elf, section, infile, outfile, detectFunc, writeFunc, en
                 fi.seek(rodata.offset)
                 while fi.tell() < rodata.offset + rodata.size:
                     pos = fi.tell()
-                    check = detectFunc(fi, encoding)
+                    check = readfunc(fi, encoding)
                     if check != "":
                         if check in section and section[check][0] != "":
                             common.logDebug("Replacing string at", pos)
                             fo.seek(pos)
                             endpos = fi.tell() - 1
-                            newlen = writeFunc(fo, section[check][0], endpos - pos + 1)
+                            newlen = writefunc(fo, section[check][0], endpos - pos + 1)
                             if newlen < 0:
                                 fo.writeZero(1)
                                 common.logError("String", section[check][0], "is too long.")
