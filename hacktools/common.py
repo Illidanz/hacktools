@@ -643,7 +643,7 @@ def readEncodedString(f, encoding="shift_jis"):
     return sjis
 
 
-def detectEncodedString(f, encoding="shift_jis", startascii=[0x25]):
+def detectEncodedString(f, encoding="shift_jis", startascii=[0x25], startenc=[]):
     ret = ""
     sjis = 0
     while True:
@@ -665,7 +665,7 @@ def detectEncodedString(f, encoding="shift_jis", startascii=[0x25]):
                     if ret.count("UNK(") >= 5:
                         return ""
                     ret += "UNK(" + toHex(b1) + toHex(b2) + ")"
-            elif len(ret) > 1 and ret.count("UNK(") < 5:
+            elif (b1, b2) in startenc or (len(ret) > 1 and ret.count("UNK(") < 5):
                 ret += "UNK(" + toHex(b1) + toHex(b2) + ")"
             else:
                 return ""
@@ -755,7 +755,7 @@ class BinaryPointer:
         self.str = str
 
 
-def repackBinaryStrings(section, infile, outfile, binranges, freeranges=None, detectFunc=detectEncodedString, writeFunc=writeEncodedString, encoding="shift_jis", pointerstart=0):
+def repackBinaryStrings(section, infile, outfile, binranges, freeranges=None, readfunc=detectEncodedString, writefunc=writeEncodedString, encoding="shift_jis", pointerstart=0):
     insize = os.path.getsize(infile)
     notfound = []
     with Stream(infile, "rb") as fi:
@@ -768,7 +768,7 @@ def repackBinaryStrings(section, infile, outfile, binranges, freeranges=None, de
                 fi.seek(binrange[0])
                 while fi.tell() < binrange[1] and fi.tell() < insize - 2:
                     pos = fi.tell()
-                    check = detectFunc(fi, encoding)
+                    check = readfunc(fi, encoding)
                     if check != "":
                         if check in section and section[check][0] != "":
                             newsjis = section[check][0]
@@ -777,10 +777,10 @@ def repackBinaryStrings(section, infile, outfile, binranges, freeranges=None, de
                             if newsjis == "!":
                                 newsjis = ""
                             newsjislog = newsjis.encode("ascii", "ignore")
-                            logDebug("Replacing string at", pos, "with", newsjislog)
+                            logDebug("Replacing string at", toHex(pos), "with", newsjislog)
                             fo.seek(pos)
                             endpos = fi.tell() - 1
-                            newlen = writeFunc(fo, newsjis, endpos - pos + 1, encoding)
+                            newlen = writefunc(fo, newsjis, endpos - pos + 1, encoding)
                             fo.seek(-1, 1)
                             if fo.readByte() != 0:
                                 fo.writeZero(1)
@@ -790,7 +790,7 @@ def repackBinaryStrings(section, infile, outfile, binranges, freeranges=None, de
                                 else:
                                     # Add this to the freeranges
                                     freeranges.append([pos, endpos])
-                                    logDebug("Adding new freerage", pos, endpos)
+                                    logDebug("Adding new freerage", toHex(pos), toHex(endpos))
                                     range = None
                                     rangelen = 0
                                     for c in newsjis:
@@ -809,7 +809,7 @@ def repackBinaryStrings(section, infile, outfile, binranges, freeranges=None, de
                                         else:
                                             logDebug("No room for the string", newsjislog, ", redirecting to", toHex(range[0]))
                                             fo.seek(range[0])
-                                            writeFunc(fo, newsjis, 0, encoding)
+                                            writefunc(fo, newsjis, 0, encoding)
                                             fo.seek(-1, 1)
                                             if fo.readByte() != 0:
                                                 fo.writeZero(1)
@@ -827,7 +827,7 @@ def repackBinaryStrings(section, infile, outfile, binranges, freeranges=None, de
                                             if index < 0:
                                                 break
                                             foundone = True
-                                            logDebug("Replaced pointer at", str(index))
+                                            logDebug("Replaced pointer at", toHex(pointerstart + index))
                                             fo.seek(index)
                                             fo.writeUInt(newpointer)
                                             index += 4
