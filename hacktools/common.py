@@ -1053,14 +1053,14 @@ def readRGB5A3(color):
     r, g, b, a = (0, 0, 0, 0)
     if color & 0x8000 != 0:
         a = 255
-        r = cc58[(color >> 10) & 0x1F]
-        g = cc58[(color >> 5) & 0x1F]
-        b = cc58[(color) & 0x1F]
+        r = cc58[(color >> 10) & 0x1f]
+        g = cc58[(color >> 5) & 0x1f]
+        b = cc58[(color) & 0x1f]
     else:
         a = cc38[(color >> 12) & 0x7]
-        r = cc48[(color >> 8) & 0xF]
-        g = cc48[(color >> 4) & 0xF]
-        b = cc48[(color) & 0xF]
+        r = cc48[(color >> 8) & 0xf]
+        g = cc48[(color >> 4) & 0xf]
+        b = cc48[(color) & 0xf]
     return (r, g, b, a)
 
 
