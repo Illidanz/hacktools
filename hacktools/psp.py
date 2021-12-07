@@ -574,6 +574,7 @@ class PGFGlyph:
         self.ucs = 0
         self.char = ""
         self.size = 0
+        self.oldsize = 0
         self.width = 0
         self.height = 0
         self.left = 0
@@ -741,6 +742,7 @@ def readPGFData(file):
                 glyph.advance["x"], pos = getBPEValue(32, buf, pos, True)
                 glyph.advance["y"], pos = getBPEValue(32, buf, pos, True)
             glyph.totlen = pos
+
             if glyph.char not in pgf.reversetable:
                 pgf.reversetable[glyph.char] = []
             pgf.reversetable[glyph.char].append(len(pgf.glyphs))
@@ -894,7 +896,7 @@ def checkPGFDataMap(datamap, newvalue):
             break
     if mapid == -1 and len(datamap) < 255:
         datamap.append({"x": newvalue["x"], "y": newvalue["y"]})
-        mapid = len(datamap)
+        mapid = len(datamap) - 1
     return mapid
 
 
@@ -939,6 +941,7 @@ def repackPGFData(fontin, fontout, configfile, bitmapin=""):
                     rleflag = glyph.flag & 0b11
                 else:
                     glyph.bitmap, rleflag, glyph.width, glyph.height = repackPGFBitmap(glyph, bitmapfile)
+                glyph.oldsize = glyph.size
                 glyph.size = newsize + len(glyph.bitmap)
                 # TODO: shadow support
                 glyph.flag = rleflag
@@ -1024,10 +1027,11 @@ def repackPGFData(fontin, fontout, configfile, bitmapin=""):
                 else:
                     f.writeInt(int(glyph.advance["x"] * 64))
                     f.writeInt(int(glyph.advance["y"] * 64))
-                if glyph.bitmap is None:
-                    fin.seek(pgf.glyphpos + pgf.charptr[glyph.index] + glyph.totlen // 8)
-                    glyph.bitmap = fin.read(glyph.size - glyph.totlen // 8)
-                f.write(glyph.bitmap)
+                if glyph.width > 0 and glyph.height > 0:
+                    if glyph.bitmap is None:
+                        fin.seek(pgf.glyphpos + pgf.charptr[glyph.index] + glyph.totlen // 8)
+                        glyph.bitmap = fin.read((glyph.oldsize if glyph.oldsize > 0 else glyph.size) - glyph.totlen // 8)
+                    f.write(glyph.bitmap)
                 if (f.tell() - glyphpos) % pgf.charptrscale > 0:
                     f.writeZero(pgf.charptrscale - ((f.tell() - pgf.glyphpos) % pgf.charptrscale))
             # Write the new char ptr table

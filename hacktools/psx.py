@@ -109,27 +109,26 @@ def extractTIM(infolder, outfolder, extensions=".tim", readfunc=None):
 
 
 class TIM:
-    bpp = 0
-    clutsize = 0
-    clutposx = 0
-    clutposy = 0
-    clutwidth = 0
-    clutheight = 0
-    clutoff = 0
-    cluts = []
-    posx = 0
-    posy = 0
-    width = 0
-    height = 0
-    size = 0
-    dataoff = 0
-    data = []
+    def __init__(self):
+        self.bpp = 0
+        self.clutsize = 0
+        self.clutposx = 0
+        self.clutposy = 0
+        self.clutwidth = 0
+        self.clutheight = 0
+        self.clutoff = 0
+        self.cluts = []
+        self.posx = 0
+        self.posy = 0
+        self.width = 0
+        self.height = 0
+        self.size = 0
+        self.dataoff = 0
+        self.data = []
 
 
 def readTIM(f, forcesize=0):
     tim = TIM()
-    tim.cluts = []
-    tim.data = []
     # Read header
     header = f.readUInt()
     if header != 0x10:
