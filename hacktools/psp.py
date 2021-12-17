@@ -377,7 +377,7 @@ def readGIMBlock(f, gim, image):
         return offset + f.readUInt(), image
 
 
-def writeGIM(file, gim, infile):
+def writeGIM(file, gim, infile, backwardspal=False):
     img = Image.open(infile)
     img = img.convert("RGBA")
     pixels = img.load()
@@ -389,7 +389,7 @@ def writeGIM(file, gim, infile):
                 if image.tiled == 0x00:
                     for i in range(image.height):
                         for j in range(image.width):
-                            writeGIMPixel(f, image, pixels[j, currheight + i])
+                            writeGIMPixel(f, image, pixels[j, currheight + i], backwardspal)
                 else:
                     for blocky in range(image.blockedheight // image.tileheight):
                         for blockx in range(image.blockedwidth // image.tilewidth):
@@ -398,9 +398,9 @@ def writeGIM(file, gim, infile):
                                     pixelx = blockx * image.tilewidth + x
                                     pixely = currheight + blocky * image.tileheight + y
                                     if pixelx >= image.width or pixely >= currheight + image.height:
-                                        writeGIMPixel(f, image, None)
+                                        writeGIMPixel(f, image, None, backwardspal)
                                     else:
-                                        writeGIMPixel(f, image, pixels[pixelx, pixely])
+                                        writeGIMPixel(f, image, pixels[pixelx, pixely], backwardspal)
                 if len(image.palette) > 0:
                     palsize = 5 * (len(image.palette) // 8)
                     currheight += max(image.height, palsize)
@@ -410,12 +410,12 @@ def writeGIM(file, gim, infile):
             f.seek(gim.imgoff)
             for i in range(gim.height):
                 for j in range(gim.width):
-                   writeColor(f, 0x03, pixels[j, gim.height - 1 - i])
+                   writeColor(f, 0x03, pixels[j, gim.height - 1 - i], backwardspal)
 
 
-def writeGIMPixel(f, image, color):
+def writeGIMPixel(f, image, color, backwards=False):
     if image.format == 0x04 or image.format == 0x05:
-        index = common.getPaletteIndex(image.palette, color, False, 0, -1, True, False) if color is not None else 0
+        index = common.getPaletteIndex(image.palette, color, False, 0, -1, True, False, backwards) if color is not None else 0
         if image.format == 0x04:
             f.writeHalf(index)
         elif image.format == 0x05:
@@ -943,7 +943,12 @@ def repackPGFData(fontin, fontout, configfile, bitmapin=""):
                     glyph.bitmap, rleflag, glyph.width, glyph.height = repackPGFBitmap(glyph, bitmapfile)
                 glyph.oldsize = glyph.size
                 glyph.size = newsize + len(glyph.bitmap)
-                # TODO: shadow support
+                if not glyph.shadow:
+                    glyph.shadowid = 0
+                    glyph.shadowflag = 21
+                else:
+                    # TODO: shadow support
+                    pass
                 glyph.flag = rleflag
                 if glyph.dimensionid >= 0:
                     glyph.flag |= 0b000100

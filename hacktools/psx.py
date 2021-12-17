@@ -154,10 +154,7 @@ def readTIM(f, forcesize=0):
         tim.clutheight = f.readUShort()
         tim.clutoff = f.tell()
         for i in range(tim.clutheight):
-            clut = []
-            for j in range(tim.clutwidth):
-                color = common.readRGB5A1(f.readUShort())
-                clut.append(color)
+            clut = readCLUTData(f, tim.clutwidth)
             tim.cluts.append(clut)
     # Read size
     tim.size = f.readUInt()
@@ -174,7 +171,19 @@ def readTIM(f, forcesize=0):
     tim.dataoff = f.tell()
     common.logDebug("TIM bpp", tim.bpp, "width", tim.width, "height", tim.height, "size", tim.size)
     pixelnum = forcesize if forcesize != 0 else (((tim.size - 12) * 8) // tim.bpp)
-    # Read data
+    readTIMData(f, tim, pixelnum)
+    return tim
+
+
+def readCLUTData(f, clutwidth):
+    clut = []
+    for j in range(clutwidth):
+        color = common.readRGB5A1(f.readUShort())
+        clut.append(color)
+    return clut
+
+
+def readTIMData(f, tim, pixelnum):
     try:
         for i in range(pixelnum):
             if tim.bpp == 4:
@@ -188,7 +197,6 @@ def readTIM(f, forcesize=0):
                 tim.data.append((f.readByte(), f.readByte(), f.readByte(), 255))
     except struct.error:
         common.logWarning("Malformed TIM")
-    return tim
 
 
 def getUniqueCLUT(tim, transp=False):
@@ -207,29 +215,45 @@ def getUniqueCLUT(tim, transp=False):
     return clut
 
 
-def drawTIM(outfile, tim, transp=False, forcepal=-1):
+def drawTIM(outfile, tim, transp=False, forcepal=-1, allpalettes=False, nopal=False):
     if tim.width == 0 or tim.height == 0:
         return
     clutwidth = clutheight = 0
     if tim.bpp == 4 or tim.bpp == 8:
         clut = forcepal if forcepal != -1 else getUniqueCLUT(tim, transp)
-        clutwidth = 40
-        clutheight = 5 * (len(tim.cluts[clut]) // 8)
+        if not nopal:
+            clutwidth = 40
+            clutheight = 5 * (len(tim.cluts[clut]) // 8)
+            if allpalettes:
+                clutheight *= len(tim.cluts)
     img = Image.new("RGBA", (tim.width + clutwidth, max(tim.height, clutheight)), (0, 0, 0, 0))
     pixels = img.load()
     x = 0
     for i in range(tim.height):
         for j in range(tim.width):
+            if x >= len(tim.data):
+                common.logWarning("Out of TIM data")
+                break
             if tim.bpp == 4 or tim.bpp == 8:
-                color = tim.cluts[clut][tim.data[x]]
+                if len(tim.cluts[clut]) > tim.data[x]:
+                    color = tim.cluts[clut][tim.data[x]]
+                else:
+                    common.logWarning("Index", tim.data[x], "not in CLUT")
+                    color = (0, 0, 0, 0)
             else:
                 color = tim.data[x]
             if not transp:
                 color = (color[0], color[1], color[2], 255)
+            elif color[3] == 0:
+                common.logMessage("a")
             pixels[j, i] = color
             x += 1
-    if tim.bpp == 4 or tim.bpp == 8:
-        pixels = common.drawPalette(pixels, tim.cluts[clut], tim.width, 0, transp)
+    if (tim.bpp == 4 or tim.bpp == 8) and not nopal:
+        if allpalettes:
+            for i in range(len(tim.cluts)):
+                pixels = common.drawPalette(pixels, tim.cluts[i], tim.width, i * (clutheight // len(tim.cluts)), transp)
+        else:
+            pixels = common.drawPalette(pixels, tim.cluts[clut], tim.width, 0, transp)
     img.save(outfile, "PNG")
 
 

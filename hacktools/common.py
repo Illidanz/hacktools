@@ -337,6 +337,7 @@ def cli(log):
 
 
 def enableLogging():
+    logging.getLogger("PIL.PngImagePlugin").setLevel(logging.CRITICAL + 1)
     logging.basicConfig(handlers=[logging.FileHandler(filename="tool.log", encoding="utf-8", mode="w")], format="[%(levelname)s] %(message)s", level=logging.DEBUG)
 
 
@@ -364,6 +365,17 @@ def logError(*messages):
     message = " ".join(str(x) for x in messages)
     logging.error(message)
     tqdm.write("[ERROR] " + message)
+
+
+def varsHex(o):
+    ret = []
+    for k in o.__dict__.keys():
+        v = o.__dict__.__getitem__(k)
+        if type(v) is int:
+            ret.append("'" + k + "': " + toHex(v))
+        elif type(v) is str:
+            ret.append("'" + k + "': '" + v + "'")
+    return ", ".join(ret)
 
 
 def showProgress(iterable):
@@ -1072,13 +1084,16 @@ def readRGB5A1(color):
     return (r, g, b, a)
 
 
-def getPaletteIndex(palette, color, fixtransp=False, starti=0, palsize=-1, checkalpha=False, zerotransp=True):
+def getPaletteIndex(palette, color, fixtransp=False, starti=0, palsize=-1, checkalpha=False, zerotransp=True, backwards=False):
     if zerotransp and color[3] == 0:
         return 0
     if palsize == -1:
         palsize = len(palette)
     zeroalpha = -1
-    for i in range(starti, starti + palsize):
+    palrange = range(starti, starti + palsize)
+    if backwards:
+        palrange = reversed(palrange)
+    for i in palrange:
         if fixtransp and i == starti:
             continue
         if palette[i][0] == color[0] and palette[i][1] == color[1] and palette[i][2] == color[2] and (not checkalpha or palette[i][3] == color[3]):
@@ -1091,7 +1106,10 @@ def getPaletteIndex(palette, color, fixtransp=False, starti=0, palsize=-1, check
         return zeroalpha
     mindist = 0xFFFFFFFF
     disti = 0
-    for i in range(starti + 1, starti + palsize):
+    palrange = range(starti + 1, starti + palsize)
+    if backwards:
+        palrange = reversed(palrange)
+    for i in palrange:
         distance = getColorDistance(color, palette[i], checkalpha)
         if distance < mindist:
             mindist = distance
