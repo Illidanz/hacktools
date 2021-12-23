@@ -410,7 +410,7 @@ def writeGIM(file, gim, infile, backwardspal=False):
             f.seek(gim.imgoff)
             for i in range(gim.height):
                 for j in range(gim.width):
-                   writeColor(f, 0x03, pixels[j, gim.height - 1 - i], backwardspal)
+                   writeColor(f, 0x03, pixels[j, gim.height - 1 - i])
 
 
 def writeGIMPixel(f, image, color, backwards=False):
