@@ -244,8 +244,6 @@ def drawTIM(outfile, tim, transp=False, forcepal=-1, allpalettes=False, nopal=Fa
                 color = tim.data[x]
             if not transp:
                 color = (color[0], color[1], color[2], 255)
-            elif color[3] == 0:
-                common.logMessage("a")
             pixels[j, i] = color
             x += 1
     if (tim.bpp == 4 or tim.bpp == 8) and not nopal:
@@ -254,6 +252,8 @@ def drawTIM(outfile, tim, transp=False, forcepal=-1, allpalettes=False, nopal=Fa
                 pixels = common.drawPalette(pixels, tim.cluts[i], tim.width, i * (clutheight // len(tim.cluts)), transp)
         else:
             pixels = common.drawPalette(pixels, tim.cluts[clut], tim.width, 0, transp)
+    if outfile == "":
+        return img
     img.save(outfile, "PNG")
 
 
