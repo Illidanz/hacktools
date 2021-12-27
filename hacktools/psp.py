@@ -51,7 +51,7 @@ def repackUMD(isofile, isopatch, workfolder, patchfile=""):
         return
     files = common.getFiles(workfolder)
     for file in common.showProgress(files):
-        common.execute(umdreplace + " \"{imagename}\" \"{filename}\" \"{newfile}\"".format(imagename=isopatch, filename=file, newfile=workfolder + file), False)
+        common.execute(umdreplace + " \"{imagename}\" \"/{filename}\" \"{newfile}\"".format(imagename=isopatch, filename=file, newfile=workfolder + file), False)
     common.logMessage("Done!")
     # Create xdelta patch
     if patchfile != "":
