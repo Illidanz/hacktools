@@ -46,7 +46,7 @@ def extractEXE(binrange, readfunc=common.detectEncodedString, encoding="shift_ji
     with codecs.open(exefile, "w", "utf-8") as out:
         for i in range(len(strings)):
             if writepos:
-                out.write(str(positions[i][0]) + "!")
+                out.write(common.toHex(positions[i][0]) + "!")
             out.write(strings[i] + "=\n")
     common.logMessage("Done! Extracted", len(strings), "lines")
 
