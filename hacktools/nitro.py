@@ -38,12 +38,12 @@ def repackNSBMD(workfolder, infolder, outfolder, extension=".nsbmd", readfunc=No
         if nsbmd is not None and len(nsbmd.textures) > 0:
             fixtransp = checkalpha = zerotransp = False
             if writefunc is not None:
-                fixtransp, checkalpha, zerotransp = writefunc(file, nsbmd)
+                fixtransp, checkalpha, zerotransp, backwards = writefunc(file, nsbmd)
             for texi in range(len(nsbmd.textures)):
                 pngname = file.replace(extension, "") + "_" + nsbmd.textures[texi].name + ".png"
                 if os.path.isfile(workfolder + pngname):
                     common.logDebug(" Repacking", pngname, "...")
-                    writeNSBMD(outfolder + file, nsbmd, texi, workfolder + pngname, fixtransp, checkalpha, zerotransp)
+                    writeNSBMD(outfolder + file, nsbmd, texi, workfolder + pngname, fixtransp, checkalpha, zerotransp, backwards)
     common.logMessage("Done!")
 
 
@@ -1504,7 +1504,7 @@ def drawNSBMD(file, nsbmd, texi):
     img.save(file, "PNG")
 
 
-def writeNSBMD(file, nsbmd, texi, infile, fixtransp=False, checkalpha=False, zerotransp=True):
+def writeNSBMD(file, nsbmd, texi, infile, fixtransp=False, checkalpha=False, zerotransp=True, backwards=False):
     img = Image.open(infile)
     img = img.convert("RGBA")
     pixels = img.load()
@@ -1520,24 +1520,24 @@ def writeNSBMD(file, nsbmd, texi, infile, fixtransp=False, checkalpha=False, zer
         if tex.format == 1:
             for i in range(tex.height):
                 for j in range(tex.width):
-                    index = common.getPaletteIndex(paldata, pixels[j, i], fixtransp=fixtransp, checkalpha=checkalpha, zerotransp=zerotransp)
+                    index = common.getPaletteIndex(paldata, pixels[j, i], fixtransp=fixtransp, checkalpha=checkalpha, zerotransp=zerotransp, backwards=backwards)
                     alpha = (pixels[j, i][3] * 8) // 256
                     f.writeByte(index | (alpha << 5))
         # 4-color Palette
         elif tex.format == 2:
             for i in range(tex.height):
                 for j in range(0, tex.width, 4):
-                    index1 = common.getPaletteIndex(paldata, pixels[j, i], fixtransp=fixtransp, checkalpha=checkalpha, zerotransp=zerotransp)
-                    index2 = common.getPaletteIndex(paldata, pixels[j + 1, i], fixtransp=fixtransp, checkalpha=checkalpha, zerotransp=zerotransp)
-                    index3 = common.getPaletteIndex(paldata, pixels[j + 2, i], fixtransp=fixtransp, checkalpha=checkalpha, zerotransp=zerotransp)
-                    index4 = common.getPaletteIndex(paldata, pixels[j + 3, i], fixtransp=fixtransp, checkalpha=checkalpha, zerotransp=zerotransp)
+                    index1 = common.getPaletteIndex(paldata, pixels[j, i], fixtransp=fixtransp, checkalpha=checkalpha, zerotransp=zerotransp, backwards=backwards)
+                    index2 = common.getPaletteIndex(paldata, pixels[j + 1, i], fixtransp=fixtransp, checkalpha=checkalpha, zerotransp=zerotransp, backwards=backwards)
+                    index3 = common.getPaletteIndex(paldata, pixels[j + 2, i], fixtransp=fixtransp, checkalpha=checkalpha, zerotransp=zerotransp, backwards=backwards)
+                    index4 = common.getPaletteIndex(paldata, pixels[j + 3, i], fixtransp=fixtransp, checkalpha=checkalpha, zerotransp=zerotransp, backwards=backwards)
                     f.writeByte((index4 << 6) | (index3 << 4) | (index2 << 2) | index1)
         # 16/256-color Palette
         elif tex.format == 3 or tex.format == 4:
             for i in range(tex.height):
                 for j in range(0, tex.width, 2):
-                    index1 = common.getPaletteIndex(paldata, pixels[j, i], fixtransp=fixtransp, checkalpha=checkalpha, zerotransp=zerotransp)
-                    index2 = common.getPaletteIndex(paldata, pixels[j + 1, i], fixtransp=fixtransp, checkalpha=checkalpha, zerotransp=zerotransp)
+                    index1 = common.getPaletteIndex(paldata, pixels[j, i], fixtransp=fixtransp, checkalpha=checkalpha, zerotransp=zerotransp, backwards=backwards)
+                    index2 = common.getPaletteIndex(paldata, pixels[j + 1, i], fixtransp=fixtransp, checkalpha=checkalpha, zerotransp=zerotransp, backwards=backwards)
                     writeNCGRData(f, 4 if tex.format == 3 else 8, index1, index2)
         # 4x4-Texel Compressed Texture
         elif tex.format == 5:
@@ -1546,7 +1546,7 @@ def writeNSBMD(file, nsbmd, texi, infile, fixtransp=False, checkalpha=False, zer
         elif tex.format == 6:
             for i in range(tex.height):
                 for j in range(tex.width):
-                    index = common.getPaletteIndex(paldata, pixels[j, i], fixtransp=fixtransp, checkalpha=checkalpha, zerotransp=zerotransp)
+                    index = common.getPaletteIndex(paldata, pixels[j, i], fixtransp=fixtransp, checkalpha=checkalpha, zerotransp=zerotransp, backwards=backwards)
                     alpha = (pixels[j, i][3] * 32) // 256
                     f.writeByte(index | (alpha << 3))
         # Direct Color Texture
