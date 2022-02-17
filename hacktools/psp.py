@@ -153,7 +153,7 @@ def repackBinaryStrings(elf, section, infile, outfile, readfunc, writefunc, enco
                     check = readfunc(fi, encoding)
                     if check != "":
                         if check in section and section[check][0] != "":
-                            common.logDebug("Replacing string at", pos)
+                            common.logDebug("Replacing string", check, "at", common.toHex(pos), "with", section[check][0])
                             fo.seek(pos)
                             endpos = fi.tell() - 1
                             newlen = writefunc(fo, section[check][0], endpos - pos + 1)
