@@ -320,8 +320,8 @@ def readNARC(narcfile):
         common.logDebug("filenum:", filenum)
         for i in range(filenum):
             subfile = NARCFile()
-            subfile.start = narc.gmif + 8 + f.readUInt()
-            subfile.size = narc.gmif + 8 + f.readUInt() - subfile.start
+            subfile.start = 8 + f.readUInt()
+            subfile.size = 8 + f.readUInt() - subfile.start
             common.logDebug(vars(subfile))
             narc.files.append(subfile)
         # Read BTNF
@@ -332,6 +332,8 @@ def readNARC(narcfile):
             return None
         sectionsize = f.readUInt()
         narc.gmif = narc.btnf + sectionsize
+        for subfile in narc.files:
+            subfile.start += narc.gmif
         # TODO: handle directories
         f.seek(8, 1)
         for i in range(filenum):
@@ -1552,6 +1554,55 @@ def writeNSBMD(file, nsbmd, texi, infile, fixtransp=False, checkalpha=False, zer
         # Direct Color Texture
         elif tex.format == 7:
             common.logError("Texture format 7 not implemented")
+
+
+def readManualCells(manualcells):
+    ncer = NCER()
+    ncer.banks = []
+    ncer.banknum = 0
+    ncer.tbank = ncer.bankoffset = ncer.blocksize = ncer.partitionoffset = 0
+    curroff = 0
+    for manualbank in manualcells:
+        repeat = int(manualbank["repeat"]) if "repeat" in manualbank else 1
+        for i in range(repeat):
+            bank = Bank()
+            bank.cells = []
+            ncer.banks.append(bank)
+            ncer.banknum += 1
+    i = 0
+    banki = 0
+    while i < ncer.banknum:
+        manualbank = manualcells[banki]
+        repeat = int(manualbank["repeat"]) if "repeat" in manualbank else 1
+        for r in range(repeat):
+            bank = ncer.banks[i]
+            bank.cellnum = len(manualbank["cells"])
+            bank.layernum = 1
+            bank.partitionoffset = bank.width = bank.height = 0
+            for j in range(len(manualbank["cells"])):
+                manualcell = manualbank["cells"][j]
+                cell = Cell()
+                cell.objoffset = cell.layer = cell.objmode = cell.priority = 0
+                cell.mosaic = cell.depth = cell.xflip = cell.yflip = cell.rsflag = False
+                cell.width = manualcell["width"]
+                cell.height = manualcell["height"]
+                cell.pal = manualbank["pal"] if "pal" in manualbank else 0
+                cell.x = manualcell["x"] if "x" in manualcell else 0
+                cell.y = manualcell["y"] if "y" in manualcell else 0
+                if cell.x + cell.width > bank.width:
+                    bank.width = cell.x + cell.width
+                if cell.y + cell.height > bank.height:
+                    bank.height = cell.y + cell.height
+                cell.numcell = j
+                cell.tileoffset = curroff
+                curroff += ((cell.width * cell.height) // (8 * 8))
+                bank.cells.append(cell)
+            common.logDebug(vars(bank))
+            for cell in bank.cells:
+                common.logDebug(vars(cell))
+            i += 1
+        banki += 1
+    return ncer
 
 
 def readNitroGraphicNBFC(palettefile, tilefile, mapfile, lineal=False, bpp=0):
