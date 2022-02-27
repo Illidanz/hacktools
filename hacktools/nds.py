@@ -122,6 +122,8 @@ def decompress(f, complength):
             return compression.decompressHuffman(data, complength, decomplength, 4)
         elif type == CompressionType.Huff8:
             return compression.decompressHuffman(data, complength, decomplength, 8)
+        elif type == CompressionType.RLE:
+            return compression.decompressRLE(data, complength, decomplength)
         else:
             common.logError("Unsupported compression type", common.toHex(type))
             return data.read()

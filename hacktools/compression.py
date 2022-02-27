@@ -259,6 +259,24 @@ def getOccurrenceLength(indata, newptr, newlength, oldptr, oldlength, mindisp=1)
     return maxlength, disp
 
 
+def decompressRLE(data, complength, decomplength):
+    with common.Stream() as out:
+        while out.tell() < decomplength:
+            flag = data.readByte()
+            compressed = (flag & 0x80) > 0
+            length = flag & 0x7f
+            if compressed:
+                length += 3
+                byte = data.readByte()
+                for i in range(length):
+                    out.writeByte(byte)
+            else:
+                length += 1
+                out.write(data.read(length))
+        out.seek(0)
+        return out.read()
+
+
 # https://forum.xentax.com/viewtopic.php?p=30390#p30387
 def getBits(n, f, blen, fbuf):
     retv = 0
