@@ -239,7 +239,9 @@ def readGMOChunk(f, gmo, maxsize, nesting=""):
     common.logDebug(nesting + "GMO ID", common.toHex(id), "at", common.toHex(offset), "len", common.toHex(headerlen), common.toHex(blocklen))
     if id == 0xa:  # Texture name
         f.seek(8, 1)
-        texname = f.readNullString()
+        texname = f.readEncodedString().replace(":", "")
+        while texname in gmo.names:
+            texname += "_"
         common.logDebug(nesting + "0x0A at", common.toHex(offset), common.toHex(offset + blocklen), texname)
         gmo.names.append(texname)
     elif id == 0x8013:  # Texture data
