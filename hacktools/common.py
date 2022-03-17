@@ -126,6 +126,16 @@ class Stream(object):
         self.seek(current)
         return ret
 
+    def readDouble(self):
+        return struct.unpack(self.endian + "d", self.read(8))[0]
+
+    def readDoubleAt(self, pos):
+        current = self.tell()
+        self.seek(pos)
+        ret = self.readDouble()
+        self.seek(current)
+        return ret
+
     def readShort(self):
         return struct.unpack(self.endian + "h", self.read(2))[0]
 
@@ -223,6 +233,27 @@ class Stream(object):
         self.seek(current)
         return ret
 
+    def readEncodedString(self, encoding="utf-8"):
+        num = 0
+        pos = self.tell()
+        while True:
+            byte = self.readByte()
+            if byte == 0:
+                break
+            else:
+                num += 1
+        self.seek(pos)
+        ret = self.read(num).decode(encoding)
+        self.readByte()
+        return ret
+
+    def readEncodedStringAt(self, pos, encoding="utf-8"):
+        current = self.tell()
+        self.seek(pos)
+        ret = self.readEncodedString(encoding)
+        self.seek(current)
+        return ret
+
     def writeLong(self, num):
         self.f.write(struct.pack(self.endian + "q", num))
 
@@ -266,6 +297,15 @@ class Stream(object):
         current = self.tell()
         self.seek(pos)
         self.writeFloat(num)
+        self.seek(current)
+
+    def writeDouble(self, num):
+        self.f.write(struct.pack(self.endian + "d", num))
+
+    def writeDoubleAt(self, pos, num):
+        current = self.tell()
+        self.seek(pos)
+        self.writeDouble(num)
         self.seek(current)
 
     def writeShort(self, num):
