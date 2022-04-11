@@ -564,3 +564,87 @@ def decompressCRILAYLA(f, fileoffset):
             result.write(decmp.read()[:uncsize][::-1])
             result.seek(0)
             return result.read()
+
+
+# Implementation by KenTse based on https://github.com/ConnorKrammer/cpk-tools/blob/master/LibCRIComp/LibCRIComp.cpp
+def compressCRILAYLA(src):
+    srclen = len(src)
+    destlen = srclen
+    dest = bytearray(destlen)
+    n = srclen - 1
+    m = destlen - 1
+    T = d = p = q = i = j = k = 0
+    while n >= 0x100:
+        j = n + 3 + 0x2000
+        if j > srclen:
+            j = srclen
+        i = n + 3
+        p = 0
+        while i < j:
+            for k in range(n - 0x100 + 1):
+                if src[n - k] != src[i - k]:
+                    break
+            if k > p:
+                q = i - n - 3
+                p = k
+            i += 1
+        if p < 3:
+            d = (d << 9) | src[n]
+            n -= 1
+            T += 9
+        else:
+            d = (((d << 1) | 1) << 13) | q
+            T += 14
+            n -= p
+            if p < 6:
+                d = (d << 2) | (p - 3)
+                T += 2
+            elif p < 13:
+                d = (((d << 2) | 3) << 3) | (p - 6)
+                T += 5
+            elif p < 44:
+                d = (((d << 5) | 0x1f) << 5) | (p - 13)
+                T += 10
+            else:
+                d = ((d << 10) | 0x3ff)
+                T += 10
+                p -= 44
+                while True:
+                    while T >= 8:
+                        dest[m] = (d >> (T - 8)) & 0xff
+                        m -= 1
+                        T -= 8
+                        d = d & ((1 << T) - 1)
+                    if p < 255:
+                        break
+                    d = (d << 8) | 0xff
+                    T += 8
+                    p = p - 0xff
+                d = (d << 8) | p
+                T += 8
+        while T >= 8:
+            dest[m] = (d >> (T - 8)) & 0xff
+            m -= 1
+            T -= 8
+            d = d & ((1 << T) - 1)
+    if T != 0:
+        dest[m] = d << (8 - T)
+        m -= 1
+    dest[m] = 0
+    m -= 1
+    dest[m] = 0
+    while True:
+        if ((destlen - m) & 3) == 0:
+            break
+        dest[m] = 0
+        m -= 1
+    destlen -= m
+    dest = dest[m:]
+    header = bytearray(4 * 4)
+    l = [ 0x4c495243, 0x414c5941, srclen - 0x100, destlen ]
+    for j in range(4):
+        for i in range(4):
+            header[i + j * 4] = l[j] & 0xff
+            l[j] >>= 8
+    dest += src[:0x100]
+    return header + dest

@@ -35,6 +35,6 @@ External dependencies not included are marked as `(through *dependency*)`
 ### Other / Generic
 - CPK archives
 - ARCH archives
-- LZ10, LZ11 and Huffman compression/decompression
+- LZ10, LZ11, Huffman and CRILAYLA compression/decompression
 - IPS patch creation
 - xdelta patch creation (through xdelta)

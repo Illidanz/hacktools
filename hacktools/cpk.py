@@ -223,7 +223,7 @@ def extract(file, outfolder, guessextension=None):
                 fout.write(data)
 
 
-def repack(file, outfile, infolder, outfolder):
+def repack(file, outfile, infolder, outfolder, cmp=False):
     common.logDebug("Processing", file, "...")
     cpk = readCPK(file)
     if cpk is None:
@@ -266,8 +266,26 @@ def repack(file, outfile, infolder, outfolder):
                 else:
                     with common.Stream(folder2 + filename, "rb") as subf:
                         filedata = subf.read()
-                    # TODO: compress the file again if it was compressed originally?
-                    uncdatalen = cdatalen = len(filedata)
+                    if entry.extractsize == entry.filesize:
+                        uncdatalen = cdatalen = len(filedata)
+                    else:
+                        uncdatalen = len(filedata)
+                        crc = common.crcFile(folder2 + filename)
+                        cachename = folder2 + filename + "_" + str(crc) + ".cache"
+                        if os.path.isfile(cachename):
+                            common.logDebug("Using cached", cachename)
+                            with common.Stream(cachename, "rb") as cachef:
+                                filedata = cachef.read()
+                            cdatalen = len(filedata)
+                        elif cmp:
+                            common.logDebug("Compressing", entry.extractsize, entry.filesize)
+                            filedata = compression.compressCRILAYLA(filedata)
+                            cdatalen = len(filedata)
+                            common.logDebug("Compressed", uncdatalen, cdatalen)
+                            with common.Stream(cachename, "wb") as cachef:
+                                cachef.write(filedata)
+                        else:
+                            uncdatalen = cdatalen = len(filedata)
                 # Write the file data and align
                 fileoffset = fout.tell() - entry.offset
                 fout.write(filedata)
