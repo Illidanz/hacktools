@@ -262,9 +262,12 @@ def writeTIM(f, tim, infile, transp=False, forcepal=-1):
         common.logError("writeTIM bpp", tim.bpp, "not supported")
         return
     clut = forcepal if forcepal != -1 else getUniqueCLUT(tim, transp)
-    img = Image.open(infile)
-    img = img.convert("RGBA")
-    pixels = img.load()
+    if isinstance(infile, str):
+        img = Image.open(infile)
+        img = img.convert("RGBA")
+        pixels = img.load()
+    else:
+        pixels = infile
     f.seek(tim.dataoff)
     for i in range(tim.height):
         for j in range(tim.width):

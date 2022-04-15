@@ -1124,7 +1124,7 @@ def readRGB5A1(color):
     return (r, g, b, a)
 
 
-def getPaletteIndex(palette, color, fixtransp=False, starti=0, palsize=-1, checkalpha=False, zerotransp=True, backwards=False):
+def getPaletteIndex(palette, color, fixtransp=False, starti=0, palsize=-1, checkalpha=False, zerotransp=True, backwards=False, logcolor=False):
     if zerotransp and color[3] == 0:
         return 0
     if palsize == -1:
@@ -1154,7 +1154,8 @@ def getPaletteIndex(palette, color, fixtransp=False, starti=0, palsize=-1, check
         if distance < mindist:
             mindist = distance
             disti = i - starti
-    logDebug("Color", color, "not found, closest color:", palette[disti])
+    if logcolor:
+        logDebug("Color", color, "not found, closest color:", palette[disti])
     return disti
 
 
