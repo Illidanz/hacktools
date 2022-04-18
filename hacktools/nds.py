@@ -173,16 +173,17 @@ def decompressBinary(infile, outfile):
         f.write(uncdata)
 
 
-def compressBinary(infile, outfile):
+def compressBinary(infile, outfile, arm9=True):
     with common.Stream(infile, "rb") as fin:
         data = bytearray(fin.read())
-    compdata = bytearray(codeCompression.compress(data, True))
-    codeoffset = 0
-    for i in range(0, 0x8000, 4):
-        if compdata[i:i+8] == b'\x21\x06\xC0\xDE\xDE\xC0\x06\x21':
-            codeoffset = i - 0x1C
-            break
-    if codeoffset > 0:
-        struct.pack_into("<I", compdata, codeoffset + 0x14, 0x02000000 + len(compdata))
+    compdata = bytearray(codeCompression.compress(data, arm9))
+    if arm9:
+        codeoffset = 0
+        for i in range(0, 0x8000, 4):
+            if compdata[i:i+8] == b'\x21\x06\xC0\xDE\xDE\xC0\x06\x21':
+                codeoffset = i - 0x1C
+                break
+        if codeoffset > 0:
+            struct.pack_into("<I", compdata, codeoffset + 0x14, 0x02000000 + len(compdata))
     with common.Stream(outfile, "wb") as f:
         f.write(compdata)
