@@ -424,9 +424,11 @@ def showProgress(iterable):
 
 # Strings
 def toHex(byte):
-    hexstr = hex(byte)[2:].upper()
+    hexstr = hex(byte)[2:].lower()
     if len(hexstr) == 1:
         return "0" + hexstr
+    if hexstr[0] == "x":
+        return "-" + hexstr[1:]
     return hexstr
 
 
@@ -989,6 +991,7 @@ def bundledExecutable(name):
 
 
 def execute(cmd, show=True):
+    result = ""
     try:
         if os.name != 'nt':
             result = str(subprocess.check_output(shlex.split(cmd)))
@@ -996,9 +999,13 @@ def execute(cmd, show=True):
             result = str(subprocess.check_output(cmd))
     except FileNotFoundError:
         logError("Command too long:", len(cmd))
+        if result != "":
+            logError(result)
         return
     except subprocess.CalledProcessError:
         logError("Command error", cmd)
+        if result != "":
+            logError(result)
         return
     if result != "":
         if show:
