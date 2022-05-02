@@ -6,27 +6,50 @@ from hacktools import common
 
 
 # Image functions
-def extractBIN(infolder, outfolder, cuefile, data="data/"):
+def extractBIN(infolder, outfolder, cuefile, data="data/", psximager=True):
     common.logMessage("Extracting BIN", cuefile, "...")
-    if not os.path.isfile("psximager\\psxrip.exe"):
-        common.logError("psximager not found")
-        return
+    if psximager:
+        if not os.path.isfile("psximager\\psxrip.exe"):
+            common.logError("psximager not found")
+            return
+    else:
+        dumpsxiso = common.bundledExecutable("dumpsxiso.exe")
+        if not os.path.isfile(dumpsxiso):
+            common.logError("dumpsxiso not found")
+            return
+
     common.clearFolder(infolder)
-    common.execute("psximager\\psxrip.exe \"{iso}\" \"{folder}\"".format(iso=cuefile, folder=infolder[:-1]), False)
-    common.copyFile(data + "extract.sys", data + "repack.sys")
-    with open(data + "extract.cat", "r") as fin:
-        with open(data + "repack.cat", "w") as fout:
-            fout.write(fin.read().replace(data + "extract", data + "repack"))
+
+    if psximager:
+        common.execute("psximager\\psxrip.exe \"{iso}\" \"{folder}\"".format(iso=cuefile, folder=infolder[:-1]), False)
+        common.copyFile(data + "extract.sys", data + "repack.sys")
+        with open(data + "extract.cat", "r") as fin:
+            with open(data + "repack.cat", "w") as fout:
+                fout.write(fin.read().replace(data + "extract", data + "repack"))
+    else:
+        common.execute(dumpsxiso + " -x \"{folder}\" -s \"{folder}.xml\" \"{iso}\" ".format(iso=cuefile.replace(".cue", ".bin"), folder=infolder[:-1]), False)
+        with open(data + "extract.xml", "r") as fin:
+            with open(data + "repack.xml", "w") as fout:
+                fout.write(fin.read().replace("extract/", "repack/"))
+
     common.copyFolder(infolder, outfolder)
     common.logMessage("Done!")
 
 
-def repackBIN(binfile, binpatch, cuefile, patchfile="", data="data/"):
+def repackBIN(binfile, binpatch, cuefile, patchfile="", data="data/", psximager=True):
     common.logMessage("Repacking BIN", binpatch, "...")
-    if not os.path.isfile("psximager\\psxbuild.exe"):
-        common.logError("psximager not found")
-        return
-    common.execute("psximager\\psxbuild.exe \"{cat}\" \"{bin}\"".format(cat=data + "repack.cat", bin=binpatch), False)
+    if psximager:
+        if not os.path.isfile("psximager\\psxbuild.exe"):
+            common.logError("psximager not found")
+            return
+        common.execute("psximager\\psxbuild.exe \"{cat}\" \"{bin}\"".format(cat=data + "repack.cat", bin=binpatch), False)
+    else:
+        mkpsxiso = common.bundledExecutable("mkpsxiso.exe")
+        if not os.path.isfile(mkpsxiso):
+            common.logError("mkpsxiso not found")
+            return
+        common.execute(mkpsxiso + " -y -o \"{bin}\" \"{xml}\"".format(xml=data + "repack.xml", bin=binpatch), False)
+
     with open(cuefile, "w") as fout:
         fout.write("FILE \"" + binpatch.replace(data, "") + "\" BINARY\r\n")
         fout.write("  TRACK 01 MODE2/2352\r\n")
@@ -257,21 +280,28 @@ def drawTIM(outfile, tim, transp=False, forcepal=-1, allpalettes=False, nopal=Fa
     img.save(outfile, "PNG")
 
 
-def writeTIM(f, tim, infile, transp=False, forcepal=-1):
+def writeTIM(f, tim, infile, transp=False, forcepal=-1, palsize=0):
     if tim.bpp > 8:
         common.logError("writeTIM bpp", tim.bpp, "not supported")
         return
     clut = forcepal if forcepal != -1 else getUniqueCLUT(tim, transp)
+    maxwidth = tim.width
+    maxheight = tim.height
     if isinstance(infile, str):
         img = Image.open(infile)
         img = img.convert("RGBA")
         pixels = img.load()
+        maxwidth = img.width - palsize
+        maxheight = img.height
     else:
         pixels = infile
     f.seek(tim.dataoff)
     for i in range(tim.height):
         for j in range(tim.width):
-            index = common.getPaletteIndex(tim.cluts[clut], pixels[j, i], checkalpha=transp, zerotransp=False)
+            if j >= maxwidth or i >= maxheight:
+                index = 0
+            else:
+                index = common.getPaletteIndex(tim.cluts[clut], pixels[j, i], checkalpha=transp, zerotransp=False)
             if tim.bpp == 4:
                 f.writeHalf(index)
             else:
