@@ -182,7 +182,11 @@ def expandBIN(binin, binout, headerin, headerout, newlength, injectpos):
     common.copyFile(headerin, headerout)
     with common.Stream(headerout, "rb+") as f:
         f.seek(0x2c)
-        f.writeUInt(arm9len)
+        f.writeUInt(arm9len - 0xc)
+        # Update the checksum
+        f.seek(0)
+        crc = crcmod.predefined.mkCrcFun("modbus")(f.read(0x15e))
+        f.writeUShort(crc)
 
 
 # Compression-related functions
