@@ -75,12 +75,13 @@ def extractBIN(binrange, readfunc=common.detectEncodedString, encoding="shift_ji
 
 
 def repackBIN(binrange, freeranges=None, readfunc=common.detectEncodedString, writefunc=common.writeEncodedString, encoding="shift_jis", comments="#",
-              binin="data/extract/arm9.bin", binout="data/repack/arm9.bin", binfile="data/bin_input.txt", fixchars=[]):
+              binin="data/extract/arm9.bin", binout="data/repack/arm9.bin", binfile="data/bin_input.txt", fixchars=[], pointerstart=0x02000000, injectstart=0x02000000, nocopy=False):
     if not os.path.isfile(binfile):
         common.logError("Input file", binfile, "not found")
         return False
 
-    common.copyFile(binin, binout)
+    if not nocopy:
+        common.copyFile(binin, binout)
     common.logMessage("Repacking BIN from", binfile, "...")
     section = {}
     with codecs.open(binfile, "r", "utf-8") as bin:
@@ -88,11 +89,100 @@ def repackBIN(binrange, freeranges=None, readfunc=common.detectEncodedString, wr
         chartot, transtot = common.getSectionPercentage(section)
     if type(binrange) == tuple:
         binrange = [binrange]
-    notfound = common.repackBinaryStrings(section, binin, binout, binrange, freeranges, readfunc, writefunc, encoding, 0x02000000)
+    notfound = common.repackBinaryStrings(section, binin, binout, binrange, freeranges, readfunc, writefunc, encoding, pointerstart, injectstart)
     for pointer in notfound:
         common.logError("Pointer", common.toHex(pointer.old), "->", common.toHex(pointer.new), "not found for string", pointer.str)
     common.logMessage("Done! Translation is at {0:.2f}%".format((100 * transtot) / chartot))
     return True
+
+
+class BINSection:
+    def __init__(self, f, ramaddr, ramlen, fileoff, bsssize, real = True):
+        self.offset = fileoff
+        self.length = ramlen
+        self.ramaddr = ramaddr
+        self.bsssize = bsssize
+        self.real = real
+        if f is not None:
+            f.seek(self.offset)
+            self.data = f.read(ramlen)
+        else:
+            self.data = bytearray(ramlen)
+
+
+def expandBIN(binin, binout, headerin, headerout, newlength, injectpos):
+    if not os.path.isfile(binin):
+        common.logError("Input file", binin, "not found")
+        return False
+    if not os.path.isfile(headerin):
+        common.logError("Header file", headerin, "not found")
+        return False
+    codesettings = -1
+    with common.Stream(headerin, "rb") as fin:
+        fin.seek(0x20)
+        arm9offset = fin.readUInt()
+        arm9entry = fin.readUInt()
+        arm9ramaddr = fin.readUInt()
+        arm9len = fin.readUInt()
+        fin.seek(0x70)
+        armcodesettings = fin.readUInt()
+        common.logDebug("arm9offset", common.toHex(arm9offset), "arm9entry", common.toHex(arm9entry), "arm9ramaddr", common.toHex(arm9ramaddr), "arm9len", common.toHex(arm9len), "codesettings", common.toHex(armcodesettings))
+    with common.Stream(binin, "rb") as fin:
+        # Get code settings position if it wasn't in the header
+        if armcodesettings > 0:
+            codesettings = fin.readUIntAt(armcodesettings - arm9ramaddr - 4) - arm9ramaddr
+            common.logDebug("codesettings", common.toHex(codesettings))
+        if codesettings <= 0:
+            for i in range(0, 0x8000, 4):
+                if fin.readUIntAt(i) == 0xdec00621 and fin.readUIntAt(i + 4) == 0x2106c0de:
+                    codesettings = i - 0x1c
+                    common.logDebug("codesettings heuristic", common.toHex(codesettings))
+        if codesettings <= 0:
+            common.logError("Code settings offset not found")
+            return False
+        # Read the current sections
+        copytablestart = fin.readUIntAt(codesettings) - arm9ramaddr
+        copytableend = fin.readUIntAt(codesettings + 4) - arm9ramaddr
+        datastart = fin.readUIntAt(codesettings + 8) - arm9ramaddr
+        common.logDebug("copytablestart", common.toHex(copytablestart), "copytableend", common.toHex(copytableend), "datastart", common.toHex(datastart))
+        sections = []
+        sections.append(BINSection(fin, arm9ramaddr, datastart, 0, 0, False))
+        while copytablestart < copytableend:
+            start = fin.readUIntAt(copytablestart)
+            size = fin.readUIntAt(copytablestart + 4)
+            bsssize = fin.readUIntAt(copytablestart + 8)
+            copytablestart += 12
+            common.logDebug("  start", common.toHex(start), "size", common.toHex(size), "bsssize", common.toHex(bsssize))
+            sections.append(BINSection(fin, start, size, datastart, bsssize))
+            datastart += size
+    # Write the new extended arm9.bin
+    sections.append(BINSection(None, injectpos, newlength, 0, 0))
+    with common.Stream(binout, "wb") as f:
+        # Write the section data first
+        f.write(sections[0].data)
+        datastart = f.tell()
+        for i in range(1, len(sections)):
+            sections[i].offset = f.tell()
+            f.write(sections[i].data)
+        # Write the new copytable
+        copytablestart = f.tell()
+        for section in sections:
+            if not section.real:
+                continue
+            f.writeUInt(section.ramaddr)
+            f.writeUInt(section.length)
+            f.writeUInt(section.bsssize)
+        copytableend = f.tell()
+        arm9len = f.tell()
+        f.seek(codesettings)
+        f.writeUInt(copytablestart + arm9ramaddr)
+        f.writeUInt(copytableend + arm9ramaddr)
+        f.writeUInt(datastart + arm9ramaddr)
+    # Write the new length in the header
+    common.copyFile(headerin, headerout)
+    with common.Stream(headerout, "rb+") as f:
+        f.seek(0x2c)
+        f.writeUInt(arm9len)
 
 
 # Compression-related functions

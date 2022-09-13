@@ -415,6 +415,8 @@ def varsHex(o):
             ret.append("'" + k + "': " + toHex(v))
         elif type(v) is str:
             ret.append("'" + k + "': '" + v + "'")
+        elif type(v) is list:
+            ret.append("'" + k + "': " + str(v) + "")
     return ", ".join(ret)
 
 
@@ -463,8 +465,8 @@ def shiftPointer(pointer, pointerdiff):
     for k, v in pointerdiff.items():
         if k < pointer:
             newpointer += v
-    if newpointer != pointer:
-        logDebug("Shifted pointer", toHex(pointer), "to", toHex(newpointer))
+    # if newpointer != pointer:
+    #    logDebug("Shifted pointer", toHex(pointer), "to", toHex(newpointer))
     return newpointer
 
 
@@ -809,7 +811,7 @@ class BinaryPointer:
         self.str = str
 
 
-def repackBinaryStrings(section, infile, outfile, binranges, freeranges=None, readfunc=detectEncodedString, writefunc=writeEncodedString, encoding="shift_jis", pointerstart=0):
+def repackBinaryStrings(section, infile, outfile, binranges, freeranges=None, readfunc=detectEncodedString, writefunc=writeEncodedString, encoding="shift_jis", pointerstart=0, injectstart=0):
     insize = os.path.getsize(infile)
     notfound = []
     with Stream(infile, "rb") as fi:
@@ -867,7 +869,7 @@ def repackBinaryStrings(section, infile, outfile, binranges, freeranges=None, re
                                             fo.seek(-1, 1)
                                             if fo.readByte() != 0:
                                                 fo.writeZero(1)
-                                            newpointer = pointerstart + range[0]
+                                            newpointer = injectstart + range[0]
                                             range[0] = fo.tell()
                                             strpointers[newsjis] = newpointer
                                         # Search and replace the old pointer
