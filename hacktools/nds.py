@@ -74,8 +74,8 @@ def extractBIN(binrange, readfunc=common.detectEncodedString, encoding="shift_ji
     common.logMessage("Done! Extracted", len(strings), "lines")
 
 
-def repackBIN(binrange, freeranges=None, readfunc=common.detectEncodedString, writefunc=common.writeEncodedString, encoding="shift_jis", comments="#",
-              binin="data/extract/arm9.bin", binout="data/repack/arm9.bin", binfile="data/bin_input.txt", fixchars=[], pointerstart=0x02000000, injectstart=0x02000000, nocopy=False):
+def repackBIN(binrange, freeranges=[], readfunc=common.detectEncodedString, writefunc=common.writeEncodedString, encoding="shift_jis", comments="#",
+              binin="data/extract/arm9.bin", binout="data/repack/arm9.bin", binfile="data/bin_input.txt", fixchars=[], pointerstart=0x02000000, injectstart=0x02000000, fallbackf=None, injectfallback=0, nocopy=False):
     if not os.path.isfile(binfile):
         common.logError("Input file", binfile, "not found")
         return False
@@ -89,7 +89,7 @@ def repackBIN(binrange, freeranges=None, readfunc=common.detectEncodedString, wr
         chartot, transtot = common.getSectionPercentage(section)
     if type(binrange) == tuple:
         binrange = [binrange]
-    notfound = common.repackBinaryStrings(section, binin, binout, binrange, freeranges, readfunc, writefunc, encoding, pointerstart, injectstart)
+    notfound = common.repackBinaryStrings(section, binin, binout, binrange, freeranges, readfunc, writefunc, encoding, pointerstart, injectstart, fallbackf, injectfallback)
     for pointer in notfound:
         common.logError("Pointer", common.toHex(pointer.old), "->", common.toHex(pointer.new), "not found for string", pointer.str)
     common.logMessage("Done! Translation is at {0:.2f}%".format((100 * transtot) / chartot))
@@ -124,9 +124,12 @@ def expandBIN(binin, binout, headerin, headerout, newlength, injectpos):
         arm9entry = fin.readUInt()
         arm9ramaddr = fin.readUInt()
         arm9len = fin.readUInt()
+        fin.seek(0x50)
+        arm9ovaddr = fin.readUInt()
+        arm9ovlen = fin.readUInt()
         fin.seek(0x70)
         armcodesettings = fin.readUInt()
-        common.logDebug("arm9offset", common.toHex(arm9offset), "arm9entry", common.toHex(arm9entry), "arm9ramaddr", common.toHex(arm9ramaddr), "arm9len", common.toHex(arm9len), "codesettings", common.toHex(armcodesettings))
+        common.logDebug("arm9offset", common.toHex(arm9offset), "arm9entry", common.toHex(arm9entry), "arm9ramaddr", common.toHex(arm9ramaddr), "arm9len", common.toHex(arm9len), "arm9ovaddr", common.toHex(arm9ovaddr), "arm9ovlen", common.toHex(arm9ovlen), "codesettings", common.toHex(armcodesettings))
     with common.Stream(binin, "rb") as fin:
         # Get code settings position if it wasn't in the header
         if armcodesettings > 0:
@@ -187,6 +190,7 @@ def expandBIN(binin, binout, headerin, headerout, newlength, injectpos):
         f.seek(0)
         crc = crcmod.predefined.mkCrcFun("modbus")(f.read(0x15e))
         f.writeUShort(crc)
+    return sections[len(sections) - 1].offset
 
 
 # Compression-related functions

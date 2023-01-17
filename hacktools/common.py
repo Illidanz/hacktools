@@ -365,6 +365,9 @@ class Stream(object):
             for i in range(num):
                 self.writeByte(byte)
 
+    def truncate(self):
+        self.f.truncate()
+
 
 # Logging
 @click.group(no_args_is_help=True)
@@ -811,7 +814,7 @@ class BinaryPointer:
         self.str = str
 
 
-def repackBinaryStrings(section, infile, outfile, binranges, freeranges=None, readfunc=detectEncodedString, writefunc=writeEncodedString, encoding="shift_jis", pointerstart=0, injectstart=0):
+def repackBinaryStrings(section, infile, outfile, binranges, freeranges=None, readfunc=detectEncodedString, writefunc=writeEncodedString, encoding="shift_jis", pointerstart=0, injectstart=0, fallbackf=None, injectfallback=0):
     insize = os.path.getsize(infile)
     notfound = []
     with Stream(infile, "rb") as fi:
@@ -841,7 +844,7 @@ def repackBinaryStrings(section, infile, outfile, binranges, freeranges=None, re
                             if fo.readByte() != 0:
                                 fo.writeZero(1)
                             if newlen < 0:
-                                if freeranges is None or pointerstart == 0:
+                                if (freeranges is None and injectfallback == 0) or pointerstart == 0:
                                     logError("String", newsjislog, "is too long.")
                                 else:
                                     # Add this to the freeranges
@@ -855,13 +858,22 @@ def repackBinaryStrings(section, infile, outfile, binranges, freeranges=None, re
                                         if freerange[1] - freerange[0] > rangelen:
                                             range = freerange
                                             break
-                                    if range is None and newsjis not in strpointers:
+                                    if range is None and newsjis not in strpointers and injectfallback == 0:
                                         logError("No more room! Skipping", newsjislog, "...")
                                         freeranges.pop()
                                     else:
                                         # Write the string in a new portion of the rom
                                         if newsjis in strpointers:
                                             newpointer = strpointers[newsjis]
+                                        elif range is None:
+                                            logDebug("No room for the string", newsjislog, ", redirecting to fallback")
+                                            fallbackpos = fallbackf.tell()
+                                            writefunc(fallbackf, newsjis, 0, encoding)
+                                            fallbackf.seek(-1, 1)
+                                            if fallbackf.readByte() != 0:
+                                                fallbackf.writeZero(1)
+                                            newpointer = injectfallback + fallbackpos
+                                            strpointers[newsjis] = newpointer
                                         else:
                                             logDebug("No room for the string", newsjislog, ", redirecting to", toHex(range[0]))
                                             fo.seek(range[0])
