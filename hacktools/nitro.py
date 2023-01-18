@@ -100,6 +100,7 @@ def repackIMG(workfolder, infolder, outfolder, extensions=".NCGR", readfunc=None
                 if os.path.isfile(outfolder + cellfile):
                     os.remove(outfolder + cellfile)
             else:
+                common.makeFolders(outfolder + os.path.dirname(file))
                 common.copyFile(infolder + file, outfolder + file)
                 if os.path.isfile(infolder + mapfile):
                     common.copyFile(infolder + mapfile, outfolder + mapfile)
@@ -491,7 +492,7 @@ class Cell:
     layer = -1
 
 
-def readNitroGraphic(palettefile, tilefile, mapfile, cellfile, ignorepalindex=False):
+def readNitroGraphic(palettefile, tilefile, mapfile, cellfile, ignorepalindex=False, ignoredupes=False):
     if not os.path.isfile(palettefile):
         common.logError("Palette", palettefile, "not found")
         return [], None, None, None, 0, 0
@@ -509,7 +510,7 @@ def readNitroGraphic(palettefile, tilefile, mapfile, cellfile, ignorepalindex=Fa
     # Read banks
     ncer = None
     if os.path.isfile(cellfile):
-        ncer = readNCER(cellfile)
+        ncer = readNCER(cellfile, ignoredupes)
     return palettes, ncgr, nscr, ncer, width, height
 
 
@@ -650,7 +651,7 @@ def getNCERCellSize(shape, size):
     return cellsize
 
 
-def readNCER(ncerfile):
+def readNCER(ncerfile, ignoredupes=False):
     ncer = NCER()
     ncer.banks = []
     with common.Stream(ncerfile, "rb") as f:
@@ -772,19 +773,20 @@ def readNCER(ncerfile):
                         else:
                             cells[j].layer = bank.layernum - 1
     # Mark banks as duplicate
-    for bank in ncer.banks:
-        if bank.duplicate:
-            continue
-        for bank2 in ncer.banks:
-            if bank2.duplicate or bank == bank2 or bank.cellnum != bank2.cellnum:
+    if not ignoredupes:
+        for bank in ncer.banks:
+            if bank.duplicate:
                 continue
-            samecells = True
-            for i in range(bank.cellnum):
-                if bank.cells[i].width != bank2.cells[i].width or bank.cells[i].height != bank2.cells[i].height or bank.cells[i].tileoffset != bank2.cells[i].tileoffset:
-                    samecells = False
-                    break
-            if samecells:
-                bank2.duplicate = True
+            for bank2 in ncer.banks:
+                if bank2.duplicate or bank == bank2 or bank.cellnum != bank2.cellnum:
+                    continue
+                samecells = True
+                for i in range(bank.cellnum):
+                    if bank.cells[i].width != bank2.cells[i].width or bank.cells[i].height != bank2.cells[i].height or bank.cells[i].tileoffset != bank2.cells[i].tileoffset:
+                        samecells = False
+                        break
+                if samecells:
+                    bank2.duplicate = True
     common.logDebug("Loaded", len(ncer.banks), "banks")
     return ncer
 
