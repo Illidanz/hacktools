@@ -1,5 +1,23 @@
 import ctypes
+import os
 from hacktools import common
+
+
+def runExternal(indata, fmt, compress):
+    dsdecmp = common.bundledExecutable("DSDecmp.exe")
+    if os.path.isfile(dsdecmp):
+        tmpfile = "cmp.tmp"
+        tmpfileout = "cmpout.tmp"
+        with open(tmpfile, "wb") as f:
+            f.write(indata)
+        common.execute(dsdecmp + " {command} {fmt} {tmpfile} {tmpfileout}".format(command="-c" if compress else "-d", fmt=fmt, tmpfile=tmpfile, tmpfileout=tmpfileout), False)
+        with open(tmpfileout, "rb") as f:
+            f.seek(4)
+            data = f.read()
+        os.remove(tmpfile)
+        os.remove(tmpfileout)
+        return True, data
+    return False, None
 
 
 # Implementations based on Kurimuu's Kontract
@@ -77,6 +95,9 @@ def decompressLZ10(data, complength, decomplength, dispextra=1):
 
 
 def compressLZ10(indata, mindisp=1):
+    external, data = runExternal(indata, "lz10", True)
+    if external:
+        return data
     with common.Stream() as out:
         inlength = len(indata)
         compressedlength = 0
@@ -162,6 +183,9 @@ def decompressLZ11(data, complength, decomplength):
 
 
 def compressLZ11(indata, mindisp=1):
+    external, data = runExternal(indata, "lz11", True)
+    if external:
+        return data
     with common.Stream() as out:
         inlength = len(indata)
         compressedlength = 0
