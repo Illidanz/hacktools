@@ -1,6 +1,8 @@
 import codecs
 from io import BytesIO, StringIO
 import distutils.dir_util
+import xml.etree.cElementTree as ET
+import xml.dom.minidom
 import logging
 import math
 import os
@@ -585,6 +587,106 @@ def mergeSections(file1, file2, output, comment="#", fixchars=[]):
                             sectionstr = sections2[section2][s][0]
                             break
                 out.write(s + "=" + sectionstr + "\n")
+
+
+class TranslationFile:
+    def __init__(self, path=""):
+        self.files = {}
+        self.lookup = {}
+        if path == "":
+            self.root = ET.Element("xliff")
+            self.root.set("version", "1.2")
+            self.root.set("xmlns", "urn:oasis:names:tc:xliff:document:1.2")
+        else:
+            ET.register_namespace("", "urn:oasis:names:tc:xliff:document:1.2")
+            tree = ET.parse(path)
+            self.root = tree.getroot()
+            for file in self.root:
+                self.files[file.attrib["original"]] = file
+
+    def mergeSection(self, path, filename="", section="", comments="#", fixchars=[]):
+        with codecs.open(path, "r", "utf-8") as bin:
+            mergesection = getSection(bin, section, comments, fixchars=fixchars, justone=False)
+        # Check the merge section
+        for file in self.root:
+            if filename != "" and file.attrib["original"] != filename:
+                continue
+            for unit in file[0]:
+                check = unit[0].text
+                if check in mergesection and mergesection[check][0] != "":
+                    newcheck = mergesection[check][0]
+                    if len(mergesection[check]) > 1:
+                        mergesection[check].pop(0)
+                    unit[1].text = newcheck
+                    unit[1].set("state", "translated")
+                    unit.set("approved", "no")
+    
+    def addEntry(self, text, filename, offset, translation="", comment=""):
+        # Check if we need to add a new file
+        if filename not in self.files:
+            file = ET.SubElement(self.root, "file", {"xml:space": "preserve"})
+            file.set("original", filename)
+            file.set("source-language", "ja")
+            file.set("target-language", "en")
+            ET.SubElement(file, "body")
+            self.files[filename] = file
+        else:
+            file = self.files[filename]
+        # Add the new entry
+        unit = ET.SubElement(file[0], "trans-unit", {"id": str(offset), "xml:space": "preserve"})
+        source = ET.SubElement(unit, "source")
+        source.text = text
+        target = ET.SubElement(unit, "target")
+        if translation != "":
+            target.text = translation
+        if comment != "":
+            note = ET.SubElement(unit, "note")
+            note.text = comment
+
+    def preloadLookup(self):
+        self.lookup = {}
+        for file in self.files:
+            for unit in self.files[file][0]:
+                if unit[1].text is not None and unit[1].text != "":
+                    self.lookup[unit[0].text] = unit[1].text
+
+    def getEntry(self, text, filename, offset):
+        stroffset = str(offset)
+        if filename in self.files:
+            # Try to match offset
+            for unit in self.files[filename][0]:
+                if unit.attrib["id"] == stroffset and unit[1].text is not None and unit[1].text != "":
+                    return unit[1].text
+            # Try to match string
+            for unit in self.files[filename][0]:
+                if unit[0].text == text and unit[1].text is not None and unit[1].text != "":
+                    return unit[1].text
+        # If nothing was found, run a search on the whole file
+        if text in self.lookup:
+            return self.lookup[text]
+        return ""
+
+    def save(self, filename, dummy=False):
+        if dummy:
+            self.addEntry("dummy line", "dummy", 0, "dummy translation", "Ignore this")
+        makeFolders(os.path.dirname(filename))
+        self._pretty_print(self.root)
+        xmlstr = ET.tostring(self.root, encoding="unicode", xml_declaration=True)
+        # Change this to match what Weblate does
+        xmlstr = xmlstr.replace("<target />", "<target/>") + "\n"
+        with codecs.open(filename, "w", "utf-8") as f:
+            f.write(xmlstr)
+
+    def _pretty_print(self, current, parent=None, index=-1, depth=0):
+        for i, node in enumerate(current):
+            self._pretty_print(node, current, i, depth + 1)
+        if parent is not None:
+            if index == 0:
+                parent.text = '\n' + ('  ' * depth)
+            else:
+                parent[index - 1].tail = '\n' + ('  ' * depth)
+            if index == len(parent) - 1:
+                current.tail = '\n' + ('  ' * (depth - 1))
 
 
 class FontGlyph:
