@@ -1,10 +1,20 @@
 # hacktools
 A set of utilities and tools for rom hacking and translations.
 
+## Installing dependencies
+Most dependencies are optional, and can be installed with `pip install hacktools[name1,name2]` or `pip install hacktools[all]` to install all of them.
+### Dependencies list
+ - `nds`: needed for NDS roms and compressed binaries.
+ - `armips`: needed for `common.armipsPatch`.
+ - `xdelta`: needed for `common.xdeltaPatch`.
+ - `ips`: needed for `common.ipsPatch`.
+ - `iso`: needed for PSP ISO.
+ - `graphics`: needed for most functions that deal with graphics.
+
 ## Supported platforms and formats
 External dependencies not included are marked as `(through *dependency*)`
 ### NDS
-- ROM (through ndstool)
+- ROM
 - NCGR/NSCR/NCER/NCLR images
 - NBFC/NTFT/NBFS/NBFP images
 - NFTR fonts
@@ -36,5 +46,6 @@ External dependencies not included are marked as `(through *dependency*)`
 - CPK archives
 - ARCH archives
 - LZ10, LZ11, Huffman and CRILAYLA compression/decompression
+- ARM/MIPS binary patching
+- xdelta patch creation
 - IPS patch creation
-- xdelta patch creation (through xdelta)
