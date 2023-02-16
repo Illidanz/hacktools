@@ -1065,7 +1065,7 @@ def getFiles(path, extensions=[]):
         extensions = [extensions]
     ret = []
     for (root, dirs, files) in os.walk(path):
-        for file in files:
+        for file in sorted(files):
             file = os.path.join(root, file).replace(path, "").replace("\\", "/")
             if len(extensions) > 0 and os.path.splitext(file)[1] not in extensions:
                 continue
@@ -1076,7 +1076,7 @@ def getFiles(path, extensions=[]):
 def getFolders(path):
     ret = []
     for (root, dirs, files) in os.walk(path):
-        for dir in dirs:
+        for dir in sorted(dirs):
             dir = os.path.join(root, dir).replace(path, "").replace("\\", "/")
             ret.append(dir)
     return ret
