@@ -242,8 +242,11 @@ static PyObject* compressLZ10(PyObject* m, PyObject* args, PyObject* kwargs)
         // it is a compressed block when the next 3 or more bytes can be copied from
         // somewhere in the set of already compressed bytes.
         int disp;
-        int oldlength = min(readbytes, 0x1000);
-        int length = getOccurrenceLength(instart + readbytes, min((int)inlength - readbytes, 0x12), instart + readbytes - oldlength, oldlength, &disp, mindisp);
+        int oldlength = readbytes < 0x1000 ? readbytes : 0x1000;
+        int newlength = (int)inlength - readbytes;
+        if (newlength > 0x12)
+            newlength = 0x12;
+        int length = getOccurrenceLength(instart + readbytes, newlength, instart + readbytes - oldlength, oldlength, &disp, mindisp);
         // length not 3 or more? next byte is raw data
         if (length < 3)
         {
@@ -317,8 +320,11 @@ static PyObject* compressLZ11(PyObject* m, PyObject* args, PyObject* kwargs)
         // it is a compressed block when the next 3 or more bytes can be copied from
         // somewhere in the set of already compressed bytes.
         int disp;
-        int oldlength = min(readbytes, 0x1000);
-        int length = getOccurrenceLength(instart + readbytes, min((int)inlength - readbytes, 0x10110), instart + readbytes - oldlength, oldlength, &disp, mindisp);
+        int oldlength = readbytes < 0x1000 ? readbytes : 0x1000;
+        int newlength = (int)inlength - readbytes;
+        if (newlength > 0x10110)
+            newlength = 0x10110;
+        int length = getOccurrenceLength(instart + readbytes, newlength, instart + readbytes - oldlength, oldlength, &disp, mindisp);
         // length not 3 or more? next byte is raw data
         if (length < 3)
         {
