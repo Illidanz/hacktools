@@ -31,7 +31,6 @@ setup(
     install_requires=[
         "click",
         "tqdm",
-        "bitarray",
     ],
     extras_require = {
         "nds": extras_nds,

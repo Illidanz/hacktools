@@ -1,5 +1,4 @@
 import ctypes
-import os
 from hacktools import common
 
 
