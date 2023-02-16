@@ -1,6 +1,5 @@
 import os
 import struct
-from PIL import Image
 from hacktools import common
 
 
@@ -139,6 +138,11 @@ colpalette = [[(0x0,  0x0,  0x0,  0xff), (0x1f, 0x1f, 0x1f, 0xff), (0x2f, 0x2f, 
 
 
 def extractImage(f, outfile, width, height, palette=None, bpp=2):
+    try:
+        from PIL import Image
+    except ImportError:
+        common.logError("PIL not found")
+        return
     if palette is None:
         palette = bwpalette[0] if bpp == 2 else colpalette[0]
     img = Image.new("RGB", (width, height), palette[0])
@@ -153,6 +157,11 @@ def extractImage(f, outfile, width, height, palette=None, bpp=2):
 
 
 def repackImage(f, infile, width, height, palette=None, bpp=2):
+    try:
+        from PIL import Image
+    except ImportError:
+        common.logError("PIL not found")
+        return
     if palette is None:
         palette = bwpalette[0] if bpp == 2 else colpalette[0]
     img = Image.open(infile)
@@ -164,6 +173,11 @@ def repackImage(f, infile, width, height, palette=None, bpp=2):
 
 
 def extractTiledImage(f, outfile, width, height, palette=None, bpp=2):
+    try:
+        from PIL import Image
+    except ImportError:
+        common.logError("PIL not found")
+        return
     if palette is None:
         palette = bwpalette[0] if bpp == 2 else colpalette[0]
     # Example image used is 8x8 tiles, arranged as
@@ -184,6 +198,11 @@ def extractTiledImage(f, outfile, width, height, palette=None, bpp=2):
 
 
 def repackTiledImage(f, infile, width, height, palette=None, bpp=2):
+    try:
+        from PIL import Image
+    except ImportError:
+        common.logError("PIL not found")
+        return
     if palette is None:
         palette = bwpalette[0] if bpp == 2 else colpalette[0]
     img = Image.open(infile)
@@ -368,6 +387,11 @@ def extractMappedImage(f, outfile, tilestart, mapstart, num=1, readpal=False, bp
 
 
 def writeMappedImage(f, tilestart, maps, palettes, num=1, skipzero=False):
+    try:
+        from PIL import Image
+    except ImportError:
+        common.logError("PIL not found")
+        return
     maxtile = tilesize = 0
     for i in range(num):
         mapdata = maps[i]
@@ -416,6 +440,11 @@ def writeMappedImage(f, tilestart, maps, palettes, num=1, skipzero=False):
 
 
 def repackMappedImage(f, infile, tilestart, mapstart, num=1, readpal=False, writepal=False):
+    try:
+        from PIL import Image
+    except ImportError:
+        common.logError("PIL not found")
+        return
     common.logDebug("Repacking", infile)
     maps = readMappedImage(f, infile, mapstart, num)
     tiles = {}
@@ -517,6 +546,11 @@ def repackMappedImage(f, infile, tilestart, mapstart, num=1, readpal=False, writ
 
 
 def repackMappedTiles(f, tilestart, mapdata, palettes):
+    try:
+        from PIL import Image
+    except ImportError:
+        common.logError("PIL not found")
+        return
     imgname = mapdata.name
     if not os.path.isfile(mapdata.name):
         imgname = imgname.replace("work_IMG", "out_IMG")

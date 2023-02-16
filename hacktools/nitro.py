@@ -2,8 +2,6 @@ import math
 import os
 import shutil
 import struct
-from PIL import Image, ImageOps
-from psd_tools import PSDImage
 from hacktools import common
 
 
@@ -196,43 +194,47 @@ def readNFTR(file, generateglyphs=False):
         # Read the glyphs graphics
         nftr.plgc = []
         if generateglyphs:
-            data = f.readByte()
-            for i in range(nftr.tilenum):
-                glyph = Image.new("RGBA", (nftr.glyphwidth, nftr.glyphheight), nftr.colors[0])
-                pixels = glyph.load()
-                x = 0
-                y = 0
-                byteindex = 0
-                bitmask = 0x80
-                while byteindex < nftr.glyphlength and y < nftr.glyphheight:
-                    intensitymask = pow(2, nftr.depth - 1)
-                    intensity = 0
-                    while intensitymask > 0:
-                        if data & bitmask > 0:
-                            intensity += intensitymask
-                        bitmask >>= 1
-                        if bitmask == 0:
-                            bitmask = 0x80
-                            byteindex += 1
-                            data = f.readByte()
-                        intensitymask >>= 1
-                    if intensity > 0:
-                        pixels[x, y] = nftr.colors[intensity]
-                    x += 1
-                    if x >= nftr.glyphwidth:
-                        x = 0
-                        y += 1
-                while byteindex < nftr.glyphlength:
-                    data = f.readByte()
-                    byteindex += 1
-                if nftr.rotation != 0:
-                    angle = 90
-                    if nftr.rotation == 2:
-                        angle = 270
-                    elif nftr.rotation == 3:
-                        angle = 180
-                    glyph = glyph.rotate(angle)
-                nftr.plgc.append(glyph)
+            try:
+                from PIL import Image
+                data = f.readByte()
+                for i in range(nftr.tilenum):
+                    glyph = Image.new("RGBA", (nftr.glyphwidth, nftr.glyphheight), nftr.colors[0])
+                    pixels = glyph.load()
+                    x = 0
+                    y = 0
+                    byteindex = 0
+                    bitmask = 0x80
+                    while byteindex < nftr.glyphlength and y < nftr.glyphheight:
+                        intensitymask = pow(2, nftr.depth - 1)
+                        intensity = 0
+                        while intensitymask > 0:
+                            if data & bitmask > 0:
+                                intensity += intensitymask
+                            bitmask >>= 1
+                            if bitmask == 0:
+                                bitmask = 0x80
+                                byteindex += 1
+                                data = f.readByte()
+                            intensitymask >>= 1
+                        if intensity > 0:
+                            pixels[x, y] = nftr.colors[intensity]
+                        x += 1
+                        if x >= nftr.glyphwidth:
+                            x = 0
+                            y += 1
+                    while byteindex < nftr.glyphlength:
+                        data = f.readByte()
+                        byteindex += 1
+                    if nftr.rotation != 0:
+                        angle = 90
+                        if nftr.rotation == 2:
+                            angle = 270
+                        elif nftr.rotation == 3:
+                            angle = 180
+                        glyph = glyph.rotate(angle)
+                    nftr.plgc.append(glyph)
+            except ImportError:
+                common.logError("PIL not found")
         # HDWC
         f.seek(nftr.hdwcoffset)
         nftr.firstcode = f.readUShort()
@@ -815,6 +817,11 @@ def tileToPixels(pixels, width, ncgr, tile, i, j, palette, pali, usetransp=True)
 
 
 def drawNCER(outfile, ncer, ncgr, palettes, usetransp=True, layered=False):
+    try:
+        from PIL import Image, ImageOps
+    except ImportError:
+        common.logError("PIL not found")
+        return
     palsize = 0
     for palette in palettes.values():
         palsize += 5 * (len(palette) // 8)
@@ -898,6 +905,11 @@ def drawNCER(outfile, ncer, ncgr, palettes, usetransp=True, layered=False):
 
 
 def drawNCGR(outfile, nscr, ncgr, palettes, width, height, usetransp=True):
+    try:
+        from PIL import Image, ImageOps
+    except ImportError:
+        common.logError("PIL not found")
+        return
     if width == 0xFFFF or height == 0xFFFF:
         root = int(math.sqrt(len(ncgr.tiles)))
         if math.pow(root, 2) == len(ncgr.tiles):
@@ -965,6 +977,11 @@ def writeNCGRTile(f, pixels, width, ncgr, i, j, palette):
 
 
 def writeNCGR(file, ncgr, infile, palettes, width=-1, height=-1):
+    try:
+        from PIL import Image
+    except ImportError:
+        common.logError("PIL not found")
+        return
     if width < 0:
         width = ncgr.width
         height = ncgr.height
@@ -979,6 +996,11 @@ def writeNCGR(file, ncgr, infile, palettes, width=-1, height=-1):
 
 
 def writeNSCR(file, ncgr, nscr, infile, palettes, width=-1, height=-1):
+    try:
+        from PIL import Image
+    except ImportError:
+        common.logError("PIL not found")
+        return
     if width < 0:
         width = nscr.width
         # height = nscr.height
@@ -1003,6 +1025,11 @@ def writeNSCR(file, ncgr, nscr, infile, palettes, width=-1, height=-1):
 
 
 def writeMappedNSCR(file, mapfile, ncgr, nscr, infile, palettes, width=-1, height=-1, transptile=False, writelen=True):
+    try:
+        from PIL import Image
+    except ImportError:
+        common.logError("PIL not found")
+        return
     if width < 0:
         width = nscr.width
         # height = nscr.height
@@ -1057,6 +1084,11 @@ def writeMappedNSCR(file, mapfile, ncgr, nscr, infile, palettes, width=-1, heigh
 
 
 def writeMultiMappedNSCR(file, mapfiles, ncgr, nscrs, infiles, palettes, width=-1, height=-1, transptile=False, writelen=True):
+    try:
+        from PIL import Image
+    except ImportError:
+        common.logError("PIL not found")
+        return
     with common.Stream(file, "rb+") as f:
         tiles = []
         if transptile:
@@ -1115,8 +1147,18 @@ def writeMultiMappedNSCR(file, mapfiles, ncgr, nscrs, infiles, palettes, width=-
 
 
 def writeNCER(file, ncerfile, ncgr, ncer, infile, palettes, width=0, height=0, appendTiles=False, checkRepeat=True, writelen=True, fixtransp=False, checkalpha=False, zerotransp=True):
+    try:
+        from PIL import Image
+    except ImportError:
+        common.logError("PIL not found")
+        return
     psd = infile.endswith(".psd")
     if psd:
+        try:
+            from psd_tools import PSDImage
+        except ImportError:
+            common.logError("psd_tools not found")
+            return
         psd = PSDImage.open(infile)
         basename = os.path.basename(infile).replace(".psd", "")
     else:
@@ -1392,6 +1434,11 @@ def readNSBMD(nsbmdfile, zerotransp=False):
 
 
 def drawNSBMD(file, nsbmd, texi):
+    try:
+        from PIL import Image
+    except ImportError:
+        common.logError("PIL not found")
+        return
     tex = nsbmd.textures[texi]
     common.logDebug("Exporting", tex.name, "...")
     palette = None
@@ -1509,6 +1556,11 @@ def drawNSBMD(file, nsbmd, texi):
 
 
 def writeNSBMD(file, nsbmd, texi, infile, fixtransp=False, checkalpha=False, zerotransp=True, backwards=False):
+    try:
+        from PIL import Image
+    except ImportError:
+        common.logError("PIL not found")
+        return
     img = Image.open(infile)
     img = img.convert("RGBA")
     pixels = img.load()

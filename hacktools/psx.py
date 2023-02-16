@@ -1,7 +1,6 @@
 import codecs
 import struct
 import os
-from PIL import Image
 from hacktools import common
 
 
@@ -241,6 +240,11 @@ def getUniqueCLUT(tim, transp=False):
 def drawTIM(outfile, tim, transp=False, forcepal=-1, allpalettes=False, nopal=False):
     if tim.width == 0 or tim.height == 0:
         return
+    try:
+        from PIL import Image
+    except ImportError:
+        common.logError("PIL not found")
+        return
     clutwidth = clutheight = 0
     if tim.bpp == 4 or tim.bpp == 8:
         clut = forcepal if forcepal != -1 else getUniqueCLUT(tim, transp)
@@ -283,6 +287,11 @@ def drawTIM(outfile, tim, transp=False, forcepal=-1, allpalettes=False, nopal=Fa
 def writeTIM(f, tim, infile, transp=False, forcepal=-1, palsize=0):
     if tim.bpp > 8:
         common.logError("writeTIM bpp", tim.bpp, "not supported")
+        return
+    try:
+        from PIL import Image
+    except ImportError:
+        common.logError("PIL not found")
         return
     clut = forcepal if forcepal != -1 else getUniqueCLUT(tim, transp)
     maxwidth = tim.width

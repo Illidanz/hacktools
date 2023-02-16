@@ -1,6 +1,4 @@
 import os
-import struct
-from PIL import Image
 from hacktools import common
 
 

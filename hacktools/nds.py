@@ -3,32 +3,84 @@ from enum import IntFlag
 import os
 import struct
 import crcmod
-from ndspy import codeCompression
-from hacktools import common, compression
+from hacktools import common, compression, cmp_lzss
 
 
-def extractRom(romfile, extractfolder, workfolder=""):
-    common.logMessage("Extracting ROM", romfile, "...")
-    ndstool = common.bundledExecutable("ndstool.exe")
-    if not os.path.isfile(ndstool):
-        common.logError("ndstool not found")
+def extractRom(romfile, extractfolder, workfolder="", legacy=False):
+    try:
+        import ndspy.rom
+    except ImportError:
+        common.logError("ndspy not found")
         return
-    common.makeFolder(extractfolder)
-    common.execute(ndstool + " -x {rom} -9 {folder}arm9.bin -7 {folder}arm7.bin -y9 {folder}y9.bin -y7 {folder}y7.bin -t {folder}banner.bin -h {folder}header.bin -d {folder}data -y {folder}overlay".
-                   format(rom=romfile, folder=extractfolder), False)
+    common.logMessage("Extracting ROM", romfile, "...")
+    datafolder = extractfolder + "data/"
+    rom = ndspy.rom.NintendoDSRom.fromFile(romfile)
+    common.makeFolder(datafolder)
+    for i,file in enumerate(rom.files):
+        filepath = rom.filenames.filenameOf(i)
+        if filepath is not None:
+            common.makeFolders(datafolder + os.path.dirname(filepath))
+            with common.Stream(datafolder + filepath, "wb") as f:
+                f.write(file)
+    with common.Stream(extractfolder + "banner.bin", "wb") as f:
+        f.write(rom.iconBanner)
+    with common.Stream(extractfolder + "header.bin", "wb") as f:
+        with common.Stream(romfile, "rb") as fin:
+            f.write(fin.read(0x200))
+    with common.Stream(extractfolder + "arm7.bin", "wb") as f:
+        f.write(rom.arm7)
+    with common.Stream(extractfolder + "arm9.bin", "wb") as f:
+        f.write(rom.arm9)
+    with common.Stream(extractfolder + "y7.bin", "wb") as f:
+        f.write(rom.arm7OverlayTable)
+    with common.Stream(extractfolder + "y9.bin", "wb") as f:
+        f.write(rom.arm9OverlayTable)
+    if len(rom.arm9OverlayTable) > 0:
+        with common.Stream(extractfolder + "y9.bin", "rb") as f:
+            common.makeFolder(extractfolder + "overlay/")
+            for i in range(len(rom.arm9OverlayTable) // 0x20):
+                f.seek(i * 0x20)
+                fileid = f.readUInt()
+                with common.Stream(extractfolder + "overlay/overlay_" + str(i).zfill(4) + ".bin", "wb") as overlayf:
+                    overlayf.write(rom.files[fileid])
     if workfolder != "":
+        common.logMessage("Copying data to", workfolder, "...")
         common.copyFolder(extractfolder, workfolder)
     common.logMessage("Done!")
 
 
 def repackRom(romfile, rompatch, workfolder, patchfile=""):
-    common.logMessage("Repacking ROM", rompatch, "...")
-    ndstool = common.bundledExecutable("ndstool.exe")
-    if not os.path.isfile(ndstool):
-        common.logError("ndstool not found")
+    try:
+        import ndspy.rom
+    except ImportError:
+        common.logError("ndspy not found")
         return
-    common.execute(ndstool + " -c {rom} -9 {folder}arm9.bin -7 {folder}arm7.bin -y9 {folder}y9.bin -y7 {folder}y7.bin -t {folder}banner.bin -h {folder}header.bin -d {folder}data -y {folder}overlay".
-                   format(rom=rompatch, folder=workfolder), False)
+    common.logMessage("Repacking ROM", rompatch, "...")
+    rom = ndspy.rom.NintendoDSRom.fromFile(romfile)
+    datafolder = workfolder + "data/"
+    for i,_ in enumerate(rom.files):
+        filepath = rom.filenames.filenameOf(i)
+        if filepath is not None and os.path.isfile(datafolder + filepath):
+            with common.Stream(datafolder + filepath, "rb") as f:
+                rom.files[i] = f.read()
+    with common.Stream(workfolder + "banner.bin", "rb") as f:
+        rom.iconBanner = f.read()
+    with common.Stream(workfolder + "arm7.bin", "rb") as f:
+        rom.arm7 = f.read()
+    with common.Stream(workfolder + "arm9.bin", "rb") as f:
+        rom.arm9 = f.read()
+    with common.Stream(workfolder + "y7.bin", "rb") as f:
+        rom.arm7OverlayTable = f.read()
+    with common.Stream(workfolder + "y9.bin", "rb") as f:
+        rom.arm9OverlayTable = f.read()
+        for i in range(len(rom.arm9OverlayTable) // 0x20):
+            f.seek(i * 0x20)
+            fileid = f.readUInt()
+            overlayname = workfolder + "overlay/overlay_" + str(i).zfill(4) + ".bin"
+            if os.path.isfile(overlayname):
+                with common.Stream(overlayname, "rb") as overlayf:
+                    rom.files[fileid] = overlayf.read()
+    rom.saveToFile(rompatch)
     common.logMessage("Done!")
     # Create xdelta patch
     if patchfile != "":
@@ -207,37 +259,35 @@ class CompressionType(IntFlag):
 def decompress(f, complength):
     header = f.readUInt()
     type = header & 0xFF
-    decomplength = ((header & 0xFFFFFF00) >> 8)
+    decomplength = ((header & 0xffffff00) >> 8)
     common.logDebug("Compression header:", common.toHex(header), "type:", common.toHex(type), "length:", decomplength)
-    with common.Stream() as data:
-        data.write(f.read(complength))
-        data.seek(0)
-        if type == CompressionType.LZ10:
-            return compression.decompressLZ10(data, complength, decomplength)
-        elif type == CompressionType.LZ11:
-            return compression.decompressLZ11(data, complength, decomplength)
-        elif type == CompressionType.Huff4:
-            return compression.decompressHuffman(data, complength, decomplength, 4)
-        elif type == CompressionType.Huff8:
-            return compression.decompressHuffman(data, complength, decomplength, 8)
-        elif type == CompressionType.RLE:
-            return compression.decompressRLE(data, complength, decomplength)
-        else:
-            common.logError("Unsupported compression type", common.toHex(type))
-            return data.read()
+    data = f.read(complength)
+    if type == CompressionType.LZ10:
+        return cmp_lzss.decompressLZ10(data, decomplength, 1)
+    elif type == CompressionType.LZ11:
+        return cmp_lzss.decompressLZ11(data, decomplength, 1)
+    elif type == CompressionType.Huff4:
+        return compression.decompressHuffman(data, decomplength, 4)
+    elif type == CompressionType.Huff8:
+        return compression.decompressHuffman(data, decomplength, 8)
+    elif type == CompressionType.RLE:
+        return compression.decompressRLE(data, decomplength)
+    else:
+        common.logError("Unsupported compression type", common.toHex(type))
+        return data
 
 
 def compress(data, type):
     with common.Stream() as out:
         length = len(data)
         out.writeByte(type.value)
-        out.writeByte(length & 0xFF)
-        out.writeByte(length >> 8 & 0xFF)
-        out.writeByte(length >> 16 & 0xFF)
+        out.writeByte(length & 0xff)
+        out.writeByte((length >> 8) & 0xff)
+        out.writeByte((length >> 16) & 0xff)
         if type == CompressionType.LZ10:
-            out.write(compression.compressLZ10(data))
+            out.write(cmp_lzss.compressLZ10(data, 1))
         elif type == CompressionType.LZ11:
-            out.write(compression.compressLZ11(data))
+            out.write(cmp_lzss.compressLZ11(data, 1))
         elif type == CompressionType.Huff4:
             out.write(compression.compressHuffman(data, 4))
         elif type == CompressionType.Huff8:
@@ -264,17 +314,27 @@ def compressFile(infile, outfile, type):
 
 
 def decompressBinary(infile, outfile):
+    try:
+        import ndspy.codeCompression
+    except ImportError:
+        common.logError("ndspy not found")
+        return
     with common.Stream(infile, "rb") as fin:
         data = fin.read()
-    uncdata = codeCompression.decompress(data)
+    uncdata = ndspy.codeCompression.decompress(data)
     with common.Stream(outfile, "wb") as f:
         f.write(uncdata)
 
 
 def compressBinary(infile, outfile, arm9=True):
+    try:
+        import ndspy.codeCompression
+    except ImportError:
+        common.logError("ndspy not found")
+        return
     with common.Stream(infile, "rb") as fin:
         data = bytearray(fin.read())
-    compdata = bytearray(codeCompression.compress(data, arm9))
+    compdata = bytearray(ndspy.codeCompression.compress(data, arm9))
     if arm9:
         codeoffset = 0
         for i in range(0, 0x8000, 4):

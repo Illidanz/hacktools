@@ -1,7 +1,6 @@
 import codecs
 import math
 import os
-from PIL import Image
 from hacktools import common
 
 
@@ -151,6 +150,11 @@ def readTPL(file):
 
 
 def writeTPL(file, tpl, infile):
+    try:
+        from PIL import Image
+    except ImportError:
+        common.logError("PIL not found")
+        return
     with common.Stream(file, "r+b", False) as f:
         for i in range(tpl.imgnum):
             image = tpl.images[i]

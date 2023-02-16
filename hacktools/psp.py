@@ -4,12 +4,15 @@ import json
 import math
 import os
 import struct
-import pycdlib
-from PIL import Image
 from hacktools import common
 
 
 def extractIso(isofile, extractfolder, workfolder=""):
+    try:
+        import pycdlib
+    except ImportError:
+        common.logError("pycdlib not found")
+        return
     common.logMessage("Extracting ISO", isofile, "...")
     common.makeFolder(extractfolder)
     iso = pycdlib.PyCdlib()
@@ -26,6 +29,11 @@ def extractIso(isofile, extractfolder, workfolder=""):
 
 
 def repackIso(isofile, isopatch, workfolder, patchfile=""):
+    try:
+        import pycdlib
+    except ImportError:
+        common.logError("pycdlib not found")
+        return
     common.logMessage("Repacking ISO", isopatch, "...")
     common.copyFile(isofile, isopatch)
     iso = pycdlib.PyCdlib()
@@ -380,6 +388,11 @@ def readGIMBlock(f, gim, image):
 
 
 def writeGIM(file, gim, infile, backwardspal=False):
+    try:
+        from PIL import Image
+    except ImportError:
+        common.logError("PIL not found")
+        return
     img = Image.open(infile)
     img = img.convert("RGBA")
     pixels = img.load()
@@ -472,6 +485,11 @@ def writeColor(f, format, color):
 
 
 def drawGIM(outfile, gim):
+    try:
+        from PIL import Image
+    except ImportError:
+        common.logError("PIL not found")
+        return
     width = 0
     height = 0
     palette = False
@@ -760,6 +778,11 @@ fontpalette = [(0x0,  0x0,  0x0,  0xff), (0x1f, 0x1f, 0x1f, 0xff), (0x2f, 0x2f, 
 
 
 def extractPGFBitmap(buf, glyph, outfile):
+    try:
+        from PIL import Image
+    except ImportError:
+        common.logError("PIL not found")
+        return
     pos = 0
     i = 0
     bitmapdata = []
@@ -848,6 +871,11 @@ def bitmapRLE(pixels):
 
 
 def repackPGFBitmap(glyph, infile):
+    try:
+        from PIL import Image
+    except ImportError:
+        common.logError("PIL not found")
+        return
     img = Image.open(infile)
     img = img.convert("RGBA")
     pixels = img.load()

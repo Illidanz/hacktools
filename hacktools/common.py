@@ -2,7 +2,6 @@ import codecs
 from io import BytesIO, StringIO
 import distutils.dir_util
 import xml.etree.cElementTree as ET
-import xml.dom.minidom
 import logging
 import math
 import os
@@ -15,7 +14,6 @@ import subprocess
 import zlib
 import click
 from tqdm import tqdm
-from ips_util import Patch
 
 table = {}
 
@@ -1143,15 +1141,24 @@ def crcFile(f):
 
 def xdeltaPatch(patchfile, infile, outfile):
     logMessage("Creating xdelta patch", patchfile, "...")
-    xdelta = bundledExecutable("xdelta.exe")
-    if not os.path.isfile(xdelta):
-        logError("xdelta not found")
-        return
-    execute(xdelta + " -f -e -s \"{rom}\" \"{rompatch}\" \"{patch}\"".format(rom=infile, rompatch=outfile, patch=patchfile), False)
+    try:
+        import pyxdelta
+        pyxdelta.run(infile, outfile, patchfile)
+    except ImportError:
+        xdelta = bundledExecutable("xdelta.exe")
+        if not os.path.isfile(xdelta):
+            logError("xdelta not found")
+            return
+        execute(xdelta + " -f -e -s \"{rom}\" \"{rompatch}\" \"{patch}\"".format(rom=infile, rompatch=outfile, patch=patchfile), False)
     logMessage("Done!")
 
 
 def ipsPatch(patchfile, infile, outfile):
+    try:
+        from ips_util import Patch
+    except ImportError:
+        logError("ips_util not found")
+        return
     logMessage("Creating ips patch", patchfile, "...")
     with Stream(infile, "rb") as f:
         indata = f.read()
@@ -1165,16 +1172,20 @@ def ipsPatch(patchfile, infile, outfile):
 
 def armipsPatch(file, defines={}, labels={}):
     logMessage("Applying armips patch ...")
-    armips = bundledExecutable("armips.exe")
-    if not os.path.isfile(armips):
-        logError("armips not found")
-        return
-    params = ""
-    for define in defines:
-        params += " -equ " + define + " " + str(defines[define])
-    for label in labels:
-        params += " -definelabel " + label + " " + str(labels[label])
-    execute(armips + " {binpatch}{params}".format(binpatch=file, params=params), False)
+    try:
+        import pyarmips
+        pyarmips.run(file)
+    except ImportError:
+        armips = bundledExecutable("armips.exe")
+        if not os.path.isfile(armips):
+            logError("armips not found")
+            return
+        params = ""
+        for define in defines:
+            params += " -equ " + define + " " + str(defines[define])
+        for label in labels:
+            params += " -definelabel " + label + " " + str(labels[label])
+        execute(armips + " {binpatch}{params}".format(binpatch=file, params=params), False)
     logMessage("Done!")
 
 
