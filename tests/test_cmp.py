@@ -1,9 +1,10 @@
 import pytest
+import os.path
 from hacktools import cmp_lzss
 
 @pytest.fixture
 def data():
-    with open("README.md", "rb") as f:
+    with open(os.path.dirname(__file__) + "/../README.md", "rb") as f:
         testdata = f.read()
     return testdata
 
