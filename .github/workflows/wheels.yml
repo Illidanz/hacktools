@@ -22,6 +22,7 @@ jobs:
       - uses: actions/upload-artifact@v3
         with:
           path: ./wheelhouse/*.whl
+          retention-days: 7
 
   make_sdist:
     name: Make SDist
@@ -33,6 +34,7 @@ jobs:
     - uses: actions/upload-artifact@v3
       with:
         path: dist/*.tar.gz
+        retention-days: 7
 
   upload_pypi:
     needs: [build_wheels, make_sdist]
