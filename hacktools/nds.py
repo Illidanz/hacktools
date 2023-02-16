@@ -13,6 +13,7 @@ def extractRom(romfile, extractfolder, workfolder="", legacy=False):
         common.logError("ndspy not found")
         return
     common.logMessage("Extracting ROM", romfile, "...")
+    common.makeFolder(extractfolder)
     datafolder = extractfolder + "data/"
     rom = ndspy.rom.NintendoDSRom.fromFile(romfile)
     common.makeFolder(datafolder)
