@@ -13,7 +13,7 @@ static PyObject* decompressLZ10(PyObject* m, PyObject* args, PyObject* kwargs)
     int dispextra;
 
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s#Ii", kwlist, &data, &datalength, &decomplength, &dispextra))
-		return NULL;
+        return NULL;
 
     unsigned int complength = (unsigned int)datalength;
     unsigned char* out = PyMem_Malloc(decomplength);
@@ -101,7 +101,7 @@ static PyObject* decompressLZ11(PyObject* m, PyObject* args, PyObject* kwargs)
     int dispextra;
 
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s#Ii", kwlist, &data, &datalength, &decomplength, &dispextra))
-		return NULL;
+        return NULL;
 
     unsigned int complength = (unsigned int)datalength;
     unsigned char* out = PyMem_Malloc(decomplength);
@@ -208,7 +208,7 @@ static PyObject* compressLZ10(PyObject* m, PyObject* args, PyObject* kwargs)
     int mindisp;
 
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s#i", kwlist, &indata, &inlength, &mindisp))
-		return NULL;
+        return NULL;
 
     unsigned char* out = PyMem_Malloc(inlength);
     MALLOC_CHECK(out);
@@ -286,7 +286,7 @@ static PyObject* compressLZ11(PyObject* m, PyObject* args, PyObject* kwargs)
     int mindisp;
 
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s#i", kwlist, &indata, &inlength, &mindisp))
-		return NULL;
+        return NULL;
 
     unsigned char* out = PyMem_Malloc(inlength);
     MALLOC_CHECK(out);
