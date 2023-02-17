@@ -2,24 +2,6 @@ import ctypes
 from hacktools import common
 
 
-def decompressRLE(data, decomplength):
-    with common.Stream() as out:
-        while out.tell() < decomplength:
-            flag = data.readByte()
-            compressed = (flag & 0x80) > 0
-            length = flag & 0x7f
-            if compressed:
-                length += 3
-                byte = data.readByte()
-                for i in range(length):
-                    out.writeByte(byte)
-            else:
-                length += 1
-                out.write(data.read(length))
-        out.seek(0)
-        return out.read()
-
-
 # https://forum.xentax.com/viewtopic.php?p=30390#p30387
 def getBits(n, f, blen, fbuf):
     retv = 0
@@ -36,42 +18,45 @@ def getBits(n, f, blen, fbuf):
     return retv, blen, fbuf
 
 
-def decompressHuffman(data, decomplength, numbits=8, little=True):
-    with common.Stream() as out:
-        treesize = data.readByte()
-        treeroot = data.readByte()
-        treebuffer = data.read(treesize * 2)
-        i = code = next = 0
-        pos = treeroot
-        code = data.readUInt()
-        while True:
-            if i == 32:
-                code = data.readUInt()
-                i = 0
-            next += (pos & 0x3f) * 2 + 2
-            direction = (code >> (31 - i)) % 2 == 0 and 2 or 1
-            leaf = ((pos >> 5) >> direction) % 2 != 0
-            pos = treebuffer[next - direction]
-            if leaf:
-                out.writeByte(pos & 0xff)
-                pos = treeroot
-                next = 0
-            if out.tell() == decomplength * (8 / numbits):
-                break
-            i += 1
-        out.seek(0)
-        if numbits == 8:
-            return out.read(decomplength)
-        with common.Stream() as out4:
-            for j in range(decomplength):
-                b1 = out.readByteAt(2 * j + 1)
-                b2 = out.readByteAt(2 * j)
-                if little:
-                    out4.writeByte(b1 * 16 + b2)
-                else:
-                    out4.writeByte(b2 * 16 + b1)
-            out4.seek(0)
-            return out4.read(decomplength)
+def decompressHuffman(rawdata, decomplength, numbits=8, little=True):
+    with common.Stream() as data:
+        data.write(rawdata)
+        data.seek(0)
+        with common.Stream() as out:
+            treesize = data.readByte()
+            treeroot = data.readByte()
+            treebuffer = data.read(treesize * 2)
+            i = code = next = 0
+            pos = treeroot
+            code = data.readUInt()
+            while True:
+                if i == 32:
+                    code = data.readUInt()
+                    i = 0
+                next += (pos & 0x3f) * 2 + 2
+                direction = (code >> (31 - i)) % 2 == 0 and 2 or 1
+                leaf = ((pos >> 5) >> direction) % 2 != 0
+                pos = treebuffer[next - direction]
+                if leaf:
+                    out.writeByte(pos & 0xff)
+                    pos = treeroot
+                    next = 0
+                if out.tell() == decomplength * (8 / numbits):
+                    break
+                i += 1
+            out.seek(0)
+            if numbits == 8:
+                return out.read(decomplength)
+            with common.Stream() as out4:
+                for j in range(decomplength):
+                    b1 = out.readByteAt(2 * j + 1)
+                    b2 = out.readByteAt(2 * j)
+                    if little:
+                        out4.writeByte(b1 * 16 + b2)
+                    else:
+                        out4.writeByte(b2 * 16 + b1)
+                out4.seek(0)
+                return out4.read(decomplength)
 
 
 class HuffmanNode:

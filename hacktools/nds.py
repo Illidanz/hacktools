@@ -3,7 +3,7 @@ from enum import IntFlag
 import os
 import struct
 import crcmod
-from hacktools import common, compression, cmp_lzss
+from hacktools import common, compression, cmp_lzss, cmp_misc
 
 
 def extractRom(romfile, extractfolder, workfolder="", legacy=False):
@@ -272,9 +272,9 @@ def decompress(f, complength):
     elif type == CompressionType.Huff8:
         return compression.decompressHuffman(data, decomplength, 8)
     elif type == CompressionType.RLE:
-        return compression.decompressRLE(data, decomplength)
+        return cmp_misc.decompressRLE(data, decomplength)
     else:
-        common.logError("Unsupported compression type", common.toHex(type))
+        common.logError("Unsupported decompression type", common.toHex(type))
         return data
 
 
@@ -293,6 +293,8 @@ def compress(data, type):
             out.write(compression.compressHuffman(data, 4))
         elif type == CompressionType.Huff8:
             out.write(compression.compressHuffman(data, 8))
+        elif type == CompressionType.RLE:
+            out.write(cmp_lzss.compressRLE(data))
         else:
             common.logError("Unsupported compression type", common.toHex(type))
             out.write(data)
