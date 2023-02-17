@@ -48,8 +48,8 @@ static PyMethodDef Cmp_miscMethods[] = {
 
 static struct PyModuleDef cmp_miscmodule = {
     PyModuleDef_HEAD_INIT,
-    "cmp_lzss",
-    "LZSS functions.",
+    "cmp_misc",
+    "Misc functions.",
     -1,
     Cmp_miscMethods
 };
