@@ -293,8 +293,6 @@ def compress(data, type):
             out.write(compression.compressHuffman(data, 4))
         elif type == CompressionType.Huff8:
             out.write(compression.compressHuffman(data, 8))
-        elif type == CompressionType.RLE:
-            out.write(cmp_lzss.compressRLE(data))
         else:
             common.logError("Unsupported compression type", common.toHex(type))
             out.write(data)
