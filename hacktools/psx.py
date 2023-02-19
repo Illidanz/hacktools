@@ -5,58 +5,42 @@ from hacktools import common
 
 
 # Image functions
-def extractBIN(infolder, outfolder, cuefile, data="data/", psximager=True):
+def extractBIN(infolder, outfolder, cuefile):
+    try:
+        import pymkpsxiso
+    except ImportError:
+        common.logError("pymkpsxiso not found")
+        return
     common.logMessage("Extracting BIN", cuefile, "...")
-    if psximager:
-        if not os.path.isfile("psximager\\psxrip.exe"):
-            common.logError("psximager not found")
-            return
-    else:
-        dumpsxiso = common.bundledExecutable("dumpsxiso.exe")
-        if not os.path.isfile(dumpsxiso):
-            common.logError("dumpsxiso not found")
-            return
-
-    common.clearFolder(infolder)
-
-    if psximager:
-        common.execute("psximager\\psxrip.exe \"{iso}\" \"{folder}\"".format(iso=cuefile, folder=infolder[:-1]), False)
-        common.copyFile(data + "extract.sys", data + "repack.sys")
-        with open(data + "extract.cat", "r") as fin:
-            with open(data + "repack.cat", "w") as fout:
-                fout.write(fin.read().replace(data + "extract", data + "repack"))
-    else:
-        common.execute(dumpsxiso + " -x \"{folder}\" -s \"{folder}.xml\" \"{iso}\" ".format(iso=cuefile.replace(".cue", ".bin"), folder=infolder[:-1]), False)
-        with open(data + "extract.xml", "r") as fin:
-            with open(data + "repack.xml", "w") as fout:
-                fout.write(fin.read().replace("extract/", "repack/"))
-
+    common.makeFolder(infolder)
+    pymkpsxiso.dump(cuefile.replace(".cue", ".bin"), infolder[:-1], infolder[:-1] + ".xml")
+    common.logMessage("Copying data to", outfolder, "...")
     common.copyFolder(infolder, outfolder)
+    with open(infolder[:-1] + ".xml", "r") as f:
+        xml = f.read()
+    with open(outfolder[:-1] + ".xml", "w") as f:
+        f.write(xml.replace("extract/", "repack/"))
     common.logMessage("Done!")
 
 
-def repackBIN(binfile, binpatch, cuefile, patchfile="", data="data/", psximager=True):
-    common.logMessage("Repacking BIN", binpatch, "...")
-    if psximager:
-        if not os.path.isfile("psximager\\psxbuild.exe"):
-            common.logError("psximager not found")
-            return
-        common.execute("psximager\\psxbuild.exe \"{cat}\" \"{bin}\"".format(cat=data + "repack.cat", bin=binpatch), False)
-    else:
-        mkpsxiso = common.bundledExecutable("mkpsxiso.exe")
-        if not os.path.isfile(mkpsxiso):
-            common.logError("mkpsxiso not found")
-            return
-        common.execute(mkpsxiso + " -y -o \"{bin}\" \"{xml}\"".format(xml=data + "repack.xml", bin=binpatch), False)
+def repackBIN(infolder, binin, binout, cuefile, patchfile=""):
+    try:
+        import pymkpsxiso
+    except ImportError:
+        common.logError("pymkpsxiso not found")
+        return
+    common.logMessage("Repacking BIN", binout, "...")
+    pymkpsxiso.make(binout, infolder[:-1] + ".xml")
 
     with open(cuefile, "w") as fout:
-        fout.write("FILE \"" + binpatch.replace(data, "") + "\" BINARY\r\n")
+        splitbin = binout.split("/")
+        fout.write("FILE \"" + splitbin[len(splitbin) - 1] + "\" BINARY\r\n")
         fout.write("  TRACK 01 MODE2/2352\r\n")
         fout.write("    INDEX 01 00:00:00\r\n")
     common.logMessage("Done!")
     # Create xdelta patch
     if patchfile != "":
-        common.xdeltaPatch(patchfile, binfile, binpatch)
+        common.xdeltaPatch(patchfile, binin, binout)
 
 
 # Binary-related functions

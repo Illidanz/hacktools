@@ -8,7 +8,7 @@ Most dependencies are optional, and can be installed with `pip install hacktools
  - `armips`: needed for `common.armipsPatch`.
  - `xdelta`: needed for `common.xdeltaPatch`.
  - `ips`: needed for `common.ipsPatch`.
- - `iso`: needed for PSP ISO.
+ - `iso`: needed for PSX/PSP ISO.
  - `graphics`: needed for most functions that deal with graphics.
 
 ## Supported platforms and formats
@@ -27,7 +27,7 @@ External dependencies not included are marked as `(through *dependency*)`
 - PMF header for MPS movies
 - BIN signing (through sign_np)
 ### PSX
-- BIN (through psximager)
+- BIN
 - TIM images
 ### WonderSwan / WonderSwan Color
 - ROM banks
