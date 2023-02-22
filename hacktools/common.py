@@ -591,6 +591,8 @@ class TranslationFile:
     def __init__(self, path=""):
         self.files = {}
         self.lookup = {}
+        self.chartot = 0
+        self.transtot = 0
         if path == "":
             self.root = ET.Element("xliff")
             self.root.set("version", "1.2")
@@ -643,10 +645,14 @@ class TranslationFile:
 
     def preloadLookup(self):
         self.lookup = {}
+        self.chartot = 0
+        self.transtot = 0
         for file in self.files:
             for unit in self.files[file][0]:
+                self.chartot += len(unit[0].text)
                 if unit[1].text is not None and unit[1].text != "":
                     self.lookup[unit[0].text] = unit[1].text
+                    self.transtot += len(unit[0].text)
 
     def getEntry(self, text, filename, offset):
         stroffset = str(offset)
@@ -663,6 +669,14 @@ class TranslationFile:
         if text in self.lookup:
             return self.lookup[text]
         return ""
+
+    def hasFile(self, filename):
+        return filename in self.files
+
+    def getProgress(self):
+        if self.chartot == 0:
+            return 0
+        return (100 * self.transtot) / self.chartot
 
     def save(self, filename, dummy=False):
         if dummy:
@@ -914,7 +928,7 @@ class BinaryPointer:
         self.str = str
 
 
-def repackBinaryStrings(section, infile, outfile, binranges, freeranges=None, readfunc=detectEncodedString, writefunc=writeEncodedString, encoding="shift_jis", pointerstart=0, injectstart=0, fallbackf=None, injectfallback=0):
+def repackBinaryStrings(section, infile, outfile, binranges, freeranges=None, readfunc=detectEncodedString, writefunc=writeEncodedString, encoding="shift_jis", pointerstart=0, injectstart=0, fallbackf=None, injectfallback=0, sectionname="bin"):
     insize = os.path.getsize(infile)
     notfound = []
     with Stream(infile, "rb") as fi:
@@ -929,10 +943,14 @@ def repackBinaryStrings(section, infile, outfile, binranges, freeranges=None, re
                     pos = fi.tell()
                     check = readfunc(fi, encoding)
                     if check != "":
-                        if check in section and section[check][0] != "":
-                            newsjis = section[check][0]
-                            if len(section[check]) > 1:
-                                section[check].pop(0)
+                        if isinstance(section, TranslationFile):
+                            newsjis = section.getEntry(check, sectionname, pos)
+                        else:
+                            newsjis = section[check][0] if check in section else ""
+                            if newsjis != "":
+                                if len(section[check]) > 1:
+                                    section[check].pop(0)
+                        if newsjis != "":
                             if newsjis == "!":
                                 newsjis = ""
                             newsjislog = newsjis.encode("ascii", "ignore")
@@ -981,7 +999,12 @@ def repackBinaryStrings(section, infile, outfile, binranges, freeranges=None, re
                                             fo.seek(-1, 1)
                                             if fo.readByte() != 0:
                                                 fo.writeZero(1)
-                                            newpointer = injectstart + range[0]
+                                            newpointer = range[0]
+                                            # For the injected range, add injectstart, otherwise add pointerstart
+                                            if (len(range) == 3):
+                                                newpointer += injectstart
+                                            else:
+                                                newpointer += pointerstart
                                             range[0] = fo.tell()
                                             strpointers[newsjis] = newpointer
                                         # Search and replace the old pointer
@@ -995,7 +1018,7 @@ def repackBinaryStrings(section, infile, outfile, binranges, freeranges=None, re
                                             if index < 0:
                                                 break
                                             foundone = True
-                                            logDebug("Replaced pointer at", toHex(pointerstart + index))
+                                            logDebug("Replaced pointer at", toHex(pointerstart + index), "with", toHex(newpointer))
                                             fo.seek(index)
                                             fo.writeUInt(newpointer)
                                             index += 4

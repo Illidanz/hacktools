@@ -6,7 +6,7 @@ import crcmod
 from hacktools import common, compression, cmp_lzss, cmp_misc
 
 
-def extractRom(romfile, extractfolder, workfolder="", legacy=False):
+def extractRom(romfile, extractfolder, workfolder=""):
     try:
         import ndspy.rom
     except ImportError:
@@ -110,25 +110,32 @@ def getHeaderID(file):
 
 
 # Binary-related functions
-def extractBIN(binrange, readfunc=common.detectEncodedString, encoding="shift_jis", binin="data/extract/arm9.bin", binfile="data/bin_output.txt", writepos=False, writedupes=False):
+def extractBIN(binrange, readfunc=common.detectEncodedString, encoding="shift_jis", binin="data/extract/arm9.bin", binfile="data/bin_output.txt", writepos=False, writedupes=False, sectionname="bin"):
     common.logMessage("Extracting BIN to", binfile, "...")
     if type(binrange) == tuple:
         binrange = [binrange]
     strings, positions = common.extractBinaryStrings(binin, binrange, readfunc, encoding)
-    with codecs.open(binfile, "w", "utf-8") as out:
+    if binfile.endswith(".txt"):
+        with codecs.open(binfile, "w", "utf-8") as out:
+            for i in range(len(strings)):
+                if writepos:
+                    allpositions = []
+                    for strpos in positions[i]:
+                        allpositions.append(common.toHex(strpos))
+                    out.write(str(allpositions) + "!")
+                for j in range(1 if writedupes is False else len(positions[i])):
+                    out.write(strings[i] + "=\n")
+    else:
+        t = common.TranslationFile()
         for i in range(len(strings)):
-            if writepos:
-                allpositions = []
-                for strpos in positions[i]:
-                    allpositions.append(common.toHex(strpos))
-                out.write(str(allpositions) + "!")
             for j in range(1 if writedupes is False else len(positions[i])):
-                out.write(strings[i] + "=\n")
+                t.addEntry(strings[i], sectionname, positions[i][j])
+        t.save(binfile, True)
     common.logMessage("Done! Extracted", len(strings), "lines")
 
 
 def repackBIN(binrange, freeranges=[], readfunc=common.detectEncodedString, writefunc=common.writeEncodedString, encoding="shift_jis", comments="#",
-              binin="data/extract/arm9.bin", binout="data/repack/arm9.bin", binfile="data/bin_input.txt", fixchars=[], pointerstart=0x02000000, injectstart=0x02000000, fallbackf=None, injectfallback=0, nocopy=False):
+              binin="data/extract/arm9.bin", binout="data/repack/arm9.bin", binfile="data/bin_input.txt", fixchars=[], pointerstart=0x02000000, injectstart=0x02000000, fallbackf=None, injectfallback=0, nocopy=False, sectionname="bin"):
     if not os.path.isfile(binfile):
         common.logError("Input file", binfile, "not found")
         return False
@@ -137,15 +144,22 @@ def repackBIN(binrange, freeranges=[], readfunc=common.detectEncodedString, writ
         common.copyFile(binin, binout)
     common.logMessage("Repacking BIN from", binfile, "...")
     section = {}
-    with codecs.open(binfile, "r", "utf-8") as bin:
-        section = common.getSection(bin, "", comments, fixchars=fixchars)
-        chartot, transtot = common.getSectionPercentage(section)
+    if binfile.endswith(".txt"):
+        with codecs.open(binfile, "r", "utf-8") as bin:
+            section = common.getSection(bin, "", comments, fixchars=fixchars)
+            chartot, transtot = common.getSectionPercentage(section)
+    else:
+        section = common.TranslationFile(binfile)
+        section.preloadLookup()
     if type(binrange) == tuple:
         binrange = [binrange]
-    notfound = common.repackBinaryStrings(section, binin, binout, binrange, freeranges, readfunc, writefunc, encoding, pointerstart, injectstart, fallbackf, injectfallback)
+    notfound = common.repackBinaryStrings(section, binin, binout, binrange, freeranges, readfunc, writefunc, encoding, pointerstart, injectstart, fallbackf, injectfallback, sectionname)
     for pointer in notfound:
         common.logError("Pointer", common.toHex(pointer.old), "->", common.toHex(pointer.new), "not found for string", pointer.str)
-    common.logMessage("Done! Translation is at {0:.2f}%".format((100 * transtot) / chartot))
+    if binfile.endswith(".txt"):
+        common.logMessage("Done! Translation is at {0:.2f}%".format((100 * transtot) / chartot))
+    else:
+        common.logMessage("Done! Translation is at {0:.2f}%".format(section.getProgress()))
     return True
 
 

@@ -12,7 +12,7 @@ extras_graphics=["Pillow", "psd-tools>=1.8,<1.9"]
 
 setup(
     name="hacktools",
-    version="0.27.3",
+    version="0.27.4",
     author="Illidan",
     description="A set of utilities and tools for rom hacking and translations.",
     long_description=long_description,
