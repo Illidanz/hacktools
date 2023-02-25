@@ -710,14 +710,6 @@ class FontGlyph:
         self.code = code
         self.index = index
 
-    def __init__(self):
-        self.start = 0
-        self.width = 0
-        self.length = 0
-        self.char = ""
-        self.code = 0
-        self.index = 0
-
 
 def wordwrap(text, glyphs, width, codefunc=None, default=6, linebreak="|", sectionsep=">>", strip=True):
     # Based on http://code.activestate.com/recipes/577946-word-wrap-for-proportional-fonts/
