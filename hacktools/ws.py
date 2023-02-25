@@ -217,23 +217,17 @@ def repackTiledImage(f, infile, width, height, palette=None, bpp=2):
 
 
 class TileMap:
-    name = ""
-    offset = 0
-    width = 0
-    height = 0
-    map = []
-    bpp = 2
+    def __init__(self):
+        self.name = ""
+        self.offset = 0
+        self.width = 0
+        self.height = 0
+        self.map = []
+        self.bpp = 2
 
 
 class TileData:
-    tile = 0
-    data = 0
-    pal = 0
-    bank = 0
-    hflip = False
-    vflip = False
-
-    def __init__(self, tile, pal=0, hflip=False, vflip=False):
+    def __init__(self, tile=0, pal=0, hflip=False, vflip=False):
         self.tile = tile
         self.data = 0
         self.pal = pal
@@ -243,13 +237,14 @@ class TileData:
 
 
 class SpriteData:
-    tile = 0
-    data = 0
-    pal = 0
-    hflip = False
-    vflip = False
-    xpos = 0
-    ypos = 0
+    def __init__(self):
+        self.tile = 0
+        self.data = 0
+        self.pal = 0
+        self.hflip = False
+        self.vflip = False
+        self.xpos = 0
+        self.ypos = 0
 
 
 def readPalette(f, bpp=2, num=16):
@@ -303,7 +298,6 @@ def readMappedImage(f, outfile, mapstart=0, num=1, bpp=2, width=0, height=0):
             map.height = f.readByte()
         map.bpp = bpp
         common.logDebug(" ", mapstart, vars(map))
-        map.map = []
         for i in range(map.width * map.height):
             tilemap = TileMap()
             tilemap.data = f.readUShort()
@@ -358,7 +352,6 @@ def readSprite(f, spritelen, outfile, spritestart=0, bpp=2, width=0, height=0, i
     map.width = (xmax + 8) // 8
     map.height = (ymax + 8) // 8
     map.bpp = bpp
-    map.map = []
     for y in range(map.height):
         for x in range(map.width):
             data = TileData(0)

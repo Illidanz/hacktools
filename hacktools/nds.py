@@ -273,7 +273,7 @@ class CompressionType(IntFlag):
 
 def decompress(f, complength):
     header = f.readUInt()
-    type = header & 0xFF
+    type = header & 0xff
     decomplength = ((header & 0xffffff00) >> 8)
     common.logDebug("Compression header:", common.toHex(header), "type:", common.toHex(type), "length:", decomplength)
     data = f.read(complength)
@@ -354,7 +354,7 @@ def compressBinary(infile, outfile, arm9=True):
         codeoffset = 0
         for i in range(0, 0x8000, 4):
             if compdata[i:i+8] == b'\x21\x06\xC0\xDE\xDE\xC0\x06\x21':
-                codeoffset = i - 0x1C
+                codeoffset = i - 0x1c
                 break
         if codeoffset > 0:
             struct.pack_into("<I", compdata, codeoffset + 0x14, 0x02000000 + len(compdata))

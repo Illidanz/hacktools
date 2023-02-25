@@ -129,38 +129,41 @@ def repackIMG(workfolder, infolder, outfolder, extensions=".NCGR", readfunc=None
 
 # Font
 class FontNFTR:
-    height = 0
-    width = 0
-    plgcoffset = 0
-    hdwcoffset = 0
-    pamcoffset = 0
-    plgcsize = 0
-    glyphwidth = 0
-    glyphheight = 0
-    glyphlength = 0
-    depth = 0
-    rotation = 0
-    tilenum = 0
-    firstcode = 0
-    lastcode = 0
-    plgc = []
-    colors = []
-    hdwc = []
-    pamc = []
-    glyphs = {}
+    def __init__(self):
+        self.height = 0
+        self.width = 0
+        self.plgcoffset = 0
+        self.hdwcoffset = 0
+        self.pamcoffset = 0
+        self.plgcsize = 0
+        self.glyphwidth = 0
+        self.glyphheight = 0
+        self.glyphlength = 0
+        self.depth = 0
+        self.rotation = 0
+        self.tilenum = 0
+        self.firstcode = 0
+        self.lastcode = 0
+        self.plgc = []
+        self.colors = []
+        self.hdwc = []
+        self.pamc = []
+        self.glyphs = {}
 
 
 class FontHDWC:
-    start = 0
-    width = 0
-    length = 0
+    def __init__(self):
+        self.start = 0
+        self.width = 0
+        self.length = 0
 
 
 class FontPAMC:
-    firstchar = 0
-    lastchar = 0
-    type = 0
-    nextoffset = 0
+    def __init__(self):
+        self.firstchar = 0
+        self.lastchar = 0
+        self.type = 0
+        self.nextoffset = 0
 
 
 def readNFTR(file, generateglyphs=False):
@@ -187,12 +190,10 @@ def readNFTR(file, generateglyphs=False):
         nftr.tilenum = (nftr.plgcsize - 0x10) // nftr.glyphlength
         common.logDebug(vars(nftr))
         # Generate colors
-        nftr.colors = []
         numcolors = pow(2, nftr.depth)
         for i in range(numcolors):
             nftr.colors.append((0, 0, 0, int(255 * i / (numcolors - 1))))
         # Read the glyphs graphics
-        nftr.plgc = []
         if generateglyphs:
             try:
                 from PIL import Image
@@ -240,7 +241,6 @@ def readNFTR(file, generateglyphs=False):
         nftr.firstcode = f.readUShort()
         nftr.lastcode = f.readUShort()
         f.seek(4, 1)
-        nftr.hdwc = []
         for i in range(nftr.tilenum):
             hdwc = FontHDWC()
             hdwc.start = f.readSByte()
@@ -249,8 +249,6 @@ def readNFTR(file, generateglyphs=False):
             common.logDebug(" ", vars(hdwc))
             nftr.hdwc.append(hdwc)
         # PAMC
-        nftr.pamc = []
-        nftr.glyphs = {}
         nextoffset = nftr.pamcoffset
         while nextoffset != 0x00:
             f.seek(nextoffset)
@@ -291,24 +289,25 @@ def extractFontData(fontfiles, out):
 
 # Archives
 class NARC:
-    btaf = 0
-    btnf = 0
-    gmif = 0
-    files = []
+    def __init__(self):
+        self.btaf = 0
+        self.btnf = 0
+        self.gmif = 0
+        self.files = []
 
 
 class NARCFile:
-    start = 0
-    size = 0
-    path = ""
-    name = ""
-    fullname = ""
+    def __init__(self):
+        self.start = 0
+        self.size = 0
+        self.path = ""
+        self.name = ""
+        self.fullname = ""
 
 
 def readNARC(narcfile):
     common.logDebug("Reading", narcfile)
     narc = NARC()
-    narc.files = []
     with common.Stream(narcfile, "rb") as f:
         # Read BTAF
         f.seek(16)
@@ -418,80 +417,86 @@ def repackNARC(narcfilein, narcfileout, infolder, narc):
 
 # Graphics
 class NCGR:
-    width = 0
-    height = 0
-    bpp = 4
-    tilesize = 8
-    tileoffset = 0
-    lineal = False
-    tiles = []
+    def __init__(self):
+        self.width = 0
+        self.height = 0
+        self.bpp = 4
+        self.tilesize = 8
+        self.tileoffset = 0
+        self.lineal = False
+        self.tiles = []
 
 
 class NSCR:
-    width = 0
-    height = 0
-    maplen = 0
-    mapoffset = 0
-    maps = []
+    def __init__(self):
+        self.width = 0
+        self.height = 0
+        self.maplen = 0
+        self.mapoffset = 0
+        self.maps = []
 
 
 class Map:
-    pal = 0
-    xflip = False
-    yflip = False
-    tile = 0
+    def __init__(self):
+        self.pal = 0
+        self.xflip = False
+        self.yflip = False
+        self.tile = 0
 
 
 class NCER:
-    tbank = 0
-    bankoffset = 0
-    blocksize = 0
-    partitionoffset = 0
-    maxpartitionsize = 0
-    firstpartitionoffset = 0
-    banks = []
+    def __init__(self):
+        self.tbank = 0
+        self.bankoffset = 0
+        self.blocksize = 0
+        self.partitionoffset = 0
+        self.maxpartitionsize = 0
+        self.firstpartitionoffset = 0
+        self.banks = []
 
 
 class Bank:
-    cellnum = 0
-    cellinfo = 0
-    celloffset = 0
-    objoffset = 0
-    partitionoffset = 0
-    partitionsize = 0
-    cells = []
-    xmax = 0
-    ymax = 0
-    xmin = 0
-    ymin = 0
-    width = 0
-    height = 0
-    layernum = 0
-    duplicate = False
+    def __init__(self):
+        self.cellnum = 0
+        self.cellinfo = 0
+        self.celloffset = 0
+        self.objoffset = 0
+        self.partitionoffset = 0
+        self.partitionsize = 0
+        self.cells = []
+        self.xmax = 0
+        self.ymax = 0
+        self.xmin = 0
+        self.ymin = 0
+        self.width = 0
+        self.height = 0
+        self.layernum = 0
+        self.duplicate = False
 
 
 class Cell:
-    x = 0
-    y = 0
-    width = 0
-    height = 0
-    numcell = 0
-    shape = 0
-    size = 0
-    objoffset = 0
-    tileoffset = 0
-    rsflag = False
-    objdisable = False
-    doublesize = False
-    objmode = 0
-    mosaic = False
-    depth = False
-    xflip = False
-    yflip = False
-    selectparam = 0
-    priority = 0
-    pal = 0
-    layer = -1
+    def __init__(self):
+        self.x = 0
+        self.y = 0
+        self.width = 0
+        self.height = 0
+        self.numcell = 0
+        self.shape = 0
+        self.size = 0
+        self.objoffset = 0
+        self.tileoffset = 0
+        self.rsflag = False
+        self.objdisable = False
+        self.doublesize = False
+        self.objmode = 0
+        self.mosaic = False
+        self.depth = False
+        self.xflip = False
+        self.yflip = False
+        self.selectparam = 0
+        self.priority = 0
+        self.pal = 0
+        self.layer = -1
 
 
 def readNitroGraphic(palettefile, tilefile, mapfile, cellfile, ignorepalindex=False, ignoredupes=False):
@@ -557,7 +562,6 @@ def readNCLR(nclrfile, ignoreindex=False):
 
 def readNCGR(ncgrfile):
     ncgr = NCGR()
-    ncgr.tiles = []
     with common.Stream(ncgrfile, "rb") as f:
         f.seek(24)
         ncgr.height = f.readUShort()
@@ -595,7 +599,6 @@ def readNCGRTiles(ncgr, tiledata):
 
 def readNSCR(nscrfile):
     nscr = NSCR()
-    nscr.maps = []
     with common.Stream(nscrfile, "rb") as f:
         f.seek(24)
         nscr.width = f.readUShort()
@@ -607,17 +610,18 @@ def readNSCR(nscrfile):
         common.logDebug(vars(nscr))
         for i in range(0, len(mapdata), 2):
             data = struct.unpack("<h", mapdata[i:i+2])[0]
-            nscr.maps.append(readMapData(data))
+            mapdata = readMapData(data)
+            nscr.maps.append(mapdata)
     common.logDebug("Loaded", len(nscr.maps), "maps")
     return nscr
 
 
 def readMapData(data):
     map = Map()
-    map.pal = (data >> 12) & 0xF
+    map.pal = (data >> 12) & 0xf
     map.xflip = (data >> 10) & 1
     map.yflip = (data >> 11) & 1
-    map.tile = data & 0x3FF
+    map.tile = data & 0x3ff
     return map
 
 
@@ -655,17 +659,15 @@ def getNCERCellSize(shape, size):
 
 def readNCER(ncerfile, ignoredupes=False):
     ncer = NCER()
-    ncer.banks = []
     with common.Stream(ncerfile, "rb") as f:
         f.seek(24)
         ncer.banknum = f.readUShort()
         ncer.tbank = f.readUShort()
         ncer.bankoffset = f.readUInt()
-        ncer.blocksize = f.readUInt() & 0xFF
+        ncer.blocksize = f.readUInt() & 0xff
         ncer.partitionoffset = f.readUInt()
         for i in range(ncer.banknum):
             bank = Bank()
-            bank.cells = []
             ncer.banks.append(bank)
         # Partition data
         if ncer.partitionoffset > 0:
@@ -699,15 +701,15 @@ def readNCER(ncerfile, ignoredupes=False):
                 obj0 = f.readUShort()
                 obj1 = f.readUShort()
                 obj2 = f.readUShort()
-                cell.y = obj0 & 0xFF
+                cell.y = obj0 & 0xff
                 if cell.y >= 128:
                     cell.y -= 256
                 cell.shape = (obj0 >> 14) & 3
-                cell.x = obj1 & 0x01FF
+                cell.x = obj1 & 0x01ff
                 if cell.x >= 0x100:
                     cell.x -= 0x200
                 cell.size = (obj1 >> 14) & 3
-                cell.tileoffset = obj2 & 0x03FF
+                cell.tileoffset = obj2 & 0x03ff
                 cell.rsflag = ((obj0 >> 8) & 1) == 1
                 if not cell.rsflag:
                     cell.objdisable = ((obj0 >> 9) & 1) == 1
@@ -721,9 +723,9 @@ def readNCER(ncerfile, ignoredupes=False):
                     cell.xflip = ((obj1 >> 12) & 1) == 1
                     cell.yflip = ((obj1 >> 13) & 1) == 1
                 else:
-                    cell.selectparam = (obj1 >> 9) & 0x1F
+                    cell.selectparam = (obj1 >> 9) & 0x1f
                 cell.priority = (obj2 >> 10) & 3
-                cell.pal = (obj2 >> 12) & 0xF
+                cell.pal = (obj2 >> 12) & 0xf
                 cellsize = getNCERCellSize(cell.shape, cell.size)
                 cell.width = cellsize[0]
                 cell.height = cellsize[1]
@@ -910,7 +912,7 @@ def drawNCGR(outfile, nscr, ncgr, palettes, width, height, usetransp=True):
     except ImportError:
         common.logError("PIL not found")
         return
-    if width == 0xFFFF or height == 0xFFFF:
+    if width == 0xffff or height == 0xffff:
         root = int(math.sqrt(len(ncgr.tiles)))
         if math.pow(root, 2) == len(ncgr.tiles):
             width = height = root * ncgr.tilesize
@@ -1240,9 +1242,9 @@ def writeNCER(file, ncerfile, ncgr, ncer, infile, palettes, width=0, height=0, a
                             tileoffset = (tile * (8 * ncgr.bpp) // 0x20) >> ncer.blocksize
                             fn.seek(cell.objoffset + 4)
                             obj2 = 0
-                            obj2 += tileoffset & 0x3FF
+                            obj2 += tileoffset & 0x3ff
                             obj2 += (cell.priority & 3) << 10
-                            obj2 += (cell.pal & 0xF) << 12
+                            obj2 += (cell.pal & 0xf) << 12
                             fn.writeUShort(obj2)
                     if not sametile:
                         currtile = tile
@@ -1283,36 +1285,39 @@ NSBMDbpp = [0, 8, 2, 4, 8, 2, 8, 16]
 
 
 class NSBMD:
-    textures = []
-    palettes = []
-    blocksize = 0
-    blocklimit = 0
-    texdatasize = 0
-    texdataoffset = 0
-    sptexsize = 0
-    sptexoffset = 0
-    spdataoffset = 0
-    paldatasize = 0
-    paldefoffset = 0
-    paldataoffset = 0
+    def __init__(self):
+        self.textures = []
+        self.palettes = []
+        self.blocksize = 0
+        self.blocklimit = 0
+        self.texdatasize = 0
+        self.texdataoffset = 0
+        self.sptexsize = 0
+        self.sptexoffset = 0
+        self.spdataoffset = 0
+        self.paldatasize = 0
+        self.paldefoffset = 0
+        self.paldataoffset = 0
 
 
 class NSBMDTexture:
-    name = ""
-    offset = 0
-    format = 0
-    width = 0
-    height = 0
-    size = 0
-    data = []
-    spdata = []
+    def __init__(self):
+        self.name = ""
+        self.offset = 0
+        self.format = 0
+        self.width = 0
+        self.height = 0
+        self.size = 0
+        self.data = []
+        self.spdata = []
 
 
 class NSBMDPalette:
-    name = ""
-    offset = 0
-    size = 0
-    data = []
+    def __init__(self):
+        self.name = ""
+        self.offset = 0
+        self.size = 0
+        self.data = []
 
 
 def readNSBMD(nsbmdfile, zerotransp=False):
@@ -1360,8 +1365,6 @@ def readNSBMD(nsbmdfile, zerotransp=False):
         f.seek(pos)
         common.logDebug("texnum:", texnum, "palnum:", palnum)
         f.seek(14 + (texnum * 4), 1)
-        nsbmd.textures = []
-        nsbmd.palettes = []
         for i in range(texnum):
             offset = f.readUShort() * 8
             param = f.readUShort()
@@ -1405,7 +1408,6 @@ def readNSBMD(nsbmdfile, zerotransp=False):
         # Traverse palettes
         for pal in nsbmd.palettes:
             f.seek(pal.offset)
-            pal.data = []
             for i in range(pal.size // 2):
                 palcolor = common.readPalette(f.readShort())
                 if i == 0 and zerotransp:
@@ -1418,14 +1420,12 @@ def readNSBMD(nsbmdfile, zerotransp=False):
             if tex.format == 5:
                 r = tex.size >> 1
                 f.seek(spdataoffset)
-                tex.spdata = []
                 for i in range(r // 2):
                     tex.spdata.append(f.readUShort())
                 spdataoffset += r
             # Export texture
             f.seek(tex.offset)
             if tex.format == 5:
-                tex.data = []
                 for i in range(tex.size // 4):
                     tex.data.append(f.readUInt())
             else:
@@ -1612,7 +1612,6 @@ def writeNSBMD(file, nsbmd, texi, infile, fixtransp=False, checkalpha=False, zer
 
 def readManualCells(manualcells):
     ncer = NCER()
-    ncer.banks = []
     ncer.banknum = 0
     ncer.tbank = ncer.bankoffset = ncer.blocksize = ncer.partitionoffset = 0
     curroff = 0
@@ -1620,7 +1619,6 @@ def readManualCells(manualcells):
         repeat = int(manualbank["repeat"]) if "repeat" in manualbank else 1
         for i in range(repeat):
             bank = Bank()
-            bank.cells = []
             ncer.banks.append(bank)
             ncer.banknum += 1
     i = 0
@@ -1708,7 +1706,6 @@ def readNBFP(ntfpfile, bpp=8):
 
 def readNBFC(ntftfile, palette, lineal, bpp=0):
     nbfc = NCGR()
-    nbfc.tiles = []
     if bpp == 0:
         nbfc.bpp = 4 if len(palette) <= 16 else 8
     else:
@@ -1744,7 +1741,6 @@ def readNBFC(ntftfile, palette, lineal, bpp=0):
 
 def readNBFS(nscrfile):
     nbfs = NSCR()
-    nbfs.maps = []
     with common.Stream(nscrfile, "rb") as f:
         mapdata = f.read()
     for i in range(0, len(mapdata), 2):

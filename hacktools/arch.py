@@ -3,27 +3,28 @@ from hacktools import common
 
 
 class ARCHArchive:
-    filenum = 0
-    tableoff = 0
-    fatoff = 0
-    nameindexoff = 0
-    dataoff = 0
-    files = []
+    def __init__(self):
+        self.filenum = 0
+        self.tableoff = 0
+        self.fatoff = 0
+        self.nameindexoff = 0
+        self.dataoff = 0
+        self.files = []
 
 
 class ARCHFile:
-    name = ""
-    length = 0
-    declength = 0
-    offset = 0
-    nameoffset = 0
-    encoded = False
+    def __init__(self):
+        self.name = ""
+        self.length = 0
+        self.declength = 0
+        self.offset = 0
+        self.nameoffset = 0
+        self.encoded = False
 
 
 def read(f):
     f.seek(4)  # Magic: ARCH
     archive = ARCHArchive()
-    archive.files = []
     archive.filenum = f.readUInt()
     archive.tableoff = f.readUInt()
     archive.fatoff = f.readUInt()
@@ -103,11 +104,11 @@ def extract(f, archive, outfolder):
                     # FillBuffer
                     index = 0
                     while index != 0x100:
-                        id = f.readByte()
-                        numloops = id
-                        if id > 0x7F:
+                        bufid = f.readByte()
+                        numloops = bufid
+                        if bufid > 0x7f:
                             numloops = 0
-                            index += id - 0x7F
+                            index += bufid - 0x7f
                         if index == 0x100:
                             break
                         if numloops < 0:

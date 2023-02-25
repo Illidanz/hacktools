@@ -86,25 +86,27 @@ def repackIso(isofile, isopatch, workfolder, patchfile=""):
 # TPL files
 # http://wiki.tockdom.com/wiki/TPL_(File_Format)
 class TPL:
-    imgnum = 0
-    tableoff = 0
-    images = []
+    def __init__(self):
+        self.imgnum = 0
+        self.tableoff = 0
+        self.images = []
 
 
 class TPLImage:
-    imgoff = 0
-    paloff = 0
-    palformat = 0x02
-    paldataoff = 0
-    palette = []
-    width = 0
-    height = 0
-    format = 0x09
-    dataoff = 0
-    tilewidth = 8
-    tileheight = 8
-    blockwidth = 0
-    blockheight = 0
+    def __init__(self):
+        self.imgoff = 0
+        self.paloff = 0
+        self.palformat = 0x02
+        self.paldataoff = 0
+        self.palette = []
+        self.width = 0
+        self.height = 0
+        self.format = 0x09
+        self.dataoff = 0
+        self.tilewidth = 8
+        self.tileheight = 8
+        self.blockwidth = 0
+        self.blockheight = 0
 
 
 def readTPL(file):
@@ -113,7 +115,6 @@ def readTPL(file):
         f.seek(4)  # Header
         tpl.imgnum = f.readUInt()
         tpl.tableoff = f.readUInt()
-        tpl.images = []
         for i in range(tpl.imgnum):
             image = TPLImage()
             tpl.images.append(image)
@@ -131,7 +132,6 @@ def readTPL(file):
                     common.logError("Unimplemented palette format:", image.palformat)
                     continue
                 f.seek(image.paldataoff)
-                image.palette = []
                 for j in range(palcount):
                     image.palette.append(common.readRGB5A3(f.readShort()))
             f.seek(image.imgoff)
@@ -231,7 +231,7 @@ def getFontGlyphs(file):
             elif sectiontype == 1:
                 for i in range(lastchar - firstchar + 1):
                     charcode = f.readUShort()
-                    if charcode == 0xFFFF or charcode >= len(hdwc):
+                    if charcode == 0xffff or charcode >= len(hdwc):
                         continue
                     c = common.codeToChar(firstchar + i)
                     glyphs[c] = common.FontGlyph(hdwc[charcode][0], hdwc[charcode][1], hdwc[charcode][2], c, firstchar + i, charcode)

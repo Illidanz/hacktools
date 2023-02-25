@@ -182,7 +182,7 @@ def decompressPRS(f, slen, dlen):
     blen = 0
     fbuf = 0
     dptr = 0
-    len = 0
+    plen = 0
     pos = 0
     while f.tell() < startpos + slen:
         flag, blen, fbuf = getBits(1, f, blen, fbuf)
@@ -193,22 +193,22 @@ def decompressPRS(f, slen, dlen):
         else:
             flag, blen, fbuf = getBits(1, f, blen, fbuf)
             if flag == 0:
-                len, blen, fbuf = getBits(2, f, blen, fbuf)
-                len += 2
+                plen, blen, fbuf = getBits(2, f, blen, fbuf)
+                plen += 2
                 data = f.readSByte()
                 # Use ctypes to correctly handle int overflow
                 pos = ctypes.c_int(data | 0xffffff00).value
             else:
                 pos = ctypes.c_int((f.readSByte() << 8) | 0xffff0000).value
                 pos |= f.readSByte() & 0xff
-                len = pos & 0x07
+                plen = pos & 0x07
                 pos >>= 3
-                if len == 0:
-                    len = (f.readSByte() & 0xff) + 1
+                if plen == 0:
+                    plen = (f.readSByte() & 0xff) + 1
                 else:
-                    len += 2
+                    plen += 2
             pos += dptr
-            for i in range(len):
+            for _ in range(plen):
                 if dptr < dlen:
                     dbuf[dptr] = dbuf[pos]
                     dptr += 1

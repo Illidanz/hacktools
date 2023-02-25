@@ -1,7 +1,7 @@
 import codecs
 from io import BytesIO, StringIO
 import distutils.dir_util
-import xml.etree.cElementTree as ET
+import xml.etree.ElementTree as ET
 import logging
 import math
 import os
@@ -179,7 +179,7 @@ class Stream(object):
     def readHalf(self):
         if self.half is None:
             self.half = self.readByte()
-            return self.half & 0x0F
+            return self.half & 0x0f
         else:
             ret = self.half >> 4
             self.half = None
@@ -702,13 +702,6 @@ class TranslationFile:
 
 
 class FontGlyph:
-    start = 0
-    width = 0
-    length = 0
-    char = ""
-    code = 0
-    index = 0
-
     def __init__(self, start, width, length, char="", code=0, index=0):
         self.start = start
         self.width = width
@@ -716,6 +709,14 @@ class FontGlyph:
         self.char = char
         self.code = code
         self.index = index
+
+    def __init__(self):
+        self.start = 0
+        self.width = 0
+        self.length = 0
+        self.char = ""
+        self.code = 0
+        self.index = 0
 
 
 def wordwrap(text, glyphs, width, codefunc=None, default=6, linebreak="|", sectionsep=">>", strip=True):
@@ -794,7 +795,7 @@ def readEncodedString(f, encoding="shift_jis"):
     sjis = ""
     while True:
         b1 = f.readByte()
-        if b1 == 0x0A:
+        if b1 == 0x0a:
             sjis += "|"
         elif b1 == 0x00:
             break
@@ -821,7 +822,7 @@ def detectEncodedString(f, encoding="shift_jis", startascii=[0x25], startenc=[])
     sjis = 0
     while True:
         b1 = f.readByte()
-        if b1 == 0x0A:
+        if b1 == 0x0a:
             ret += "|"
         elif b1 == 0x00:
             break
@@ -849,7 +850,7 @@ def detectASCIIString(f, encoding="ascii", startascii=[]):
     ret = ""
     while True:
         b1 = f.readByte()
-        if b1 == 0x0A:
+        if b1 == 0x0a:
             ret += "|"
         elif b1 == 0x00:
             break
@@ -878,7 +879,7 @@ def writeEncodedString(f, s, maxlen=0, encoding="shift_jis"):
         elif c == "|":
             if maxlen > 0 and i+1 > maxlen:
                 return -1
-            f.writeByte(0x0A)
+            f.writeByte(0x0a)
             i += 1
         elif ord(c) < 128:
             if maxlen > 0 and i+1 > maxlen:
@@ -918,10 +919,6 @@ def extractBinaryStrings(infile, binranges, func=detectEncodedString, encoding="
 
 
 class BinaryPointer:
-    old = 0
-    new = 0
-    str = ""
-
     def __init__(self, old, new, str):
         self.old = old
         self.new = new
@@ -1301,7 +1298,7 @@ def getPaletteIndex(palette, color, fixtransp=False, starti=0, palsize=-1, check
         return 0
     if checkalpha and color[3] == 0 and zeroalpha != -1:
         return zeroalpha
-    mindist = 0xFFFFFFFF
+    mindist = 0xffffffff
     disti = 0
     palrange = range(starti + 1, starti + palsize)
     if backwards:
@@ -1319,12 +1316,12 @@ def getPaletteIndex(palette, color, fixtransp=False, starti=0, palsize=-1, check
 def findBestPalette(palettes, colors):
     if len(palettes) == 1:
         return 0
-    mindist = 0xFFFFFFFF
+    mindist = 0xffffffff
     disti = 0
     for i in range(len(palettes)):
         distance = 0
         for color in colors:
-            singledist = 0xFFFFFFFF
+            singledist = 0xffffffff
             for palcolor in palettes[i]:
                 singledist = min(singledist, getColorDistance(color, palcolor))
             distance += singledist

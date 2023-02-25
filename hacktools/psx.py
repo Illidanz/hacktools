@@ -70,7 +70,7 @@ def repackEXE(binrange, freeranges=None, manualptrs=None, readfunc=common.detect
         chartot, transtot = common.getSectionPercentage(section)
     if type(binrange) == tuple:
         binrange = [binrange]
-    notfound = common.repackBinaryStrings(section, exein, exeout, binrange, freeranges, readfunc, writefunc, encoding, 0x8000F800)
+    notfound = common.repackBinaryStrings(section, exein, exeout, binrange, freeranges, readfunc, writefunc, encoding, 0x8000f800)
     # Handle not found pointers by manually replacing the opcodes
     if len(notfound) > 0 and manualptrs is not None:
         with open(ptrfile, "w") as f:
