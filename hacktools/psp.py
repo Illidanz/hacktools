@@ -50,31 +50,41 @@ def repackIso(isofile, isopatch, workfolder, patchfile=""):
         common.xdeltaPatch(patchfile, isofile, isopatch)
 
 
-def repackUMD(isofile, isopatch, workfolder, patchfile=""):
-    common.logMessage("Repacking ISO", isopatch, "...")
-    common.copyFile(isofile, isopatch)
-    umdreplace = common.bundledExecutable("UMD-replace.exe")
-    if not os.path.isfile(umdreplace):
-        common.logError("UMD-replace not found")
+def repackUMD(umdfile, umdpatch, workfolder, patchfile=""):
+    try:
+        import pyumdreplace
+    except ImportError:
+        common.logError("pyumdreplace not found")
         return
+    common.logMessage("Repacking UMD", umdpatch, "...")
+    common.copyFile(umdfile, umdpatch)
     files = common.getFiles(workfolder)
     for file in common.showProgress(files):
-        common.execute(umdreplace + " \"{imagename}\" \"/{filename}\" \"{newfile}\"".format(imagename=isopatch, filename=file, newfile=workfolder + file), False)
+        pyumdreplace.run(umdpatch, file, workfolder + file)
     common.logMessage("Done!")
     # Create xdelta patch
     if patchfile != "":
-        common.xdeltaPatch(patchfile, isofile, isopatch)
+        common.xdeltaPatch(patchfile, umdfile, umdpatch)
+
+
+def decryptBIN(ebinout, binout):
+    try:
+        import pyeboot.decrypt
+    except ImportError:
+        common.logError("pyeboot not found")
+        return
+    pyeboot.decrypt.run(ebinout, binout)
 
 
 def signBIN(binout, ebinout, tag):
     common.logMessage("Signing BIN ...")
-    sign_np = common.bundledExecutable("sign_np.exe")
-    if not os.path.isfile(sign_np):
-        common.logMessage("sign_np not found, copying BOOT to EBOOT...")
+    try:
+        import pyeboot.sign
+        pyeboot.sign.run(binout, ebinout, str(tag))
+    except ImportError:
+        common.logMessage("pyeboot not found, copying BOOT to EBOOT...")
         common.copyFile(binout, ebinout)
-    else:
-        common.execute(sign_np + " -elf {binout} {ebinout} {tag}".format(binout=binout, ebinout=ebinout, tag=str(tag)), False)
-        common.logMessage("Done!")
+    common.logMessage("Done!")
 
 
 class ELF():
