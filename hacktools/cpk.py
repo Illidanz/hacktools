@@ -1,6 +1,6 @@
 import os
 from enum import IntEnum
-from hacktools import common, compression
+from hacktools import common, cmp_cri
 
 
 class CPK:
@@ -214,7 +214,7 @@ def extract(file, outfolder, guessextension=None):
             if checkcomp == "CRILAYLA":
                 extractsize = entry.extractsize if entry.extractsize != 0 else entry.filesize
                 if extractsize != 0:
-                    data = compression.decompressCRILAYLA(f, entry.fileoffset)
+                    data = cmp_cri.decompressCRILAYLA(data)
             if guessextension is not None:
                 filename = guessextension(data, entry, filename)
             if not os.path.isdir(folder):
@@ -279,7 +279,7 @@ def repack(file, outfile, infolder, outfolder, cmp=False):
                             cdatalen = len(filedata)
                         elif cmp:
                             common.logDebug("Compressing", entry.extractsize, entry.filesize)
-                            filedata = compression.compressCRILAYLA(filedata)
+                            filedata = cmp_cri.compressCRILAYLA(filedata)
                             cdatalen = len(filedata)
                             common.logDebug("Compressed", uncdatalen, cdatalen)
                             with common.Stream(cachename, "wb") as cachef:

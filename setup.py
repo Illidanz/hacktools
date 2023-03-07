@@ -13,7 +13,7 @@ extras_graphics=["Pillow", "psd-tools>=1.8,<1.9"]
 
 setup(
     name="hacktools",
-    version="0.29.0",
+    version="0.30.0",
     author="Illidan",
     description="A set of utilities and tools for rom hacking and translations.",
     long_description=long_description,
@@ -22,6 +22,7 @@ setup(
     packages=["hacktools"],
     ext_modules=[
         Extension("hacktools.cmp_lzss", sources=["hacktools/c_ext/cmp_lzss.c"]),
+        Extension("hacktools.cmp_cri",  sources=["hacktools/c_ext/cmp_cri.c"]),
         Extension("hacktools.cmp_misc", sources=["hacktools/c_ext/cmp_misc.c"]),
     ],
     classifiers=[
