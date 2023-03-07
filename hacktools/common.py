@@ -1124,7 +1124,7 @@ def execute(cmd, show=True):
         else:
             result = str(subprocess.check_output(cmd))
     except FileNotFoundError:
-        logError("Command too long:", len(cmd))
+        logError("Command too long:", len(cmd), cmd)
         if result != "":
             logError(result)
         return
@@ -1339,10 +1339,12 @@ def drawPalette(pixels, palette, width, ystart=0, transp=True):
 
 
 def flipTile(tile, hflip, vflip, tilewidth=8, tileheight=8):
-    newtile = []
+    newtile = [0] * len(tile)
     xrange = range(0, tilewidth) if not hflip else range(tilewidth - 1, -1, -1)
     yrange = range(0, tileheight) if not vflip else range(tileheight - 1, -1, -1)
+    i = 0
     for y in yrange:
         for x in xrange:
-            newtile.append(tile[y * tileheight + x])
+            newtile[i] = tile[y * tileheight + x]
+            i += 1
     return newtile

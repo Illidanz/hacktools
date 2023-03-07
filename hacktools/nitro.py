@@ -799,11 +799,18 @@ def cellIntersect(a, b):
     return (a.x < b.x + b.width) and (a.x + a.width > b.x) and (a.y < b.y + b.height) and (a.y + a.height > b.y)
 
 
-def tileToPixels(pixels, width, ncgr, tile, i, j, palette, pali, usetransp=True):
+def tileToPixels(pixels, width, ncgr, tile, xflip, yflip, i, j, palette, pali, usetransp=True):
+    try:
+        tiledata = ncgr.tiles[tile]
+    except IndexError:
+        common.logWarning("Unable to get tile", tile)
+        return pixels
+    if xflip or yflip:
+        tiledata = common.flipTile(tiledata, xflip, yflip, ncgr.tilesize, ncgr.tilesize)
     for i2 in range(ncgr.tilesize):
         for j2 in range(ncgr.tilesize):
             try:
-                index = ncgr.tiles[tile][i2 * ncgr.tilesize + j2]
+                index = tiledata[i2 * ncgr.tilesize + j2]
                 if not usetransp or index > 0:
                     if ncgr.lineal:
                         lineal = (i * width * ncgr.tilesize) + (j * ncgr.tilesize * ncgr.tilesize) + (i2 * ncgr.tilesize + j2)
@@ -820,7 +827,7 @@ def tileToPixels(pixels, width, ncgr, tile, i, j, palette, pali, usetransp=True)
 
 def drawNCER(outfile, ncer, ncgr, palettes, usetransp=True, layered=False):
     try:
-        from PIL import Image, ImageOps
+        from PIL import Image
     except ImportError:
         common.logError("PIL not found")
         return
@@ -875,13 +882,8 @@ def drawNCER(outfile, ncer, ncgr, palettes, usetransp=True, layered=False):
             cellpixels = cellimg.load()
             for i in range(cell.height // ncgr.tilesize):
                 for j in range(cell.width // ncgr.tilesize):
-                    cellpixels = tileToPixels(cellpixels, cell.width, ncgr, x, i, j, palette, pali, usetransp)
+                    cellpixels = tileToPixels(cellpixels, cell.width, ncgr, x, cell.xflip, cell.yflip, i, j, palette, pali, usetransp)
                     x += 1
-            if cell.xflip or cell.yflip:
-                if cell.yflip:
-                    cellimg = ImageOps.flip(cellimg)
-                if cell.xflip:
-                    cellimg = ImageOps.mirror(cellimg)
             if layered:
                 banklayers[cell.layer].paste(cellimg, (cell.x, currheight + cell.y), cellimg)
             img.paste(cellimg, (cell.x, currheight + cell.y), cellimg)
@@ -908,7 +910,7 @@ def drawNCER(outfile, ncer, ncgr, palettes, usetransp=True, layered=False):
 
 def drawNCGR(outfile, nscr, ncgr, palettes, width, height, usetransp=True):
     try:
-        from PIL import Image, ImageOps
+        from PIL import Image
     except ImportError:
         common.logError("PIL not found")
         return
@@ -936,17 +938,9 @@ def drawNCGR(outfile, nscr, ncgr, palettes, width, height, usetransp=True):
                 else:
                     pali = map.pal * 16
                     palette = palettes[0]
-                pixels = tileToPixels(pixels, width, ncgr, map.tile, i, j, palette, pali, usetransp)
-                # Very inefficient way to flip pixels
-                if map.xflip or map.yflip:
-                    sub = img.crop(box=(j * ncgr.tilesize, i * ncgr.tilesize, j * ncgr.tilesize + ncgr.tilesize, i * ncgr.tilesize + ncgr.tilesize))
-                    if map.yflip:
-                        sub = ImageOps.flip(sub)
-                    if map.xflip:
-                        sub = ImageOps.mirror(sub)
-                    img.paste(sub, box=(j * ncgr.tilesize, i * ncgr.tilesize))
+                pixels = tileToPixels(pixels, width, ncgr, map.tile, map.xflip, map.yflip, i, j, palette, pali, usetransp)
             else:
-                pixels = tileToPixels(pixels, width, ncgr, x, i, j, palettes[0], 0, usetransp)
+                pixels = tileToPixels(pixels, width, ncgr, x, False, False, i, j, palettes[0], 0, usetransp)
             x += 1
     palstart = 0
     for palette in palettes.values():
@@ -1026,66 +1020,11 @@ def writeNSCR(file, ncgr, nscr, infile, palettes, width=-1, height=-1):
                 x += 1
 
 
-def writeMappedNSCR(file, mapfile, ncgr, nscr, infile, palettes, width=-1, height=-1, transptile=False, writelen=True):
-    try:
-        from PIL import Image
-    except ImportError:
-        common.logError("PIL not found")
-        return
-    if width < 0:
-        width = nscr.width
-        # height = nscr.height
-    img = Image.open(infile)
-    img = img.convert("RGBA")
-    pixels = img.load()
-    with common.Stream(file, "rb+") as f:
-        with common.Stream(mapfile, "rb+") as mapf:
-            mapf.seek(nscr.mapoffset)
-            tiles = []
-            if transptile:
-                # Start with a completely transparent tile
-                tile = []
-                for i2 in range(ncgr.tilesize):
-                    for j2 in range(ncgr.tilesize):
-                        tile.append(0)
-                tiles.append(tile)
-                f.seek(ncgr.tileoffset)
-                for i2 in range(ncgr.tilesize):
-                    for j2 in range(0, ncgr.tilesize, 2):
-                        writeNCGRData(f, ncgr.bpp, 0, 0)
-            for i in range(height // ncgr.tilesize):
-                for j in range(width // ncgr.tilesize):
-                    tilecolors = []
-                    for i2 in range(ncgr.tilesize):
-                        for j2 in range(ncgr.tilesize):
-                            tilecolors.append(pixels[j * ncgr.tilesize + j2, i * ncgr.tilesize + i2])
-                    pal = common.findBestPalette(palettes, tilecolors)
-                    tile = []
-                    for tilecolor in tilecolors:
-                        tile.append(common.getPaletteIndex(palettes[pal], tilecolor))
-                    # Search for a repeated tile
-                    found = -1
-                    for ti in range(len(tiles)):
-                        if tiles[ti] == tile:
-                            found = ti
-                            break
-                    map = Map()
-                    map.pal = pal
-                    if found != -1:
-                        map.tile = found
-                    else:
-                        tiles.append(tile)
-                        map.tile = len(tiles) - 1
-                        f.seek(ncgr.tileoffset + map.tile * (8 * ncgr.bpp))
-                        writeNCGRTile(f, pixels, width, ncgr, i, j, palettes[map.pal])
-                    mapdata = (map.pal << 12) + (map.xflip << 11) + (map.yflip << 10) + map.tile
-                    mapf.writeUShort(mapdata)
-            if writelen:
-                f.seek(40)
-                f.writeUInt(len(tiles) * (8 * ncgr.bpp))
+def writeMappedNSCR(file, mapfile, ncgr, nscr, infile, palettes, width=-1, height=-1, transptile=False, writelen=True, useoldpal=False):
+    writeMultiMappedNSCR(file, [mapfile], ncgr, [nscr], [infile], palettes, width, height, transptile, writelen, useoldpal)
 
 
-def writeMultiMappedNSCR(file, mapfiles, ncgr, nscrs, infiles, palettes, width=-1, height=-1, transptile=False, writelen=True):
+def writeMultiMappedNSCR(file, mapfiles, ncgr, nscrs, infiles, palettes, width=-1, height=-1, transptile=False, writelen=True, useoldpal=False):
     try:
         from PIL import Image
     except ImportError:
@@ -1114,6 +1053,7 @@ def writeMultiMappedNSCR(file, mapfiles, ncgr, nscrs, infiles, palettes, width=-
             img = Image.open(infiles[n])
             img = img.convert("RGBA")
             pixels = img.load()
+            x = 0
             with common.Stream(mapfiles[n], "rb+") as mapf:
                 mapf.seek(nscrs[n].mapoffset)
                 for i in range(imgheight // ncgr.tilesize):
@@ -1122,30 +1062,44 @@ def writeMultiMappedNSCR(file, mapfiles, ncgr, nscrs, infiles, palettes, width=-
                         for i2 in range(ncgr.tilesize):
                             for j2 in range(ncgr.tilesize):
                                 tilecolors.append(pixels[j * ncgr.tilesize + j2, i * ncgr.tilesize + i2])
-                        pal = common.findBestPalette(palettes, tilecolors)
+                        if useoldpal:
+                            pal = nscrs[n].maps[x].pal
+                        else:
+                            pal = common.findBestPalette(palettes, tilecolors)
                         tile = []
                         for tilecolor in tilecolors:
                             tile.append(common.getPaletteIndex(palettes[pal], tilecolor))
                         # Search for a repeated tile
-                        found = -1
-                        for ti in range(len(tiles)):
-                            if tiles[ti] == tile:
-                                found = ti
-                                break
                         map = Map()
                         map.pal = pal
-                        if found != -1:
-                            map.tile = found
-                        else:
+                        map.tile, map.xflip, map.yflip = searchTile(tile, tiles, ncgr.tilesize)
+                        if map.tile == -1:
                             tiles.append(tile)
                             map.tile = len(tiles) - 1
                             f.seek(ncgr.tileoffset + map.tile * (8 * ncgr.bpp))
                             writeNCGRTile(f, pixels, imgwidth, ncgr, i, j, palettes[map.pal])
-                        mapdata = (map.pal << 12) + (map.xflip << 11) + (map.yflip << 10) + map.tile
+                        mapdata = (map.pal << 12) | (map.yflip << 11) | (map.xflip << 10) | map.tile
                         mapf.writeUShort(mapdata)
+                        x += 1
         if writelen:
             f.seek(40)
             f.writeUInt(len(tiles) * (8 * ncgr.bpp))
+
+
+def searchTile(tile, tiles, tilesize=8):
+    tilex = common.flipTile(tile, True, False, tilesize, tilesize)
+    tiley = common.flipTile(tile, False, True, tilesize, tilesize)
+    tilexy = common.flipTile(tile, True, True, tilesize, tilesize)
+    for i in range(len(tiles)):
+        if tiles[i] == tile:
+            return i, False, False
+        if tiles[i] == tilex:
+            return i, True, False
+        if tiles[i] == tiley:
+            return i, False, True
+        if tiles[i] == tilexy:
+            return i, True, True
+    return -1, False, False
 
 
 def writeNCER(file, ncerfile, ncgr, ncer, infile, palettes, width=0, height=0, appendTiles=False, checkRepeat=True, writelen=True, fixtransp=False, checkalpha=False, zerotransp=True):
