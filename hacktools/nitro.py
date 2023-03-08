@@ -610,8 +610,8 @@ def readNSCR(nscrfile):
         common.logDebug(vars(nscr))
         for i in range(0, len(mapdata), 2):
             data = struct.unpack("<h", mapdata[i:i+2])[0]
-            mapdata = readMapData(data)
-            nscr.maps.append(mapdata)
+            submap = readMapData(data)
+            nscr.maps.append(submap)
     common.logDebug("Loaded", len(nscr.maps), "maps")
     return nscr
 
