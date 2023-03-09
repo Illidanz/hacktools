@@ -3,7 +3,7 @@ from setuptools import setup, Extension
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
-extras_nds=["ndspy", "crcmod"]
+extras_nds=["ndspy"]
 extras_armips=["pyarmips"]
 extras_xdelta=["pyxdelta"]
 extras_iso=["pymkpsxiso"]
@@ -13,7 +13,7 @@ extras_graphics=["Pillow", "psd-tools>=1.8,<1.9"]
 
 setup(
     name="hacktools",
-    version="0.30.2",
+    version="0.30.3",
     author="Illidan",
     description="A set of utilities and tools for rom hacking and translations.",
     long_description=long_description,

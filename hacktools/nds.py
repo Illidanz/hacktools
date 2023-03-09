@@ -2,7 +2,6 @@ import codecs
 from enum import IntFlag
 import os
 import struct
-import crcmod
 from hacktools import common, compression, cmp_lzss, cmp_misc
 
 
@@ -98,7 +97,7 @@ def editBannerTitle(file, title):
                 f.writeByte(0x00)
             # Compute CRC
             f.seek(32)
-            crc = crcmod.predefined.mkCrcFun("modbus")(f.read(2080))
+            crc = common.crc16(f.read(2080))
             f.seek(2)
             f.writeUShort(crc)
 
@@ -255,7 +254,7 @@ def expandBIN(binin, binout, headerin, headerout, newlength, injectpos):
         f.writeUInt(arm9len - 0xc)
         # Update the checksum
         f.seek(0)
-        crc = crcmod.predefined.mkCrcFun("modbus")(f.read(0x15e))
+        crc = common.crc16(f.read(0x15e))
         f.writeUShort(crc)
     return sections[len(sections) - 1].offset
 
