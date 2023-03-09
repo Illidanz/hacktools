@@ -19,6 +19,7 @@ jobs:
         env:
           CIBW_TEST_REQUIRES: pytest
           CIBW_TEST_COMMAND: "pytest {project}"
+          CIBW_ARCHS_MACOS: x86_64 arm64
       - uses: actions/upload-artifact@v3
         with:
           path: ./wheelhouse/*.whl
@@ -39,6 +40,7 @@ jobs:
   upload_pypi:
     needs: [build_wheels, make_sdist]
     runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'release' }}
     steps:
     - uses: actions/download-artifact@v3
       with:
