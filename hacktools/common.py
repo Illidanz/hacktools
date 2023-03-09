@@ -1154,9 +1154,12 @@ def crcFile(f):
 def crc16(data):
     crc = 0xffff
     for i in range(len(data)):
-        crc = crc ^ data[i]
+        crc ^= data[i]
         for j in range(8):
-            crc = (crc >> 1) ^ (0xa001 if (crc & 1) else 0)
+            carry = crc & 1
+            crc >>= 1
+            if carry:
+                crc ^= 0xa001
     return crc & 0xffff
 
 
