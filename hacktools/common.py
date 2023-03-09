@@ -1157,7 +1157,7 @@ def crc16(data):
         crc = crc ^ data[i]
         for j in range(8):
             crc = (crc >> 1) ^ (0xa001 if (crc & 1) else 0)
-    return crc
+    return crc & 0xffff
 
 
 def xdeltaPatch(patchfile, infile, outfile):
