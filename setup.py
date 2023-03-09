@@ -9,7 +9,7 @@ extras_xdelta=["pyxdelta"]
 extras_iso=["pymkpsxiso"]
 extras_psp=["pycdlib", "pyumdreplace", "pyeboot"]
 extras_ips=["ips_util"]
-extras_graphics=["Pillow", "psd-tools>=1.8,<1.9"]
+extras_graphics=["Pillow"]
 
 setup(
     name="hacktools",

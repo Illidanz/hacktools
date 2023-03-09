@@ -1,6 +1,7 @@
 import math
 import os
 import shutil
+import subprocess
 import struct
 from hacktools import common
 
@@ -1110,13 +1111,24 @@ def writeNCER(file, ncerfile, ncgr, ncer, infile, palettes, width=0, height=0, a
         return
     psd = infile.endswith(".psd")
     if psd:
-        try:
-            from psd_tools import PSDImage
-        except ImportError:
-            common.logError("psd_tools not found")
+        if not shutil.which("magick"):
+            common.logError("ImageMagick not found")
             return
-        psd = PSDImage.open(infile)
         basename = os.path.basename(infile).replace(".psd", "")
+        # Get the layer names by using identify
+        psdinfo = subprocess.check_output("magick identify -verbose " + infile, shell=True)
+        layernames = []
+        while psdinfo:
+            parts = psdinfo.partition(b"label: ")
+            lastpart = parts[2]
+            if lastpart:
+                index = lastpart.find(b"\n")
+                if index != -1:
+                    layernames.append(lastpart[:index].decode("ascii").strip())
+            psdinfo = lastpart
+        # Export them as PNG
+        for i in range(len(layernames)):
+            common.execute("magick convert " + infile + "[0] " + infile + "[" + str(i + 1) + "] ( -clone 0 -alpha transparent ) -swap 0 +delete -coalesce -compose src-over -composite layer_" + layernames[i] + ".png", False)
     else:
         img = Image.open(infile)
         img = img.convert("RGBA")
@@ -1135,19 +1147,15 @@ def writeNCER(file, ncerfile, ncgr, ncer, infile, palettes, width=0, height=0, a
                     # Extract layers from the psd file, searching them by name
                     layers = []
                     for i in range(bank.layernum):
-                        layername = basename + "_" + str(nceri) + "_" + str(i)
-                        psdlayer = None
-                        for layer in psd:
-                            if layer.name == layername:
-                                psdlayer = layer
-                                break
-                        if psdlayer is None:
+                        layername = "layer_" + basename + "_" + str(nceri) + "_" + str(i) + ".png"
+                        if not os.path.isfile(layername):
                             common.logError("Layer", layername, "not found")
+                            for layername in layernames:
+                                os.remove("layer_" + layername + ".png")
                             return
-                        # Copy the layer in a normal PIL image for cell access, since the layer is cropped
-                        layerimg = Image.new("RGBA", (psd.width, psd.height), (0, 0, 0, 0))
-                        psdimg = psdlayer.topil()
-                        layerimg.paste(psdimg, (psdlayer.left, psdlayer.top), psdimg)
+                        # Copy the layer in a normal PIL image for cell access
+                        layerimg = Image.open(layername)
+                        layerimg = layerimg.convert("RGBA")
                         layers.append(layerimg)
                 for cell in bank.cells:
                     # Skip flipped cells since there's always(?) going to be an unflipped one next
@@ -1232,6 +1240,9 @@ def writeNCER(file, ncerfile, ncgr, ncer, infile, palettes, width=0, height=0, a
             f.writeUInt(tottiles)
             f.seek(4, 1)
             f.writeUInt(tottiles * (8 * ncgr.bpp))
+    if psd:
+        for layername in layernames:
+            os.remove("layer_" + layername + ".png")
 
 
 # 3D Models

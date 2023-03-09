@@ -2,15 +2,15 @@
 A set of utilities and tools for rom hacking and translations.
 
 ## Installing dependencies
-Most dependencies are optional, and can be installed with `pip install hacktools[name1,name2]` or `pip install hacktools[all]` to install all of them.
+Most dependencies are optional, and can be installed with `pip install 'hacktools[name1,name2]'` or `pip install 'hacktools[all]'` to install all of them.
 ### Dependencies list
  - `nds`: needed for NDS roms and compressed binaries.
+ - `psp`: needed for PSP ISO/BIN signing.
+ - `iso`: needed for PSX/PS2 ISO.
+ - `graphics`: needed for most functions that deal with graphics.
  - `armips`: needed for `common.armipsPatch`.
  - `xdelta`: needed for `common.xdeltaPatch`.
  - `ips`: needed for `common.ipsPatch`.
- - `iso`: needed for PSX/PS2 ISO.
- - `psp`: needed for PSP ISO/BIN signing.
- - `graphics`: needed for most functions that deal with graphics.
 
 ## Supported platforms and formats
 External dependencies not included are marked as `(through *dependency*)`
@@ -26,23 +26,23 @@ External dependencies not included are marked as `(through *dependency*)`
 - GIM/GMO images
 - PGF fonts
 - PMF header for MPS movies
-- BIN signing (through sign_np)
+- BIN signing
 ### PSX
 - BIN/ISO
 - TIM images
 ### WonderSwan / WonderSwan Color
 - ROM banks
-- Assembly (through NASM)
+- Assembly (through [NASM](https://www.nasm.us))
 - Raw and tiled images
 - Sprites
 ### GameBoy
 - ROM banks
-- Assembly (through wla-gb and wlalink)
+- Assembly (through [wla-gb and wlalink](https://github.com/vhelin/wla-dx))
 ### Wii
-- ISO (through wit)
+- ISO (through [wit](https://wit.wiimm.de))
 - TPL images
-- ARC archives (through wszst)
-- BRFNT fonts (through brfnt2tpl and wimgt)
+- ARC archives (through [wszst](https://szs.wiimm.de))
+- BRFNT fonts (through [brfnt2tpl](https://wiki.tockdom.com/wiki/Brfnt2tpl) and [wimgt](https://szs.wiimm.de))
 ### Other / Generic
 - CPK archives
 - ARCH archives
