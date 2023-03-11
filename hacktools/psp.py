@@ -64,7 +64,6 @@ class UMDFile():
 
 
 def repackUMD(umdfile, umdpatch, workfolder, patchfile="", sectorpadding=1):
-    #workfolder = workfolder.replace("repack/", "extract/")
     common.logMessage("Repacking UMD", umdpatch, "...")
     allfiles = common.getFiles(workfolder)
     isofiles = []
