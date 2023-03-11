@@ -50,43 +50,121 @@ def repackIso(isofile, isopatch, workfolder, patchfile=""):
         common.xdeltaPatch(patchfile, isofile, isopatch)
 
 
-def repackUMD(umdfile, umdpatch, workfolder, patchfile=""):
-    try:
-        import pyumdreplace
-    except ImportError:
-        common.logError("pyumdreplace not found")
-        return
+# UMD functions
+class UMDFile():
+    def __init__(self):
+        self.realname = ""
+        self.filename = ""
+        self.pos = 0
+        self.lba = 0
+        self.offset = 0
+        self.offset = 0
+        self.oldsize = 0
+        self.filelba = 0
+
+
+def repackUMD(umdfile, umdpatch, workfolder, patchfile="", sectorpadding=1):
+    #workfolder = workfolder.replace("repack/", "extract/")
     common.logMessage("Repacking UMD", umdpatch, "...")
-    common.copyFile(umdfile, umdpatch)
-    files = common.getFiles(workfolder)
-    for file in common.showProgress(files):
-        pyumdreplace.run(umdpatch, file, workfolder + file)
+    allfiles = common.getFiles(workfolder)
+    isofiles = []
+    with common.Stream(umdfile, "rb") as fin:
+        rootlba = fin.readUIntAt(0x809e)
+        rootlength = fin.readUIntAt(0x80a6)
+        common.logDebug("rootlba", common.toHex(rootlba), "rootlength", common.toHex(rootlength))
+        for file in allfiles:
+            filename = file.replace(workfolder, "").replace("\\", "/")
+            if not filename.startswith("/"):
+                filename = "/" + filename
+            isofile = UMDFile()
+            isofile.realname = file
+            isofile.filename = filename
+            isofile.pos = searchUMD(fin, filename, "", rootlba, rootlength)
+            if isofile.pos == 0:
+                common.logError("File", filename, "not found")
+                return
+            isofile.lba = isofile.pos // 0x800
+            isofile.offset = isofile.pos % 0x800
+            isofile.oldsize = fin.readUIntAt(isofile.pos + 0xa)
+            isofile.filelba = fin.readUIntAt(isofile.pos + 0x2)
+            isofiles.append(isofile)
+        # Sort files by file lba
+        isofiles.sort(key=lambda x: x.filelba)
+        with common.Stream(umdpatch, "wb") as f:
+            # Copy everything up to the first file LBA
+            fin.seek(0)
+            f.write(fin.read(isofiles[0].filelba * 0x800))
+            # Write all the files
+            for isofile in common.showProgress(isofiles):
+                common.logDebug(common.varsHex(isofile))
+                # Try to keep the lba the same as before if we can
+                if f.tell() // 0x800 < isofile.filelba:
+                    f.seek(isofile.filelba * 0x800)
+                offset = f.tell()
+                with common.Stream(workfolder + isofile.realname, "rb") as subf:
+                    f.write(subf.read())
+                size = f.tell() - offset
+                # Pad to sector
+                f.seek((f.tell() // (sectorpadding * 0x800) + 1) * (sectorpadding * 0x800))
+                # Update volume descriptor
+                f.writeUIntAt(isofile.pos + 0x2, offset // 0x800)
+                f.writeUIntAt(isofile.pos + 0xa, size)
+                f.swapEndian()
+                f.writeUIntAt(isofile.pos + 0xe, size)
+                f.swapEndian()
+            # If the file is smaller, match the original
+            fin.seek(0, 2)
+            if f.tell() < fin.tell():
+                f.seek(fin.tell() - 1)
+                f.writeByte(0)
+            # Update primary volume descriptor
+            f.writeUIntAt(0x8050, f.tell() // 0x800)
+            f.swapEndian()
+            f.writeUIntAt(0x8054, f.tell() // 0x800)
+            f.swapEndian()
     common.logMessage("Done!")
     # Create xdelta patch
     if patchfile != "":
         common.xdeltaPatch(patchfile, umdfile, umdpatch)
 
 
-def decryptBIN(ebinout, binout):
-    try:
-        import pyeboot.decrypt
-    except ImportError:
-        common.logError("pyeboot not found")
-        return
-    pyeboot.decrypt.run(ebinout, binout)
+def searchUMD(f, filename, path, lba, length):
+    common.logDebug("searchUMD path", path, "filename", filename, "lba", common.toHex(lba), "length", common.toHex(length))
+    totalsectors = (length + 0x800 - 1) // 0x800
+    for i in range(totalsectors):
+        pos = 0
+        nbytes = 0
+        while pos + nbytes < 0x800:
+            pos += nbytes
+            # Field size
+            nbytes = f.readByteAt(0x800 * (lba + i) + pos)
+            if nbytes == 0:
+                break
+            # Name size
+            f.seek(0x800 * (lba + i) + pos + 0x20)
+            nchars = f.readByte()
+            if nchars < 2:
+                continue
+            name = f.readString(nchars)
+            if name.endswith(";1"):
+                name = name[:-2]
+            if name == "." or name == "..":
+                continue
+            newpath = path + "/" + name
+            # Check if it's a directory, and search recursively in that case
+            dirmarker = f.readByteAt(0x800 * (lba + i) + pos + 0x19)
+            if dirmarker == 0x2:
+                newlba = f.readUIntAt(0x800 * (lba + i) + pos + 0x2)
+                newlen = f.readUIntAt(0x800 * (lba + i) + pos + 0xa)
+                found = searchUMD(f, filename, newpath, newlba, newlen)
+                if found != 0:
+                    return found
+            elif newpath.lower() == filename.lower():
+                return 0x800 * (lba + i) + pos
+    return 0
 
 
-def signBIN(binout, ebinout, tag):
-    common.logMessage("Signing BIN ...")
-    try:
-        import pyeboot.sign
-        pyeboot.sign.run(binout, ebinout, str(tag))
-    except ImportError:
-        common.logMessage("pyeboot not found, copying BOOT to EBOOT...")
-        common.copyFile(binout, ebinout)
-    common.logMessage("Done!")
-
-
+# ELF functions
 class ELF():
     def __init__(self):
         self.sections = []
@@ -183,6 +261,25 @@ def repackBinaryStrings(elf, section, infile, outfile, readfunc, writefunc, enco
                         else:
                             pos = fi.tell() - 1
                     fi.seek(pos + 1)
+
+
+def decryptBIN(ebinout, binout):
+    try:
+        import pyeboot.decrypt
+    except ImportError:
+        common.logError("pyeboot not found")
+        return
+    pyeboot.decrypt(ebinout, binout)
+
+
+def signBIN(binout, ebinout, tag):
+    common.logMessage("Signing BIN ...")
+    try:
+        import pyeboot.sign
+        pyeboot.sign(binout, ebinout, str(tag))
+    except ImportError:
+        common.logMessage("pyeboot not found, copying BOOT to EBOOT...")
+        common.copyFile(binout, ebinout)
 
 
 # https://www.psdevwiki.com/ps3/Graphic_Image_Map_(GIM)
