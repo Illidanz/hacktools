@@ -7,13 +7,14 @@ extras_nds=["ndspy"]
 extras_armips=["pyarmips"]
 extras_xdelta=["pyxdelta"]
 extras_iso=["pymkpsxiso"]
-extras_psp=["pycdlib", "pyumdreplace", "pyeboot"]
+extras_psp=["pycdlib", "pyeboot"]
 extras_ips=["ips_util"]
 extras_graphics=["Pillow"]
+extras_cli=["click", "tqdm"]
 
 setup(
     name="hacktools",
-    version="0.30.3",
+    version="0.31.0",
     author="Illidan",
     description="A set of utilities and tools for rom hacking and translations.",
     long_description=long_description,
@@ -42,11 +43,12 @@ setup(
         "nds": extras_nds,
         "armips": extras_armips,
         "xdelta": extras_xdelta,
-        "graphics": extras_graphics,
         "iso": extras_iso,
         "psp": extras_psp,
         "ips": extras_ips,
-        "all": extras_nds + extras_armips + extras_xdelta + extras_iso + extras_psp + extras_ips + extras_graphics,
+        "graphics": extras_graphics,
+        "cli": extras_cli,
+        "all": extras_nds + extras_armips + extras_xdelta + extras_iso + extras_psp + extras_ips + extras_graphics + extras_cli,
     },
     python_requires=">=3.7",
 )

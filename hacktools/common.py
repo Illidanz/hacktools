@@ -12,8 +12,18 @@ import sys
 import struct
 import subprocess
 import zlib
-import click
-from tqdm import tqdm
+
+try:
+    import click
+    hasClick = True
+except ImportError:
+    hasClick = False
+
+try:
+    from tqdm import tqdm
+    hasTqdm = True
+except ImportError:
+    hasTqdm = False
 
 table = {}
 
@@ -75,6 +85,9 @@ class Stream(object):
 
     def setEndian(self, little):
         self.endian = "<" if little else ">"
+
+    def swapEndian(self):
+        self.endian = "<" if self.endian == ">" else ">"
 
     def readLong(self):
         return struct.unpack(self.endian + "q", self.read(8))[0]
@@ -370,13 +383,14 @@ class Stream(object):
 
 
 # Logging
-@click.group(no_args_is_help=True)
-@click.option("--log", is_flag=True, default=False)
-def cli(log):
-    if log:
-        enableLogging()
-    else:
-        disableLogging()
+if hasClick:
+    @click.group(no_args_is_help=True)
+    @click.option("--log", is_flag=True, default=False)
+    def cli(log):
+        if log:
+            enableLogging()
+        else:
+            disableLogging()
 
 
 def enableLogging():
@@ -391,7 +405,8 @@ def disableLogging():
 def logMessage(*messages):
     message = " ".join(str(x) for x in messages)
     logging.info(message)
-    tqdm.write(message)
+    if hasTqdm:
+        tqdm.write(message)
 
 
 def logDebug(*messages):
@@ -407,7 +422,8 @@ def logWarning(*messages):
 def logError(*messages):
     message = " ".join(str(x) for x in messages)
     logging.error(message)
-    tqdm.write("[ERROR] " + message)
+    if hasTqdm:
+        tqdm.write("[ERROR] " + message)
 
 
 def varsHex(o):
@@ -424,7 +440,9 @@ def varsHex(o):
 
 
 def showProgress(iterable):
-    return tqdm(iterable=iterable)
+    if hasTqdm:
+        return tqdm(iterable=iterable)
+    return iterable
 
 
 # Strings
