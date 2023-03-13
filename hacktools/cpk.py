@@ -223,7 +223,7 @@ def extract(file, outfolder, guessextension=None):
                 fout.write(data)
 
 
-def repack(file, outfile, infolder, outfolder, cmp=False):
+def repack(file, outfile, infolder, outfolder, nocmp=False):
     common.logDebug("Processing", file, "...")
     cpk = readCPK(file)
     if cpk is None:
@@ -277,15 +277,15 @@ def repack(file, outfile, infolder, outfolder, cmp=False):
                             with common.Stream(cachename, "rb") as cachef:
                                 filedata = cachef.read()
                             cdatalen = len(filedata)
-                        elif cmp:
+                        elif nocmp:
+                            uncdatalen = cdatalen = len(filedata)
+                        else:
                             common.logDebug("Compressing", entry.extractsize, entry.filesize)
                             filedata = cmp_cri.compressCRILAYLA(filedata)
                             cdatalen = len(filedata)
                             common.logDebug("Compressed", uncdatalen, cdatalen)
                             with common.Stream(cachename, "wb") as cachef:
                                 cachef.write(filedata)
-                        else:
-                            uncdatalen = cdatalen = len(filedata)
                 # Write the file data and align
                 fileoffset = fout.tell() - entry.offset
                 fout.write(filedata)
@@ -337,7 +337,7 @@ def repack(file, outfile, infolder, outfolder, cmp=False):
 def readCPK(file):
     with common.Stream(file, "rb") as f:
         magic = f.readString(4)
-        if magic != 'CPK ':
+        if magic != "CPK ":
             common.logError("Wrong magic:", magic)
             return None
         cpk = CPK()
