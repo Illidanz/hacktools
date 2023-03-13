@@ -377,7 +377,7 @@ def readGIM(file, start=0):
     gim = GIM()
     with common.Stream(file, "rb") as f:
         f.seek(start)
-        if f.readString(3) == 'MIG':
+        if f.readString(3) == "MIG":
             f.seek(start + 16)
             gim.rootoff = f.tell()
             id = f.readUShort()

@@ -8,7 +8,7 @@ Most dependencies are optional, and can be installed with `pip install 'hacktool
  - `psp`: needed for PSP ISO/BIN signing.
  - `iso`: needed for PSX/PS2 ISO.
  - `graphics`: needed for most functions that deal with graphics.
- - `cli`: needed by tools that use CLI commands.
+ - `cli`: needed by tools that use CLI/GUI.
  - `armips`: needed for `common.armipsPatch`.
  - `xdelta`: needed for `common.xdeltaPatch`.
  - `ips`: needed for `common.ipsPatch`.

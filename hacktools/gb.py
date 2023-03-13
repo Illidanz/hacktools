@@ -13,7 +13,7 @@ def extractRom(romfile, extractfolder, workfolder="", banksize=0x4000):
             bankname = "bank_"
             if i < 0x10:
                 bankname += "0"
-            bankname += format(i, 'x')
+            bankname += format(i, "x")
             with common.Stream(extractfolder + bankname + ".bin", "wb") as fout:
                 fout.write(f.read(banksize))
     if workfolder != "":
@@ -31,7 +31,7 @@ def repackRom(romfile, rompatch, workfolder, patchfile="", banksize=0x4000):
             bankname = "bank_"
             if i < 0x10:
                 bankname += "0"
-            bankname += format(i, 'x')
+            bankname += format(i, "x")
             with common.Stream(workfolder + bankname + ".bin", "rb") as f:
                 fout.write(f.read())
     # Calculate and write the global checksum
@@ -84,7 +84,7 @@ def asmPatch(file, workfolder, banks=[0x0], banksize=0x4000):
             bankname = "bank_"
             if i < 0x10:
                 bankname += "0"
-            bankname += format(i, 'x')
+            bankname += format(i, "x")
             f.seek(i * banksize)
             with common.Stream(workfolder + bankname + ".bin", "wb") as fout:
                 fout.write(f.read(banksize))

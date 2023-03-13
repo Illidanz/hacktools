@@ -14,7 +14,7 @@ def extractRom(romfile, extractfolder, workfolder=""):
             bankname = "bank_"
             if i < 0x10:
                 bankname += "0"
-            bankname += format(i, 'x')
+            bankname += format(i, "x")
             with common.Stream(extractfolder + bankname + ".bin", "wb") as fout:
                 fout.write(f.read(0x10000))
     if workfolder != "":
@@ -32,7 +32,7 @@ def repackRom(romfile, rompatch, workfolder, patchfile=""):
             bankname = "bank_"
             if i < 0x10:
                 bankname += "0"
-            bankname += format(i, 'x')
+            bankname += format(i, "x")
             with common.Stream(workfolder + bankname + ".bin", "rb") as f:
                 fout.write(f.read())
     # Calculate and write the checksum
