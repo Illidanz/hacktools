@@ -1,0 +1,196 @@
+import asyncio
+import logging
+import re
+import threading
+import shlex
+import sys
+import tkinter
+import customtkinter
+from tqdm import tqdm
+
+
+class tqdm_gui(tqdm):
+    def __init__(self, *args, **kwargs):
+        super(tqdm_gui, self).__init__(*args, **kwargs)
+        logging.info("prg-start-" + str(self.total))
+
+    def display(self, *args, **kwargs):
+        d = self.format_dict
+        d["bar_format"] = (d["bar_format"] or "{l_bar}<bar/>{r_bar}").replace("{bar}", "<bar/>")
+        msg = self.format_meter(**d)
+        if "<bar/>" in msg:
+            msg = "".join(re.split(r'\|?<bar/>\|?', msg, 1))
+        logging.info("prg-update-" + str(self.n) + "-" + msg)
+        if sys.stdout is not None:
+            super(tqdm_gui, self).display(*args, **kwargs)
+    
+    def close(self):
+        if self.disable:
+            return
+        logging.info("prg-end")
+        if sys.stdout is not None:
+            super(tqdm_gui, self).close()
+        else:
+            self.disable = True
+            with self.get_lock():
+                self._instances.remove(self)
+
+    def clear(self, *args, **kwargs):
+        if sys.stdout is not None:
+            super(tqdm_gui, self).clear(*args, **kwargs)
+
+    def cancel(self):
+        if self._cancel_callback is not None:
+            self._cancel_callback()
+        self.close()
+
+    def reset(self, total=None):
+        logging.info("prg-start-" + str(total))
+        super(tqdm_gui, self).reset(total=total)
+
+
+class LogHandler(logging.Handler):
+    def __init__(self, guiapp):
+        logging.Handler.__init__(self)
+        self.guiapp = guiapp
+        self.prgtotal = 1
+
+    def emit(self, record):
+        # Intercept prg- logs
+        msg = self.format(record)
+        if msg.startswith("prg-update"):
+            split = msg.split("-", 3)
+            self.guiapp.progresslabel.configure(text=split[3])
+            self.guiapp.progressbar.set(int(split[2]) / self.prgtotal)
+            return
+        elif msg.startswith("prg-start"):
+            self.prgtotal = int(msg.split("-")[2])
+            self.guiapp.progresslabel.configure(text="")
+            self.guiapp.progressbar.set(0)
+            return
+        elif msg.startswith("prg-end"):
+            self.guiapp.progresslabel.configure(text="")
+            self.guiapp.progressbar.set(0)
+            return
+        self.guiapp.addMessages([msg])
+
+
+class GUIApp(customtkinter.CTk):
+    def __new__(cls):
+        if not hasattr(cls, "instance"):
+            cls.instance = super(GUIApp, cls).__new__(cls)
+        return cls.instance
+
+    def initialize(self, cligroup, appname, appversion):
+        self.cligroup = cligroup
+        self.thread = None
+        self.advanced = False
+        self.commandlist = []
+        self.checkboxes = []
+        for command in cligroup.commands.keys():
+            if not cligroup.commands[command].hidden:
+                self.commandlist.append(command)
+
+        self.title(appname + " v" + appversion)
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(2, weight=1)
+
+        self.toplabel = customtkinter.CTkLabel(self, text="Select a command and press Run to execute.")
+        self.toplabel.grid(row=0, column=0, padx=(10,0), pady=10, sticky="nsw")
+
+        self.topframe = customtkinter.CTkFrame(self, height=80, corner_radius=0)
+        self.topframe.grid(row=1, column=0, sticky="new")
+        self.topframe.grid_columnconfigure(1, weight=1)
+        self.commandmenu = customtkinter.CTkOptionMenu(self.topframe, values=self.commandlist, command=self.changeCommand)
+        self.commandmenu.grid(row=1, column=0, padx=10, pady=10)
+        self.checkframe = customtkinter.CTkFrame(self.topframe, height=60)
+        self.checkframe.grid(row=1, column=1, pady=10, sticky="nsew")
+        self.runbutton = customtkinter.CTkButton(self.topframe, border_width=2, width=70, text="Run", command=self.runCommand)
+        self.runbutton.grid(row=1, column=2, padx=10, pady=10)
+        self.changeCommand(self.commandlist[0])
+
+        self.textbox = customtkinter.CTkTextbox(self, width=250)
+        self.textbox.grid(row=2, column=0, padx=10, pady=(10, 0), sticky="nsew")
+        self.textbox.configure(state=tkinter.DISABLED)
+
+        self.progresslabel = customtkinter.CTkLabel(self, text="")
+        self.progresslabel.grid(row=3, column=0, padx=10, sticky="nsew")
+        self.progressbar = customtkinter.CTkProgressBar(self)
+        self.progressbar.grid(row=4, column=0, padx=10, pady=(0, 10), sticky="nsew")
+        self.progressbar.set(0)
+
+        if self.advanced:
+            self.createEntry()
+
+        self.loghandler = LogHandler(self)
+        logging.getLogger().addHandler(self.loghandler)
+
+    def createEntry(self):
+        self.entry = customtkinter.CTkEntry(self, placeholder_text="Run a command manually...")
+        self.entry.grid(row=5, column=0, padx=10, pady=10, sticky="ew")
+        self.entry.bind("<Return>", self.entryPressed)
+
+    def entryPressed(self, entry):
+        cmd = self.entry.get()
+        self.setInputEnabled(False)
+        self.clearTextbox()
+        args = shlex.split(cmd)
+        self.clicmd = self.cligroup.commands[args[0]]
+        self.context = self.clicmd.make_context("tkinter", args[1:])
+        self.runThread()
+
+    def changeCommand(self, currentval):
+        self.currentcmd = currentval
+        for checkbox in self.checkboxes:
+            checkbox.destroy()
+        self.checkboxes = []
+        i = 0
+        for param in self.cligroup.commands[self.currentcmd].params:
+            if param.is_flag and not param.hidden:
+                checkbox = customtkinter.CTkCheckBox(self.checkframe, text=param.opts[0].replace("--", ""), width=70)
+                checkbox.toggle()
+                checkbox.grid(row=0, column=i)
+                i += 1
+                self.checkboxes.append(checkbox)
+
+    def runCommand(self):
+        self.setInputEnabled(False)
+        self.clearTextbox()
+        args = []
+        self.clicmd = self.cligroup.commands[self.currentcmd]
+        for checkbox in self.checkboxes:
+            if checkbox.get():
+                args.append("--" + checkbox._text)
+        self.context = self.clicmd.make_context("tkinter", args)
+        self.runThread()
+    
+    def runThread(self):
+        self.thread = threading.Thread(target=lambda loop: loop.run_until_complete(self.runClickCommand()), args=(asyncio.new_event_loop(),))
+        self.thread.start()
+
+    def clearTextbox(self):
+        self.textbox.configure(state=tkinter.NORMAL)
+        self.textbox.delete("0.0", tkinter.END)
+        self.textbox.configure(state=tkinter.DISABLED)
+
+    def addMessages(self, messages):
+        self.textbox.configure(state=tkinter.NORMAL)
+        self.textbox.insert(tkinter.END, "\n".join(messages) + "\n")
+        self.textbox.configure(state=tkinter.DISABLED)
+        self.textbox.yview_moveto("1.0")
+
+    def setInputEnabled(self, enabled):
+        state = tkinter.NORMAL if enabled else tkinter.DISABLED
+        self.commandmenu.configure(state=state)
+        self.runbutton.configure(state=state)
+        if self.advanced:
+            self.entry.configure(state=state)
+        for checkbox in self.checkboxes:
+            checkbox.configure(state=state)
+    
+    async def runClickCommand(self):
+        try:
+            self.clicmd.invoke(self.context)
+        except Exception as e:
+            logging.error("", exc_info=True)
+        self.setInputEnabled(True)

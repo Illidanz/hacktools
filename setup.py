@@ -10,11 +10,11 @@ extras_iso=["pymkpsxiso"]
 extras_psp=["pycdlib", "pyeboot"]
 extras_ips=["ips_util"]
 extras_graphics=["Pillow"]
-extras_cli=["click", "tqdm"]
+extras_cli=["click", "tqdm", "customtkinter"]
 
 setup(
     name="hacktools",
-    version="0.31.0",
+    version="0.32.0",
     author="Illidan",
     description="A set of utilities and tools for rom hacking and translations.",
     long_description=long_description,

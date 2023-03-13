@@ -11,19 +11,24 @@ import shutil
 import sys
 import struct
 import subprocess
+import typing
 import zlib
+
+hasClick = False
+hasTqdm = False
+hasGUI = False
 
 try:
     import click
     hasClick = True
 except ImportError:
-    hasClick = False
+    pass
 
 try:
     from tqdm import tqdm
     hasTqdm = True
 except ImportError:
-    hasTqdm = False
+    pass
 
 table = {}
 
@@ -382,30 +387,75 @@ class Stream(object):
         self.f.truncate()
 
 
-# Logging
+# CLI/GUI
 if hasClick:
-    @click.group(no_args_is_help=True)
+    @click.group(invoke_without_command=True)
     @click.option("--log", is_flag=True, default=False)
-    def cli(log):
-        if log:
-            enableLogging()
+    @click.option("--gui", is_flag=True, default=False)
+    @click.pass_context
+    def cli(ctx, log, gui):
+        setupFileLogging(log)
+        if ctx.invoked_subcommand is None:
+            multi = typing.cast(click.MultiCommand, ctx.command)
+            ctx.invoke(multi.get_command(ctx, "main"), gui=gui)
+
+
+    def runTool(gui, cligroup, appname="", appversion="", datafolder="", filecheck="", crc=-1):
+        if datafolder != "" and not os.path.isdir(datafolder):
+            makeFolder(datafolder)
+        if not gui:
+            runCLI(cligroup, appname, appversion, datafolder, filecheck)
         else:
-            disableLogging()
+            runGUI(cligroup, appname, appversion, datafolder, filecheck)
 
 
-def enableLogging():
+    def runCLI(cligroup, appname="", appversion="", datafolder="", filecheck=""):
+        if appname != "":
+            click.echo(appname + " version " + appversion)
+        if filecheck != "" and not os.path.isfile(filecheck):
+            logError(filecheck, "file not found.")
+            quit()
+        if len(sys.argv) > 1:
+            cligroup()
+            return
+        with click.Context(cligroup) as ctx:
+            click.echo(cligroup.get_help(ctx))
+            click.echo("")
+        while True:
+            cmd = click.prompt("Type a command").strip()
+            cmdlow = cmd.lower()
+            if cmdlow == "exit" or cmdlow == "quit" or cmdlow == "q":
+                break
+            sys.argv = shlex.split(sys.argv[0] + " " + cmd)
+            cligroup(standalone_mode=False)
+
+
+    def runGUI(cligroup, appname, appversion, datafolder="", filecheck=""):
+        global hasGUI
+        hasGUI = True
+        from .gui import GUIApp
+        guiapp = GUIApp()
+        guiapp.initialize(cligroup, appname, appversion)
+        guiapp.mainloop()
+
+
+# Logging
+class FileFilter(logging.Filter):
+    def filter(self, record):
+        return not record.getMessage().startswith("prg-")
+
+
+def setupFileLogging(log):
     logging.getLogger("PIL.PngImagePlugin").setLevel(logging.CRITICAL + 1)
-    logging.basicConfig(handlers=[logging.FileHandler(filename="tool.log", encoding="utf-8", mode="w")], format="[%(levelname)s] %(message)s", level=logging.DEBUG)
-
-
-def disableLogging():
-    logging.getLogger().disabled = True
+    filehandler = logging.FileHandler(filename="tool.log", encoding="utf-8", mode="w")
+    filehandler.addFilter(FileFilter())
+    logging.basicConfig(handlers=[filehandler], format="[%(levelname)s] %(message)s", level=logging.DEBUG if log else logging.INFO)
 
 
 def logMessage(*messages):
     message = " ".join(str(x) for x in messages)
     logging.info(message)
-    if hasTqdm:
+    if hasTqdm and sys.stdout is not None:
         tqdm.write(message)
 
 
@@ -416,13 +466,13 @@ def logDebug(*messages):
 
 def logWarning(*messages):
     message = " ".join(str(x) for x in messages)
-    logging.warning(message)
+    logging.debug("[WARNING]" + message)
 
 
 def logError(*messages):
     message = " ".join(str(x) for x in messages)
     logging.error(message)
-    if hasTqdm:
+    if hasTqdm and sys.stdout is not None:
         tqdm.write("[ERROR] " + message)
 
 
@@ -441,7 +491,11 @@ def varsHex(o):
 
 def showProgress(iterable):
     if hasTqdm:
-        return tqdm(iterable=iterable)
+        if hasGUI:
+            from .gui import tqdm_gui
+            return tqdm_gui(iterable=iterable)
+        else:
+            return tqdm(iterable=iterable)
     return iterable
 
 
@@ -597,9 +651,9 @@ def mergeSections(file1, file2, output, comment="#", fixchars=[]):
                     out.write(s + "\n")
                     continue
                 sectionstr = v["value"]
-                if sectionstr == '':
+                if sectionstr == "":
                     for section2 in sections2.keys():
-                        if s in sections2[section2] and sections2[section2][s][0] != '':
+                        if s in sections2[section2] and sections2[section2][s][0] != "":
                             sectionstr = sections2[section2][s][0]
                             break
                 out.write(s + "=" + sectionstr + "\n")
@@ -712,11 +766,11 @@ class TranslationFile:
             self._pretty_print(node, current, i, depth + 1)
         if parent is not None:
             if index == 0:
-                parent.text = '\n' + ('  ' * depth)
+                parent.text = "\n" + ("  " * depth)
             else:
-                parent[index - 1].tail = '\n' + ('  ' * depth)
+                parent[index - 1].tail = "\n" + ("  " * depth)
             if index == len(parent) - 1:
-                current.tail = '\n' + ('  ' * (depth - 1))
+                current.tail = "\n" + ("  " * (depth - 1))
 
 
 class FontGlyph:
@@ -1040,22 +1094,6 @@ def repackBinaryStrings(section, infile, outfile, binranges, freeranges=None, re
     return notfound
 
 
-def runCLI(command):
-    if len(sys.argv) > 1:
-        command()
-        return
-    with click.Context(command) as ctx:
-        click.echo(command.get_help(ctx))
-        click.echo("")
-    while True:
-        cmd = click.prompt('Type a command').strip()
-        cmdlow = cmd.lower()
-        if cmdlow == "exit" or cmdlow == "quit" or cmdlow == "q":
-            break
-        sys.argv = shlex.split(sys.argv[0] + " " + cmd)
-        command(standalone_mode=False)
-
-
 # Folders
 def makeFolder(folder, clear=True):
     if clear:
@@ -1122,10 +1160,10 @@ def bundledFile(name):
 
 
 def bundledExecutable(name):
-    if os.name != 'nt':
+    if os.name != "nt":
         name = name.replace(".exe", "")
     if os.path.isfile(name):
-        if os.name != 'nt':
+        if os.name != "nt":
             name = "./" + name
         return name
     try:
@@ -1137,7 +1175,7 @@ def bundledExecutable(name):
 def execute(cmd, show=True):
     result = ""
     try:
-        if os.name != 'nt':
+        if os.name != "nt":
             result = str(subprocess.check_output(shlex.split(cmd)))
         else:
             result = str(subprocess.check_output(cmd))
@@ -1159,7 +1197,7 @@ def execute(cmd, show=True):
 
 
 def crcFile(f):
-    buffersize = 65536
+    buffersize = 0x10000
     crc = 0
     with open(f, "rb") as crcf:
         buffer = crcf.read(buffersize)
