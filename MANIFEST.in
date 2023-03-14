@@ -1,1 +1,2 @@
 include hacktools/c_ext/*.h
+include assets/*
