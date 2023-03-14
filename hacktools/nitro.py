@@ -1116,7 +1116,7 @@ def writeNCER(file, ncerfile, ncgr, ncer, infile, palettes, width=0, height=0, a
             return
         basename = os.path.basename(infile).replace(".psd", "")
         # Get the layer names by using identify
-        psdinfo = subprocess.check_output("magick identify -verbose " + infile, shell=True)
+        psdinfo = subprocess.check_output("magick identify -verbose " + infile)
         layernames = []
         while psdinfo:
             parts = psdinfo.partition(b"label: ")
