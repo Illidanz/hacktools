@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 import re
 import threading
 import shlex
@@ -7,6 +8,7 @@ import sys
 import tkinter
 import customtkinter
 from tqdm import tqdm
+from hacktools import common
 
 
 class tqdm_gui(tqdm):
@@ -91,21 +93,40 @@ class GUIApp(customtkinter.CTk):
             if not cligroup.commands[command].hidden:
                 self.commandlist.append(command)
 
+        hacktoolsdir = os.path.dirname(os.path.abspath(__file__))
+        icon = os.path.join(hacktoolsdir, "assets", "icon.png")
+        if os.path.isfile(icon):
+            self.iconphoto(True, tkinter.PhotoImage(file=icon))
+            # stop customtkinter from applying its icon even if we're using png
+            self._iconbitmap_method_called = True
+            if os.name == "nt":
+                # On windows, this is needed to show the icon on the taskbar
+                try:
+                    import ctypes
+                    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("agtt.hacktools.gui.1")
+                except:
+                    pass
         self.title(appname + " v" + appversion)
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(2, weight=1)
 
-        self.toplabel = customtkinter.CTkLabel(self, text="Select a command and press Run to execute.")
-        self.toplabel.grid(row=0, column=0, padx=(10,0), pady=10, sticky="nsw")
-
         self.topframe = customtkinter.CTkFrame(self, height=80, corner_radius=0)
-        self.topframe.grid(row=1, column=0, sticky="new")
-        self.topframe.grid_columnconfigure(1, weight=1)
-        self.commandmenu = customtkinter.CTkOptionMenu(self.topframe, values=self.commandlist, command=self.changeCommand)
+        self.topframe.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
+        self.topframe.grid_columnconfigure(0, weight=1)
+        self.toplabel = customtkinter.CTkLabel(self.topframe, text="Select a command and press Run to execute.")
+        self.toplabel.grid(row=0, column=0, padx=10, pady=10, sticky="w")
+        self.advancedlist = ["Toggle Advanced Mode"]
+        self.menubutton = customtkinter.CTkOptionMenu(self.topframe, values=self.advancedlist, corner_radius=0, width=28, dynamic_resizing=False, command=self.clickContext)
+        self.menubutton.grid(row=0, column=1, padx=10, sticky="e")
+
+        self.commandframe = customtkinter.CTkFrame(self, height=80, corner_radius=0)
+        self.commandframe.grid(row=1, column=0, padx=10, sticky="new")
+        self.commandframe.grid_columnconfigure(1, weight=1)
+        self.commandmenu = customtkinter.CTkOptionMenu(self.commandframe, values=self.commandlist, command=self.changeCommand)
         self.commandmenu.grid(row=1, column=0, padx=10, pady=10)
-        self.checkframe = customtkinter.CTkFrame(self.topframe, height=60)
+        self.checkframe = customtkinter.CTkFrame(self.commandframe, height=60, fg_color="transparent")
         self.checkframe.grid(row=1, column=1, pady=10, sticky="nsew")
-        self.runbutton = customtkinter.CTkButton(self.topframe, border_width=2, width=70, text="Run", command=self.runCommand)
+        self.runbutton = customtkinter.CTkButton(self.commandframe, border_width=2, width=70, text="Run", command=self.runCommand)
         self.runbutton.grid(row=1, column=2, padx=10, pady=10)
         self.changeCommand(self.commandlist[0])
 
@@ -129,6 +150,7 @@ class GUIApp(customtkinter.CTk):
         self.entry = customtkinter.CTkEntry(self, placeholder_text="Run a command manually...")
         self.entry.grid(row=5, column=0, padx=10, pady=10, sticky="ew")
         self.entry.bind("<Return>", self.entryPressed)
+        self.advanced = True
 
     def entryPressed(self, entry):
         cmd = self.entry.get()
@@ -165,7 +187,8 @@ class GUIApp(customtkinter.CTk):
         self.runThread()
     
     def runThread(self):
-        self.thread = threading.Thread(target=lambda loop: loop.run_until_complete(self.runClickCommand()), args=(asyncio.new_event_loop(),))
+        # Set the thread as daemon so it's killed when closing the UI window
+        self.thread = threading.Thread(target=lambda loop: loop.run_until_complete(self.runClickCommand()), args=(asyncio.new_event_loop(),), daemon=True)
         self.thread.start()
 
     def clearTextbox(self):
@@ -187,10 +210,19 @@ class GUIApp(customtkinter.CTk):
             self.entry.configure(state=state)
         for checkbox in self.checkboxes:
             checkbox.configure(state=state)
+
+    def clickContext(self, choice):
+        if choice == self.advancedlist[0]:
+            if not self.advanced:
+                self.createEntry()
+            else:
+                self.entry.destroy()
+                self.advanced = False
     
     async def runClickCommand(self):
-        try:
-            self.clicmd.invoke(self.context)
-        except Exception as e:
-            logging.error("", exc_info=True)
+        if common.runStartup():
+            try:
+                self.clicmd.invoke(self.context)
+            except Exception as e:
+                logging.error("", exc_info=True)
         self.setInputEnabled(True)

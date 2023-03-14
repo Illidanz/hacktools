@@ -1,6 +1,5 @@
 import codecs
 from io import BytesIO, StringIO
-import distutils.dir_util
 import xml.etree.ElementTree as ET
 import logging
 import math
@@ -389,6 +388,23 @@ class Stream(object):
 
 # CLI/GUI
 if hasClick:
+    appname = ""
+    appversion = ""
+    datafolder = ""
+    filecheck = ""
+    crc = -1
+
+
+    def setupTool(_appname="", _appversion="", _datafolder="", _filecheck="", _crc=-1):
+        global appname, appversion, datafolder, filecheck, crc
+        appname = _appname
+        appversion = _appversion
+        datafolder = _datafolder
+        filecheck = _filecheck
+        crc = _crc
+        cli()
+
+
     @click.group(invoke_without_command=True)
     @click.option("--log", is_flag=True, default=False)
     @click.option("--gui", is_flag=True, default=False)
@@ -398,28 +414,47 @@ if hasClick:
         if ctx.invoked_subcommand is None:
             multi = typing.cast(click.MultiCommand, ctx.command)
             ctx.invoke(multi.get_command(ctx, "main"), gui=gui)
+        else:
+            if not runStartup():
+                quit()
 
 
-    def runTool(gui, cligroup, appname="", appversion="", datafolder="", filecheck="", crc=-1):
+    @cli.command(hidden=True)
+    @click.option("--gui", is_flag=True, default=False)
+    def main(gui):
         if datafolder != "" and not os.path.isdir(datafolder):
             makeFolder(datafolder)
         if not gui:
-            runCLI(cligroup, appname, appversion, datafolder, filecheck)
+            runCLI()
         else:
-            runGUI(cligroup, appname, appversion, datafolder, filecheck)
+            runGUI()
 
 
-    def runCLI(cligroup, appname="", appversion="", datafolder="", filecheck=""):
+    def runStartup():
         if appname != "":
-            click.echo(appname + " version " + appversion)
+            logMessage(appname + " version " + appversion)
+        logMessage("Python", sys.version)
+        from . import __version__
+        logMessage("hacktools", __version__)
         if filecheck != "" and not os.path.isfile(filecheck):
             logError(filecheck, "file not found.")
+            return False
+        if crc >= 0:
+            checkcrc = crcFile(filecheck)
+            if crc != checkcrc:
+                logMessage("CRC check for", filecheck, "failed! (" + toHex(checkcrc), "!=", toHex(crc) + ")")
+                logMessage("The tool might still work but you should run it on a good dump.")
+        return True
+
+
+    def runCLI():
+        if not runStartup():
             quit()
         if len(sys.argv) > 1:
-            cligroup()
+            cli()
             return
-        with click.Context(cligroup) as ctx:
-            click.echo(cligroup.get_help(ctx))
+        with click.Context(cli) as ctx:
+            click.echo(cli.get_help(ctx))
             click.echo("")
         while True:
             cmd = click.prompt("Type a command").strip()
@@ -427,15 +462,16 @@ if hasClick:
             if cmdlow == "exit" or cmdlow == "quit" or cmdlow == "q":
                 break
             sys.argv = shlex.split(sys.argv[0] + " " + cmd)
-            cligroup(standalone_mode=False)
+            cli(standalone_mode=False)
 
 
-    def runGUI(cligroup, appname, appversion, datafolder="", filecheck=""):
+    def runGUI():
         global hasGUI
         hasGUI = True
         from .gui import GUIApp
         guiapp = GUIApp()
-        guiapp.initialize(cligroup, appname, appversion)
+        guiapp.initialize(cli, appname, appversion)
+        runStartup()
         guiapp.mainloop()
 
 
@@ -1112,7 +1148,8 @@ def copyFolder(f1, f2):
 
 
 def mergeFolder(f1, f2):
-    distutils.dir_util.copy_tree(f1, f2)
+    import distutils.dir_util
+    distutils.dir_util.copy_tree(f1, f2, verbose=0)
 
 
 def copyFile(f1, f2):
