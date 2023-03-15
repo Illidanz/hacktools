@@ -243,7 +243,7 @@ class GUIApp(customtkinter.CTk):
             finishedmsg.append("The repacked game and patch can be found in the " + self.datafolder + " folder.")
         elif self.currentcmd == "extract":
             finishedmsg.append("The extracted files can be found in the " + self.datafolder + " folder.")
-        self.addMessages()
+        self.addMessages(finishedmsg)
         self.setInputEnabled(True)
 
     async def runStartup(self):
