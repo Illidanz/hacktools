@@ -1,5 +1,6 @@
 import math
 import os
+import shlex
 import shutil
 import subprocess
 import struct
@@ -35,7 +36,7 @@ def repackNSBMD(workfolder, infolder, outfolder, extension=".nsbmd", readfunc=No
             zerotransp = readfunc(file)
         nsbmd = readNSBMD(infolder + file, zerotransp)
         if nsbmd is not None and len(nsbmd.textures) > 0:
-            fixtransp = checkalpha = zerotransp = False
+            fixtransp = checkalpha = zerotransp = backwards = False
             if writefunc is not None:
                 fixtransp, checkalpha, zerotransp, backwards = writefunc(file, nsbmd)
             for texi in range(len(nsbmd.textures)):
@@ -1116,7 +1117,11 @@ def writeNCER(file, ncerfile, ncgr, ncer, infile, palettes, width=0, height=0, a
             return
         basename = os.path.basename(infile).replace(".psd", "")
         # Get the layer names by using identify
-        psdinfo = subprocess.check_output("magick identify -verbose " + infile)
+        identifycmd = "magick identify -verbose " + infile
+        if os.name != "nt":
+            psdinfo = subprocess.check_output(shlex.split(identifycmd))
+        else:
+            psdinfo = subprocess.check_output(identifycmd)
         layernames = []
         while psdinfo:
             parts = psdinfo.partition(b"label: ")
@@ -1128,7 +1133,7 @@ def writeNCER(file, ncerfile, ncgr, ncer, infile, palettes, width=0, height=0, a
             psdinfo = lastpart
         # Export them as PNG
         for i in range(len(layernames)):
-            common.execute("magick convert " + infile + "[0] " + infile + "[" + str(i + 1) + "] ( -clone 0 -alpha transparent ) -swap 0 +delete -coalesce -compose src-over -composite layer_" + layernames[i] + ".png", False)
+            common.execute("magick convert \"" + infile + "[0]\" \"" + infile + "[" + str(i + 1) + "]\" ( -clone 0 -alpha transparent ) -swap 0 +delete -coalesce -compose src-over -composite \"layer_" + layernames[i] + ".png\"", False)
     else:
         img = Image.open(infile)
         img = img.convert("RGBA")
