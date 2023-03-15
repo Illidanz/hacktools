@@ -58,6 +58,8 @@ class LogHandler(logging.Handler):
         self.prgtotal = 1
 
     def emit(self, record):
+        if record.levelno < logging.INFO:
+            return
         # Intercept prg- logs
         msg = self.format(record)
         if msg.startswith("prg-update"):
@@ -66,7 +68,7 @@ class LogHandler(logging.Handler):
             self.guiapp.progressbar.set(int(split[2]) / self.prgtotal)
             return
         elif msg.startswith("prg-start"):
-            self.prgtotal = int(msg.split("-")[2])
+            self.prgtotal = max(1, int(msg.split("-")[2]))
             self.guiapp.progresslabel.configure(text="")
             self.guiapp.progressbar.set(0)
             return
@@ -83,8 +85,9 @@ class GUIApp(customtkinter.CTk):
             cls.instance = super(GUIApp, cls).__new__(cls)
         return cls.instance
 
-    def initialize(self, cligroup, appname, appversion):
+    def initialize(self, cligroup, appname, appversion, datafolder):
         self.cligroup = cligroup
+        self.datafolder = datafolder
         self.thread = None
         self.advanced = False
         self.commandlist = []
@@ -115,7 +118,7 @@ class GUIApp(customtkinter.CTk):
         self.topframe.grid_columnconfigure(0, weight=1)
         self.toplabel = customtkinter.CTkLabel(self.topframe, text="Select a command and press Run to execute.")
         self.toplabel.grid(row=0, column=0, padx=10, pady=10, sticky="w")
-        self.advancedlist = ["Toggle Advanced Mode"]
+        self.advancedlist = ["Toggle Advanced Mode", "Toggle Dark/Light Mode"]
         self.menubutton = customtkinter.CTkOptionMenu(self.topframe, values=self.advancedlist, corner_radius=0, width=28, dynamic_resizing=False, command=self.clickContext)
         self.menubutton.grid(row=0, column=1, padx=10, sticky="e")
 
@@ -146,6 +149,8 @@ class GUIApp(customtkinter.CTk):
         self.loghandler = LogHandler(self)
         logging.getLogger().addHandler(self.loghandler)
 
+        self.runThread(self.runStartup)
+
     def createEntry(self):
         self.entry = customtkinter.CTkEntry(self, placeholder_text="Run a command manually...")
         self.entry.grid(row=5, column=0, padx=10, pady=10, sticky="ew")
@@ -157,9 +162,10 @@ class GUIApp(customtkinter.CTk):
         self.setInputEnabled(False)
         self.clearTextbox()
         args = shlex.split(cmd)
+        self.currentcmd = args[0]
         self.clicmd = self.cligroup.commands[args[0]]
         self.context = self.clicmd.make_context("tkinter", args[1:])
-        self.runThread()
+        self.runThread(self.runClickCommand)
 
     def changeCommand(self, currentval):
         self.currentcmd = currentval
@@ -184,11 +190,11 @@ class GUIApp(customtkinter.CTk):
             if checkbox.get():
                 args.append("--" + checkbox._text)
         self.context = self.clicmd.make_context("tkinter", args)
-        self.runThread()
+        self.runThread(self.runClickCommand)
     
-    def runThread(self):
+    def runThread(self, func):
         # Set the thread as daemon so it's killed when closing the UI window
-        self.thread = threading.Thread(target=lambda loop: loop.run_until_complete(self.runClickCommand()), args=(asyncio.new_event_loop(),), daemon=True)
+        self.thread = threading.Thread(target=lambda loop: loop.run_until_complete(func()), args=(asyncio.new_event_loop(),), daemon=True)
         self.thread.start()
 
     def clearTextbox(self):
@@ -205,6 +211,7 @@ class GUIApp(customtkinter.CTk):
     def setInputEnabled(self, enabled):
         state = tkinter.NORMAL if enabled else tkinter.DISABLED
         self.commandmenu.configure(state=state)
+        self.menubutton.configure(state=state)
         self.runbutton.configure(state=state)
         if self.advanced:
             self.entry.configure(state=state)
@@ -212,17 +219,32 @@ class GUIApp(customtkinter.CTk):
             checkbox.configure(state=state)
 
     def clickContext(self, choice):
-        if choice == self.advancedlist[0]:
+        index = self.advancedlist.index(choice)
+        if index == 0:
             if not self.advanced:
                 self.createEntry()
             else:
                 self.entry.destroy()
                 self.advanced = False
+        elif index == 1:
+            if customtkinter.get_appearance_mode() == "Dark":
+                customtkinter.set_appearance_mode("Light")
+            else:
+                customtkinter.set_appearance_mode("Dark")
     
     async def runClickCommand(self):
-        if common.runStartup():
+        if common.runStartup(True):
             try:
                 self.clicmd.invoke(self.context)
             except Exception as e:
                 logging.error("", exc_info=True)
+        finishedmsg = [self.currentcmd.capitalize() + " command executed successfully!"]
+        if self.currentcmd == "repack":
+            finishedmsg.append("The repacked game and patch can be found in the " + self.datafolder + " folder.")
+        elif self.currentcmd == "extract":
+            finishedmsg.append("The extracted files can be found in the " + self.datafolder + " folder.")
+        self.addMessages()
         self.setInputEnabled(True)
+
+    async def runStartup(self):
+        common.runStartup()
