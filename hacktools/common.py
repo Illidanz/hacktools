@@ -430,20 +430,20 @@ if hasClick:
             runGUI()
 
 
-    def runStartup():
+    def runStartup(nocrc=False):
         if appname != "":
             logMessage(appname + " version " + appversion)
         logMessage("Python", sys.version)
         from . import __version__
-        logMessage("hacktools", __version__)
+        logMessage("hacktools version", __version__)
         if filecheck != "" and not os.path.isfile(filecheck):
             logError(filecheck, "file not found.")
             return False
-        if crc >= 0:
+        if crc >= 0 and not nocrc:
             checkcrc = crcFile(filecheck)
             if crc != checkcrc:
-                logMessage("CRC check for", filecheck, "failed! (" + toHex(checkcrc), "!=", toHex(crc) + ")")
-                logMessage("The tool might still work but you should run it on a good dump.")
+                logMessage("Checksum mismatch for", filecheck, "(" + toHex(checkcrc) + ", expected", toHex(crc) + ")")
+                logMessage("The tool might still work but you should run it on a good dump of the game.")
         return True
 
 
@@ -470,8 +470,7 @@ if hasClick:
         hasGUI = True
         from .gui import GUIApp
         guiapp = GUIApp()
-        guiapp.initialize(cli, appname, appversion)
-        runStartup()
+        guiapp.initialize(cli, appname, appversion, datafolder)
         guiapp.mainloop()
 
 
