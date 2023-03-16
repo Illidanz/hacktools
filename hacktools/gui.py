@@ -290,14 +290,14 @@ class GUIApp(customtkinter.CTk):
         if common.runStartup(True):
             try:
                 self.clicmd.invoke(self.context)
+                finishedmsg = [self.currentcmd.capitalize() + " command executed successfully!"]
+                if self.currentcmd == "repack":
+                    finishedmsg.append("The repacked game and patch can be found in the " + self.datafolder.rstrip("/") + " folder.")
+                elif self.currentcmd == "extract":
+                    finishedmsg.append("The extracted files can be found in the " + self.datafolder.rstrip("/") + " folder.")
+                self.addMessages(finishedmsg)
             except Exception as e:
                 logging.error("", exc_info=True)
-        finishedmsg = [self.currentcmd.capitalize() + " command executed successfully!"]
-        if self.currentcmd == "repack":
-            finishedmsg.append("The repacked game and patch can be found in the " + self.datafolder.rstrip("/") + " folder.")
-        elif self.currentcmd == "extract":
-            finishedmsg.append("The extracted files can be found in the " + self.datafolder.rstrip("/") + " folder.")
-        self.addMessages(finishedmsg)
         self.setInputEnabled(True)
 
     async def runStartup(self):

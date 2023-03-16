@@ -1211,11 +1211,11 @@ def bundledExecutable(name):
 def execute(cmd, show=True):
     result = ""
     try:
-        startupinfo = subprocess.STARTUPINFO()
-        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
         if os.name != "nt":
-            result = str(subprocess.check_output(shlex.split(cmd), startupinfo=startupinfo))
+            result = str(subprocess.check_output(shlex.split(cmd)))
         else:
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
             result = str(subprocess.check_output(cmd, startupinfo=startupinfo))
     except FileNotFoundError:
         logError("Command too long:", len(cmd), cmd)
