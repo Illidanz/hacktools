@@ -36,6 +36,7 @@ setup(
     long_description_content_type="text/markdown",
     url="https://github.com/Illidanz/hacktools",
     packages=["hacktools"],
+    package_data={"hacktools": ["assets/*.png"]},
     ext_modules=[
         Extension("hacktools.cmp_lzss", sources=["hacktools/c_ext/cmp_lzss.c"]),
         Extension("hacktools.cmp_cri",  sources=["hacktools/c_ext/cmp_cri.c"]),
