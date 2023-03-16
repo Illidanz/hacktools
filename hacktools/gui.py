@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import os
 import re
@@ -79,6 +80,14 @@ class LogHandler(logging.Handler):
         self.guiapp.addMessages([msg])
 
 
+class GUIOptions:
+    def __init__(self, advanced=False, appearance="System", command="extract", options=[]):
+        self.advanced = advanced
+        self.appearance = appearance
+        self.command = command
+        self.options = options
+
+
 class GUIApp(customtkinter.CTk):
     def __new__(cls):
         if not hasattr(cls, "instance"):
@@ -87,14 +96,25 @@ class GUIApp(customtkinter.CTk):
 
     def initialize(self, cligroup, appname, appversion, datafolder):
         self.cligroup = cligroup
+        self.appname = appname
         self.datafolder = datafolder
         self.thread = None
-        self.advanced = False
+        self.options = GUIOptions()
         self.commandlist = []
         self.checkboxes = []
         for command in cligroup.commands.keys():
             if not cligroup.commands[command].hidden:
                 self.commandlist.append(command)
+        # Load config
+        self.configdir = os.path.expanduser("~/.hacktools/")
+        if not os.path.isdir(self.configdir):
+            common.makeFolder(self.configdir)
+        if not os.path.isfile(self.configdir + appname + ".json"):
+            self.saveOptions()
+        else:
+            self.loadOptions()
+        if self.options.appearance == "Light" or self.options.appearance == "Dark":
+            customtkinter.set_appearance_mode(self.options.appearance)
 
         hacktoolsdir = os.path.dirname(os.path.abspath(__file__))
         icon = os.path.join(hacktoolsdir, "assets", "icon.png")
@@ -131,7 +151,11 @@ class GUIApp(customtkinter.CTk):
         self.checkframe.grid(row=1, column=1, pady=10, sticky="nsew")
         self.runbutton = customtkinter.CTkButton(self.commandframe, border_width=2, width=70, text="Run", command=self.runCommand)
         self.runbutton.grid(row=1, column=2, padx=10, pady=10)
-        self.changeCommand(self.commandlist[0])
+        if self.options.command in self.commandlist:
+            self.commandmenu.set(self.options.command)
+            self.changeCommand(self.options.command)
+        else:
+            self.changeCommand(self.commandlist[0])
 
         self.textbox = customtkinter.CTkTextbox(self, width=250)
         self.textbox.grid(row=2, column=0, padx=10, pady=(10, 0), sticky="nsew")
@@ -143,7 +167,7 @@ class GUIApp(customtkinter.CTk):
         self.progressbar.grid(row=4, column=0, padx=10, pady=(0, 10), sticky="nsew")
         self.progressbar.set(0)
 
-        if self.advanced:
+        if self.options.advanced:
             self.createEntry()
 
         self.loghandler = LogHandler(self)
@@ -155,9 +179,8 @@ class GUIApp(customtkinter.CTk):
         self.entry = customtkinter.CTkEntry(self, placeholder_text="Run a command manually...")
         self.entry.grid(row=5, column=0, padx=10, pady=10, sticky="ew")
         self.entry.bind("<Return>", self.entryPressed)
-        self.advanced = True
 
-    def entryPressed(self, entry):
+    def entryPressed(self, _):
         cmd = self.entry.get()
         self.setInputEnabled(False)
         self.clearTextbox()
@@ -169,17 +192,31 @@ class GUIApp(customtkinter.CTk):
 
     def changeCommand(self, currentval):
         self.currentcmd = currentval
+        if self.currentcmd != self.options.command:
+            self.options.command = self.currentcmd
+            self.options.options = []
+            self.saveOptions()
         for checkbox in self.checkboxes:
             checkbox.destroy()
         self.checkboxes = []
         i = 0
         for param in self.cligroup.commands[self.currentcmd].params:
             if param.is_flag and not param.hidden:
-                checkbox = customtkinter.CTkCheckBox(self.checkframe, text=param.opts[0].replace("--", ""), width=70)
-                checkbox.toggle()
+                checkbox = customtkinter.CTkCheckBox(self.checkframe, text=param.opts[0].replace("--", ""), width=75)
                 checkbox.grid(row=0, column=i)
+                if len(self.options.options) == 0 or checkbox._text in self.options.options:
+                    checkbox.toggle()
+                # Configure the command after so we don't get a callback from the toggle() above
+                checkbox.configure(command=self.changeCheckbox)
                 i += 1
                 self.checkboxes.append(checkbox)
+
+    def changeCheckbox(self):
+        self.options.options = []
+        for checkbox in self.checkboxes:
+            if checkbox.get():
+                self.options.options.append(checkbox._text)
+        self.saveOptions()
 
     def runCommand(self):
         self.setInputEnabled(False)
@@ -213,7 +250,7 @@ class GUIApp(customtkinter.CTk):
         self.commandmenu.configure(state=state)
         self.menubutton.configure(state=state)
         self.runbutton.configure(state=state)
-        if self.advanced:
+        if self.options.advanced:
             self.entry.configure(state=state)
         for checkbox in self.checkboxes:
             checkbox.configure(state=state)
@@ -221,16 +258,33 @@ class GUIApp(customtkinter.CTk):
     def clickContext(self, choice):
         index = self.advancedlist.index(choice)
         if index == 0:
-            if not self.advanced:
+            if not self.options.advanced:
                 self.createEntry()
+                self.options.advanced = True
             else:
                 self.entry.destroy()
-                self.advanced = False
+                self.options.advanced = False
         elif index == 1:
             if customtkinter.get_appearance_mode() == "Dark":
                 customtkinter.set_appearance_mode("Light")
             else:
                 customtkinter.set_appearance_mode("Dark")
+            self.options.appearance = customtkinter.get_appearance_mode()
+        self.saveOptions()
+
+    def loadOptions(self):
+        with open(self.configdir + self.appname + ".json", "r") as f:
+            data = f.read()
+        try:
+            options = json.loads(data)
+            self.options = GUIOptions(**options)
+        except (json.decoder.JSONDecodeError, TypeError):
+            self.options = GUIOptions()
+            self.saveOptions()
+
+    def saveOptions(self):
+        with open(self.configdir + self.appname + ".json", "w") as f:
+            f.write(json.dumps(self.options.__dict__, indent=2))
     
     async def runClickCommand(self):
         if common.runStartup(True):
@@ -240,9 +294,9 @@ class GUIApp(customtkinter.CTk):
                 logging.error("", exc_info=True)
         finishedmsg = [self.currentcmd.capitalize() + " command executed successfully!"]
         if self.currentcmd == "repack":
-            finishedmsg.append("The repacked game and patch can be found in the " + self.datafolder + " folder.")
+            finishedmsg.append("The repacked game and patch can be found in the " + self.datafolder.rstrip("/") + " folder.")
         elif self.currentcmd == "extract":
-            finishedmsg.append("The extracted files can be found in the " + self.datafolder + " folder.")
+            finishedmsg.append("The extracted files can be found in the " + self.datafolder.rstrip("/") + " folder.")
         self.addMessages(finishedmsg)
         self.setInputEnabled(True)
 
