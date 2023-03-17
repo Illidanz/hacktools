@@ -895,13 +895,18 @@ def drawNCER(outfile, ncer, ncgr, palettes, usetransp=True, layered=False):
                 banklayers[i].save(layerfile, "PNG")
                 layers.append(layerfile)
         currheight += bank.height
-    if layered and shutil.which("magick"):
+    magickcmd = ""
+    if os.path.isfile("magick"):
+        magickcmd = "./magick"
+    elif shutil.which("magick"):
+        magickcmd = shutil.which("magick")
+    if layered and magickcmd != "":
         with open("script.scr", "w") as script:
             script.write("\"" + outfile + "\" -label \"palette\" -background none -mosaic -set colorspace RGBA")
             for layer in layers:
                 script.write(" ( -page +0+0 -label \"" + os.path.basename(layer).replace(".png", "") + "\" \"" + layer + "\"[0] -background none -mosaic -set colorspace RGBA )")
             script.write(" ( -clone 0--1 -background none -mosaic ) -reverse -write \"" + outfile.replace(".png", ".psd") + "\"")
-        cmd = shutil.which("magick") + " -script script.scr"
+        cmd = magickcmd + " -script script.scr"
         common.execute(cmd, False)
         for layer in layers:
             os.remove(layer)
@@ -1112,15 +1117,17 @@ def writeNCER(file, ncerfile, ncgr, ncer, infile, palettes, width=0, height=0, a
         return
     psd = infile.endswith(".psd")
     if psd:
-        magickcmd = "magick "
+        magickcmd = ""
         if os.path.isfile("magick"):
             magickcmd = "./magick"
-        elif not shutil.which("magick"):
+        elif shutil.which("magick"):
+            magickcmd = shutil.which("magick")
+        if magickcmd == "":
             common.logError("ImageMagick not found")
             return
         basename = os.path.basename(infile).replace(".psd", "")
         # Get the layer names by using identify
-        identifycmd = magickcmd + "identify -verbose " + infile
+        identifycmd = magickcmd + " identify -verbose " + infile
         if os.name != "nt":
             psdinfo = subprocess.check_output(shlex.split(identifycmd))
         else:
@@ -1138,7 +1145,7 @@ def writeNCER(file, ncerfile, ncgr, ncer, infile, palettes, width=0, height=0, a
             psdinfo = lastpart
         # Export them as PNG
         for i in range(len(layernames)):
-            common.execute(magickcmd + "convert \"" + infile + "[0]\" \"" + infile + "[" + str(i + 1) + "]\" ( -clone 0 -alpha transparent ) -swap 0 +delete -coalesce -compose src-over -composite \"layer_" + layernames[i] + ".png\"", False)
+            common.execute(magickcmd + " convert \"" + infile + "[0]\" \"" + infile + "[" + str(i + 1) + "]\" ( -clone 0 -alpha transparent ) -swap 0 +delete -coalesce -compose src-over -composite \"layer_" + layernames[i] + ".png\"", False)
     else:
         img = Image.open(infile)
         img = img.convert("RGBA")
