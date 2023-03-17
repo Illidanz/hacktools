@@ -1112,12 +1112,15 @@ def writeNCER(file, ncerfile, ncgr, ncer, infile, palettes, width=0, height=0, a
         return
     psd = infile.endswith(".psd")
     if psd:
-        if not shutil.which("magick"):
+        magickcmd = "magick "
+        if os.path.isfile("magick"):
+            magickcmd = "./magick"
+        elif not shutil.which("magick"):
             common.logError("ImageMagick not found")
             return
         basename = os.path.basename(infile).replace(".psd", "")
         # Get the layer names by using identify
-        identifycmd = "magick identify -verbose " + infile
+        identifycmd = magickcmd + "identify -verbose " + infile
         if os.name != "nt":
             psdinfo = subprocess.check_output(shlex.split(identifycmd))
         else:
@@ -1135,7 +1138,7 @@ def writeNCER(file, ncerfile, ncgr, ncer, infile, palettes, width=0, height=0, a
             psdinfo = lastpart
         # Export them as PNG
         for i in range(len(layernames)):
-            common.execute("magick convert \"" + infile + "[0]\" \"" + infile + "[" + str(i + 1) + "]\" ( -clone 0 -alpha transparent ) -swap 0 +delete -coalesce -compose src-over -composite \"layer_" + layernames[i] + ".png\"", False)
+            common.execute(magickcmd + "convert \"" + infile + "[0]\" \"" + infile + "[" + str(i + 1) + "]\" ( -clone 0 -alpha transparent ) -swap 0 +delete -coalesce -compose src-over -composite \"layer_" + layernames[i] + ".png\"", False)
     else:
         img = Image.open(infile)
         img = img.convert("RGBA")
