@@ -422,8 +422,6 @@ if hasClick:
     @cli.command(hidden=True)
     @click.option("--gui", is_flag=True, default=False)
     def main(gui):
-        if datafolder != "" and not os.path.isdir(datafolder):
-            makeFolder(datafolder)
         if not gui:
             runCLI()
         else:
@@ -431,6 +429,8 @@ if hasClick:
 
 
     def runStartup(nocrc=False):
+        if datafolder != "" and not os.path.isdir(datafolder):
+            makeFolder(datafolder)
         if appname != "":
             logMessage(appname + " version " + appversion)
         logMessage("Python", sys.version)

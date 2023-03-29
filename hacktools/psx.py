@@ -30,13 +30,7 @@ def repackBIN(infolder, binin, binout, cuefile, patchfile=""):
         common.logError("pymkpsxiso not found")
         return
     common.logMessage("Repacking BIN", binout, "...")
-    pymkpsxiso.make(binout, infolder[:-1] + ".xml")
-
-    with open(cuefile, "w") as fout:
-        splitbin = binout.split("/")
-        fout.write("FILE \"" + splitbin[len(splitbin) - 1] + "\" BINARY\r\n")
-        fout.write("  TRACK 01 MODE2/2352\r\n")
-        fout.write("    INDEX 01 00:00:00\r\n")
+    pymkpsxiso.make(binout, cuefile, infolder[:-1] + ".xml")
     common.logMessage("Done!")
     # Create xdelta patch
     if patchfile != "":
