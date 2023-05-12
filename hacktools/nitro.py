@@ -259,7 +259,7 @@ def readNFTR(file, generateglyphs=False):
             pamc.lastchar = f.readUShort()
             pamc.type = f.readUInt()
             nextoffset = pamc.nextoffset = f.readUInt()
-            common.logDebug(" ", vars(pamc))
+            common.logWarning(" ", vars(pamc))
             if pamc.type == 0:
                 firstcode = f.readUShort()
                 for i in range(pamc.lastchar - pamc.firstchar + 1):
@@ -274,6 +274,14 @@ def readNFTR(file, generateglyphs=False):
                     c = chr(pamc.firstchar + i)
                     hdwc = nftr.hdwc[charcode]
                     nftr.glyphs[c] = common.FontGlyph(hdwc.start, hdwc.width, hdwc.length, c, pamc.firstchar + i, charcode)
+            elif pamc.type == 2:
+                groupnum = f.readUShort()
+                for i in range(groupnum - pamc.firstchar):
+                    charcode = f.readUShort()
+                    c = chr(charcode)
+                    tilenum = f.readUShort()
+                    hdwc = nftr.hdwc[tilenum]
+                    nftr.glyphs[c] = common.FontGlyph(hdwc.start, hdwc.width, hdwc.length, c,  charcode, tilenum)
             else:
                 common.logWarning("Unknown section type", pamc.type)
     return nftr
