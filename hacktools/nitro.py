@@ -259,7 +259,7 @@ def readNFTR(file, generateglyphs=False):
             pamc.lastchar = f.readUShort()
             pamc.type = f.readUInt()
             nextoffset = pamc.nextoffset = f.readUInt()
-            common.logWarning(" ", vars(pamc))
+            common.logDebug(" ", vars(pamc))
             if pamc.type == 0:
                 firstcode = f.readUShort()
                 for i in range(pamc.lastchar - pamc.firstchar + 1):
