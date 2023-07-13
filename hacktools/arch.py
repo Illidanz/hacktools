@@ -67,7 +67,6 @@ def repack(fin, f, archive, infolder):
         else:
             # Set the file as not encoded and copy it
             size = os.path.getsize(filepath)
-            size += size % 16
             f.seek(archive.fatoff + i * 16)
             f.writeUInt(size)
             f.writeUInt(size)
