@@ -551,11 +551,11 @@ def isAscii(s):
     return True
 
 
-def codeToChar(code):
+def codeToChar(code, encoding="shift_jis"):
     try:
         if code < 256:
             return struct.pack("B", code).decode("ascii")
-        return struct.pack(">H", code).decode("shift_jis")
+        return struct.pack(">H", code).decode(encoding)
     except UnicodeDecodeError:
         return ""
 
