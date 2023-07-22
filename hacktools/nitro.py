@@ -1026,6 +1026,7 @@ def writeNSCR(file, ncgr, nscr, infile, palettes, width=-1, height=-1):
                 map = nscr.maps[x]
                 # Skip flipped tiles since there's always(?) going to be an unflipped one next
                 if map.xflip or map.yflip:
+                    x += 1
                     continue
                 # Write the tile if it's a new one
                 if map.tile not in donetiles:
