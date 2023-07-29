@@ -209,10 +209,10 @@ class Stream(object):
                 self.seek(-1, 1)
                 break
 
-    def readBytes(self, n):
+    def readBytes(self, n, upper=False):
         ret = ""
         for i in range(n):
-            ret += toHex(self.readByte()) + " "
+            ret += toHex(self.readByte(), upper) + " "
         return ret
 
     def readString(self, length):
@@ -535,8 +535,12 @@ def showProgress(iterable):
 
 
 # Strings
-def toHex(byte):
-    hexstr = hex(byte)[2:].lower()
+def toHex(byte, upper=False):
+    hexstr = hex(byte)[2:]
+    if not upper:
+        hexstr = hexstr.lower()
+    else:
+        hexstr = hexstr.upper()
     if len(hexstr) == 1:
         return "0" + hexstr
     if hexstr[0] == "x":
@@ -890,7 +894,7 @@ def centerLines(text, glyphs, width, codefunc=None, default=6, linebreak="|", ce
     return linebreak.join(lines)
 
 
-def readEncodedString(f, encoding="shift_jis"):
+def readEncodedString(f, encoding="shift_jis", upper=False):
     sjis = ""
     while True:
         b1 = f.readByte()
@@ -902,7 +906,7 @@ def readEncodedString(f, encoding="shift_jis"):
             b2 = f.readByte()
             if not checkShiftJIS(b1, b2):
                 if b2 == 0x01:
-                    sjis += "UNK(" + toHex(b1) + toHex(b2) + ")"
+                    sjis += "UNK(" + toHex(b1, upper) + toHex(b2, upper) + ")"
                 else:
                     f.seek(-1, 1)
                     sjis += chr(b1)
@@ -916,7 +920,7 @@ def readEncodedString(f, encoding="shift_jis"):
     return sjis
 
 
-def detectEncodedString(f, encoding="shift_jis", startascii=[0x25], startenc=[]):
+def detectEncodedString(f, encoding="shift_jis", startascii=[0x25], startenc=[], upper=False):
     ret = ""
     sjis = 0
     while True:
@@ -937,9 +941,9 @@ def detectEncodedString(f, encoding="shift_jis", startascii=[0x25], startenc=[])
                 except UnicodeDecodeError:
                     if ret.count("UNK(") >= 5:
                         return ""
-                    ret += "UNK(" + toHex(b1) + toHex(b2) + ")"
+                    ret += "UNK(" + toHex(b1, upper) + toHex(b2, upper) + ")"
             elif (b1, b2) in startenc or (len(ret) > 1 and ret.count("UNK(") < 5):
-                ret += "UNK(" + toHex(b1) + toHex(b2) + ")"
+                ret += "UNK(" + toHex(b1, upper) + toHex(b2, upper) + ")"
             else:
                 return ""
     return ret
