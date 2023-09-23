@@ -533,7 +533,7 @@ def showProgress(iterable):
             return tqdm(iterable=iterable)
     return iterable
 
-
+0
 # Strings
 def toHex(byte, upper=False):
     hexstr = hex(byte)[2:]
@@ -557,7 +557,7 @@ def isAscii(s):
 
 def codeToChar(code, encoding="shift_jis"):
     try:
-        if code < 256:
+        if code < 128:
             return struct.pack("B", code).decode("ascii")
         return struct.pack("<H", code).decode(encoding)
     except UnicodeDecodeError:
