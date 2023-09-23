@@ -555,11 +555,14 @@ def isAscii(s):
     return True
 
 
-def codeToChar(code, encoding="shift_jis"):
+def codeToChar(code, littleEndian=True, encoding="shift_jis"):
     try:
-        if code < 256:
+        if code < 128:
             return struct.pack("B", code).decode("ascii")
-        return struct.pack(">H", code).decode(encoding)
+        if littleEndian == True:
+            return struct.pack("<H", code).decode(encoding)
+        else:
+            return struct.pack(">H", code).decode(encoding)
     except UnicodeDecodeError:
         return ""
 
