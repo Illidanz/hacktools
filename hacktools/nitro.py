@@ -263,7 +263,7 @@ def readNFTR(file, generateglyphs=False, encoding="shift_jis"):
             if pamc.type == 0:
                 firstcode = f.readUShort()
                 for i in range(pamc.lastchar - pamc.firstchar + 1):
-                    c = common.codeToChar(pamc.firstchar + i, True, encoding)
+                    c = common.codeToChar(pamc.firstchar + i, encoding)
                     hdwc = nftr.hdwc[firstcode + i]
                     nftr.glyphs[c] = common.FontGlyph(hdwc.start, hdwc.width, hdwc.length, c, pamc.firstchar + i, firstcode + i)
             elif pamc.type == 1:
@@ -271,14 +271,14 @@ def readNFTR(file, generateglyphs=False, encoding="shift_jis"):
                     charcode = f.readUShort()
                     if charcode == 0xFFFF or charcode >= len(nftr.hdwc):
                         continue
-                    c = common.codeToChar(pamc.firstchar + i, True, encoding)
+                    c = common.codeToChar(pamc.firstchar + i, encoding)
                     hdwc = nftr.hdwc[charcode]
                     nftr.glyphs[c] = common.FontGlyph(hdwc.start, hdwc.width, hdwc.length, c, pamc.firstchar + i, charcode)
             elif pamc.type == 2:
                 groupnum = f.readUShort()
                 for i in range(groupnum - pamc.firstchar):
                     charcode = f.readUShort()
-                    c = common.codeToChar(charcode, True, encoding)
+                    c = common.codeToChar(charcode, encoding)
                     tilenum = f.readUShort()
                     hdwc = nftr.hdwc[tilenum]
                     nftr.glyphs[c] = common.FontGlyph(hdwc.start, hdwc.width, hdwc.length, c,  charcode, tilenum)

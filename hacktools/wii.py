@@ -191,7 +191,7 @@ def writeTPL(file, tpl, infile):
 
 
 # Font files
-def getFontGlyphs(file):
+def getFontGlyphs(file, encoding="shift_jis"):
     glyphs = {}
     with common.Stream(file, "rb", False) as f:
         # Header
@@ -226,14 +226,14 @@ def getFontGlyphs(file):
             if sectiontype == 0:
                 firstcode = f.readUShort()
                 for i in range(lastchar - firstchar + 1):
-                    c = common.codeToChar(firstchar + i, False)
+                    c = common.codeToChar(firstchar + i, encoding, little=False)
                     glyphs[c] = common.FontGlyph(hdwc[firstcode + i][0], hdwc[firstcode + i][1], hdwc[firstcode + i][2], c, firstchar + i, firstcode + i)
             elif sectiontype == 1:
                 for i in range(lastchar - firstchar + 1):
                     charcode = f.readUShort()
                     if charcode == 0xffff or charcode >= len(hdwc):
                         continue
-                    c = common.codeToChar(firstchar + i, False)
+                    c = common.codeToChar(firstchar + i, encoding, little=False)
                     glyphs[c] = common.FontGlyph(hdwc[charcode][0], hdwc[charcode][1], hdwc[charcode][2], c, firstchar + i, charcode)
             else:
                 common.logWarning("Unknown section type", sectiontype)
