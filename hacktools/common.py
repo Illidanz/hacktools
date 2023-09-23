@@ -533,7 +533,7 @@ def showProgress(iterable):
             return tqdm(iterable=iterable)
     return iterable
 
-0
+
 # Strings
 def toHex(byte, upper=False):
     hexstr = hex(byte)[2:]
