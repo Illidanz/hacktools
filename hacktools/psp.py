@@ -7,7 +7,7 @@ import struct
 from hacktools import common
 
 
-def extractIso(isofile, extractfolder, workfolder=""):
+def extractIso(isofile, extractfolder, workfolder="", fixfilename=False):
     try:
         import pycdlib
     except ImportError:
@@ -20,7 +20,10 @@ def extractIso(isofile, extractfolder, workfolder=""):
     for dirname, dirlist, filelist in iso.walk(iso_path="/"):
         common.makeFolders(extractfolder + dirname[1:])
         for file in filelist:
-            with open(extractfolder + dirname[1:] + "/" + file, "wb") as f:
+            extractname = file
+            if fixfilename:
+                extractname = extractname.replace(";1", "")
+            with open(extractfolder + dirname[1:] + "/" + extractname, "wb") as f:
                 iso.get_file_from_iso_fp(f, iso_path=dirname + "/" + file)
     iso.close()
     if workfolder != "":

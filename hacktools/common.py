@@ -193,12 +193,14 @@ class Stream(object):
         self.seek(current)
         return ret
 
-    def readHalf(self):
+    def readHalf(self, big=False):
         if self.half is None:
             self.half = self.readByte()
+            if big:
+                return self.half >> 4
             return self.half & 0x0f
         else:
-            ret = self.half >> 4
+            ret = self.half >> 4 if not big else self.half & 0x0f
             self.half = None
             return ret
 
