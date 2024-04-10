@@ -30,7 +30,7 @@ def test_cmp_cri(data):
     assert data == decmp
 
 
-def test_cmp_cri(data):
+def test_cmp_racjin(data):
     cmp = cmp_racjin.compressRACJIN(data)
     decmp = cmp_racjin.decompressRACJIN(cmp, len(data))
     assert len(data) == len(decmp)
