@@ -41,6 +41,7 @@ setup(
         Extension("hacktools.cmp_lzss", sources=["hacktools/c_ext/cmp_lzss.c"]),
         Extension("hacktools.cmp_cri",  sources=["hacktools/c_ext/cmp_cri.c"]),
         Extension("hacktools.cmp_misc", sources=["hacktools/c_ext/cmp_misc.c"]),
+        Extension("hacktools.cmp_racjin",  sources=["hacktools/c_ext/cmp_racjin.c"]),
     ],
     classifiers=[
         "Programming Language :: Python :: 3.7",
