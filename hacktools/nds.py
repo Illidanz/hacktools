@@ -134,7 +134,7 @@ def extractBIN(binrange, readfunc=common.detectEncodedString, encoding="shift_ji
 
 
 def repackBIN(binrange, freeranges=[], readfunc=common.detectEncodedString, writefunc=common.writeEncodedString, encoding="shift_jis", comments="#",
-              binin="data/extract/arm9.bin", binout="data/repack/arm9.bin", binfile="data/bin_input.txt", fixchars=[], pointerstart=0x02000000, injectstart=0x02000000, fallbackf=None, injectfallback=0, nocopy=False, sectionname="bin"):
+              binin="data/extract/arm9.bin", binout="data/repack/arm9.bin", binfile="data/bin_input.txt", fixchars=[], pointerstart=0x02000000, injectstart=0x02000000, fallbackf=None, injectfallback=0, nocopy=False, sectionname="bin", preformat=None, postformat=None):
     if not os.path.isfile(binfile):
         common.logError("Input file", binfile, "not found")
         return False
@@ -152,7 +152,7 @@ def repackBIN(binrange, freeranges=[], readfunc=common.detectEncodedString, writ
         section.preloadLookup()
     if type(binrange) == tuple:
         binrange = [binrange]
-    notfound = common.repackBinaryStrings(section, binin, binout, binrange, freeranges, readfunc, writefunc, encoding, pointerstart, injectstart, fallbackf, injectfallback, sectionname)
+    notfound = common.repackBinaryStrings(section, binin, binout, binrange, freeranges, readfunc, writefunc, encoding, pointerstart, injectstart, fallbackf, injectfallback, sectionname, preformat, postformat)
     for pointer in notfound:
         common.logError("Pointer", common.toHex(pointer.old), "->", common.toHex(pointer.new), "not found for string", pointer.str)
     if binfile.endswith(".txt"):
@@ -176,13 +176,17 @@ class BINSection:
             self.data = bytearray(ramlen)
 
 
-def expandBIN(binin, binout, headerin, headerout, newlength, injectpos):
+def expandBIN(binin, binout, headerin, headerout, newlengths, injectpos):
     if not os.path.isfile(binin):
         common.logError("Input file", binin, "not found")
         return False
     if not os.path.isfile(headerin):
         common.logError("Header file", headerin, "not found")
         return False
+    if not isinstance(newlengths, list):
+        newlengths = [newlengths]
+    if not isinstance(injectpos, list):
+        injectpos = [injectpos]
     codesettings = -1
     with common.Stream(headerin, "rb") as fin:
         fin.seek(0x20)
@@ -225,13 +229,15 @@ def expandBIN(binin, binout, headerin, headerout, newlength, injectpos):
             sections.append(BINSection(fin, start, size, datastart, bsssize))
             datastart += size
     # Write the new extended arm9.bin
-    sections.append(BINSection(None, injectpos, newlength, 0, 0))
+    for i in range(len(newlengths)):
+        sections.append(BINSection(None, injectpos[i], newlengths[i], 0, 0, True if i < len(newlengths) - 1 else False))
     with common.Stream(binout, "wb") as f:
         # Write the section data first
         f.write(sections[0].data)
         datastart = f.tell()
         for i in range(1, len(sections)):
             sections[i].offset = f.tell()
+            common.logDebug("Section", i, "offset:", common.toHex(f.tell()))
             f.write(sections[i].data)
         # Write the new copytable
         copytablestart = f.tell()

@@ -756,7 +756,7 @@ class TranslationFile:
             note = ET.SubElement(unit, "note")
             note.text = comment
 
-    def preloadLookup(self):
+    def preloadLookup(self, comments="#"):
         self.lookup = {}
         self.chartot = 0
         self.transtot = 0
@@ -764,6 +764,8 @@ class TranslationFile:
             for unit in self.files[file][0]:
                 self.chartot += len(unit[0].text)
                 if unit[1].text is not None and unit[1].text != "":
+                    if comments in unit[1].text:
+                        unit[1].text = unit[1].text.split(comments)[0]
                     self.lookup[unit[0].text] = unit[1].text
                     self.transtot += len(unit[0].text)
 
@@ -1030,7 +1032,7 @@ class BinaryPointer:
         self.str = str
 
 
-def repackBinaryStrings(section, infile, outfile, binranges, freeranges=None, readfunc=detectEncodedString, writefunc=writeEncodedString, encoding="shift_jis", pointerstart=0, injectstart=0, fallbackf=None, injectfallback=0, sectionname="bin"):
+def repackBinaryStrings(section, infile, outfile, binranges, freeranges=None, readfunc=detectEncodedString, writefunc=writeEncodedString, encoding="shift_jis", pointerstart=0, injectstart=0, fallbackf=None, injectfallback=0, sectionname="bin", preformat=None, postformat=None):
     insize = os.path.getsize(infile)
     notfound = []
     with Stream(infile, "rb") as fi:
@@ -1045,6 +1047,9 @@ def repackBinaryStrings(section, infile, outfile, binranges, freeranges=None, re
                     pos = fi.tell()
                     check = readfunc(fi, encoding)
                     if check != "":
+                        pre = post = ""
+                        if preformat != None:
+                            check, pre, post = preformat(check)
                         if isinstance(section, TranslationFile):
                             newsjis = section.getEntry(check, sectionname, pos)
                         else:
@@ -1055,6 +1060,8 @@ def repackBinaryStrings(section, infile, outfile, binranges, freeranges=None, re
                         if newsjis != "":
                             if newsjis == "!":
                                 newsjis = ""
+                            if postformat != None:
+                                newsjis = postformat(newsjis, pre, post)
                             newsjislog = newsjis.encode("ascii", "ignore")
                             logDebug("Replacing string at", toHex(pos), "with", newsjislog)
                             fo.seek(pos)
@@ -1104,7 +1111,10 @@ def repackBinaryStrings(section, infile, outfile, binranges, freeranges=None, re
                                             newpointer = range[0]
                                             # For the injected range, add injectstart, otherwise add pointerstart
                                             if (len(range) == 3):
-                                                newpointer += injectstart
+                                                if isinstance(range[2], bool):
+                                                    newpointer += injectstart
+                                                else:
+                                                    newpointer += int(range[2])
                                             else:
                                                 newpointer += pointerstart
                                             range[0] = fo.tell()
