@@ -31,7 +31,7 @@ def extractIso(isofile, extractfolder, workfolder="", fixfilename=False):
     common.logMessage("Done!")
 
 
-def repackIso(isofile, isopatch, workfolder, patchfile=""):
+def repackIso(isofile, isopatch, workfolder, patchfile="", fixfilename=False):
     try:
         import pycdlib
     except ImportError:
@@ -45,7 +45,7 @@ def repackIso(isofile, isopatch, workfolder, patchfile=""):
     for file in common.showProgress(files):
         filelen = os.path.getsize(workfolder + file)
         with open(workfolder + file, "rb") as f:
-            iso.modify_file_in_place(f, filelen, "/" + file)
+            iso.modify_file_in_place(f, filelen, "/" + file + (";1" if fixfilename and not file.endswith(".") else ""))
     iso.close()
     common.logMessage("Done!")
     # Create xdelta patch
