@@ -11,7 +11,7 @@ static PyObject* compressRACJIN(PyObject* module, PyObject* args, PyObject* kwar
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s#", kwlist, &src, &srclen))
         return NULL;
 
-    unsigned char* compressed_buffer = PyMem_Malloc(srclen);
+    unsigned char* compressed_buffer = PyMem_Malloc(srclen * 2);
     MALLOC_CHECK(compressed_buffer);
     unsigned int destlen = 0;
 
