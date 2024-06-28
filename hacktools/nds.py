@@ -230,7 +230,7 @@ def expandBIN(binin, binout, headerin, headerout, newlengths, injectpos):
             datastart += size
     # Write the new extended arm9.bin
     for i in range(len(newlengths)):
-        sections.append(BINSection(None, injectpos[i], newlengths[i], 0, 0, True if i < len(newlengths) - 1 else False))
+        sections.append(BINSection(None, injectpos[i], newlengths[i], 0, 0))
     with common.Stream(binout, "wb") as f:
         # Write the section data first
         f.write(sections[0].data)
