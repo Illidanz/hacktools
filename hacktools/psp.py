@@ -31,7 +31,7 @@ def extractIso(isofile, extractfolder, workfolder="", fixfilename=False):
     common.logMessage("Done!")
 
 
-def repackIso(isofile, isopatch, workfolder, patchfile="", fixfilename=False):
+def repackIso(isofile, isopatch, workfolder, patchfile="", fixfilename=False, udf=False, ignorefiles=[]):
     try:
         import pycdlib
     except ImportError:
@@ -41,11 +41,31 @@ def repackIso(isofile, isopatch, workfolder, patchfile="", fixfilename=False):
     common.copyFile(isofile, isopatch)
     iso = pycdlib.PyCdlib()
     iso.open(isopatch, "r+b")
+    udflookup = {}
+    if udf:
+        for dirname, dirlist, filelist in iso.walk(udf_path="/"):
+            if dirname != "/":
+                dirname += "/"
+            common.logDebug("Dirname:", dirname, ", Dirlist:", dirlist, ", Filelist:", filelist)
+            for file in filelist:
+                udflookup[dirname[1:].lower() + file.lower()] = dirname[1:] + file
+    common.logDebug(udflookup)
     files = common.getFiles(workfolder)
     for file in common.showProgress(files):
         filelen = os.path.getsize(workfolder + file)
         with open(workfolder + file, "rb") as f:
-            iso.modify_file_in_place(f, filelen, "/" + file + (";1" if fixfilename and not file.endswith(".") else ""))
+            udfpath = None
+            if udf:
+                if file.lower() not in udflookup:
+                    common.logError("UDF lookup not found:", file)
+                    udfpath = "/" + file
+                else:
+                    udfpath = "/" + udflookup[file.lower()]
+                    common.logDebug("UDF path:", udfpath)
+            # Add a . to files without extension
+            if "." not in file:
+                file += "."
+            iso.modify_file_in_place(f, filelen, "/" + file + (";1" if fixfilename else ""), udf_path=udfpath)
     iso.close()
     common.logMessage("Done!")
     # Create xdelta patch
