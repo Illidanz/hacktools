@@ -430,7 +430,7 @@ if hasClick:
             runGUI()
 
 
-    def runStartup(nocrc=False):
+    def runStartup():
         if datafolder != "" and not os.path.isdir(datafolder):
             makeFolder(datafolder)
         if appname != "":
@@ -441,7 +441,7 @@ if hasClick:
         if filecheck != "" and not os.path.isfile(filecheck):
             logError(filecheck, "file not found.")
             return False
-        if crc >= 0 and not nocrc:
+        if crc >= 0 and not os.path.isfile(".skipcrc"):
             checkcrc = crcFile(filecheck)
             if crc != checkcrc:
                 logMessage("Checksum mismatch for", filecheck, "(" + toHex(checkcrc) + ", expected", toHex(crc) + ")")
