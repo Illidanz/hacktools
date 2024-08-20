@@ -1163,8 +1163,7 @@ def copyFolder(f1, f2):
 
 
 def mergeFolder(f1, f2):
-    import distutils.dir_util
-    distutils.dir_util.copy_tree(f1, f2, verbose=0)
+    shutil.copytree(f1, f2, dirs_exist_ok=True)
 
 
 def copyFile(f1, f2):
