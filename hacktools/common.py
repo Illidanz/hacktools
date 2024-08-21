@@ -8,6 +8,7 @@ import re
 import shlex
 import shutil
 import sys
+import stat
 import struct
 import subprocess
 import typing
@@ -430,7 +431,7 @@ if hasClick:
             runGUI()
 
 
-    def runStartup():
+    def runStartup(skipcrc=False):
         if datafolder != "" and not os.path.isdir(datafolder):
             makeFolder(datafolder)
         if appname != "":
@@ -441,7 +442,7 @@ if hasClick:
         if filecheck != "" and not os.path.isfile(filecheck):
             logError(filecheck, "file not found.")
             return False
-        if crc >= 0 and not os.path.isfile(".skipcrc"):
+        if crc >= 0 and not skipcrc and not os.path.isfile(".skipcrc"):
             checkcrc = crcFile(filecheck)
             if crc != checkcrc:
                 logMessage("Checksum mismatch for", filecheck, "(" + toHex(checkcrc) + ", expected", toHex(crc) + ")")
@@ -1154,6 +1155,11 @@ def makeFolder(folder, clear=True):
 
 def clearFolder(folder):
     if os.path.isdir(folder):
+        # Ensure files aren't marked as read-only
+        for root, dirs, files in os.walk(folder, topdown=False):
+            for name in files:
+                filename = os.path.join(root, name)
+                os.chmod(filename, stat.S_IWUSR)
         shutil.rmtree(folder)
 
 
