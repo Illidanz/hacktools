@@ -1310,6 +1310,102 @@ class NSBMDPalette:
         self.size = 0
         self.data = []
 
+def readTEX0(nsbmd, f, zerotransp=False):
+    # Read TEX0 block
+    f.seek(nsbmd.blockoffset + 4)
+    nsbmd.blocksize = f.readUInt()
+    nsbmd.blocklimit = nsbmd.blocksize + nsbmd.blockoffset
+    f.seek(4, 1)
+    nsbmd.texdatasize = f.readUShort() * 8
+    f.seek(6, 1)
+    nsbmd.texdataoffset = f.readUInt() + nsbmd.blockoffset
+    f.seek(4, 1)
+    nsbmd.sptexsize = f.readUShort() * 8
+    f.seek(6, 1)
+    nsbmd.sptexoffset = f.readUInt() + nsbmd.blockoffset
+    nsbmd.spdataoffset = f.readUInt() + nsbmd.blockoffset
+    f.seek(4, 1)
+    nsbmd.paldatasize = f.readUShort() * 8
+    f.seek(2, 1)
+    nsbmd.paldefoffset = f.readUInt() + nsbmd.blockoffset
+    nsbmd.paldataoffset = f.readUInt() + nsbmd.blockoffset
+    common.logDebug(vars(nsbmd))
+    # Texture definition
+    f.seek(1, 1)
+    texnum = f.readByte()
+    pos = f.tell()
+    f.seek(nsbmd.paldefoffset + 1)
+    palnum = f.readByte()
+    f.seek(pos)
+    common.logDebug("texnum:", texnum, "palnum:", palnum)
+    f.seek(14 + (texnum * 4), 1)
+    for i in range(texnum):
+        offset = f.readUShort() * 8
+        param = f.readUShort()
+        f.seek(4, 1)
+        tex = NSBMDTexture()
+        tex.format = (param >> 10) & 7
+        tex.width = 8 << ((param >> 4) & 7)
+        tex.height = 8 << ((param >> 7) & 7)
+        tex.size = tex.width * tex.height * NSBMDbpp[tex.format] // 8
+        if tex.format == 5:
+            tex.offset = offset + nsbmd.sptexoffset
+        else:
+            tex.offset = offset + nsbmd.texdataoffset
+        nsbmd.textures.append(tex)
+    # Texture name
+    for tex in nsbmd.textures:
+        tex.name = f.readString(16)
+        common.logDebug(vars(tex))
+    # Palette definition
+    f.seek(nsbmd.paldefoffset + 2 + 14 + (palnum * 4))
+    for i in range(palnum):
+        pal = NSBMDPalette()
+        pal.offset = (f.readUShort() * 8) + nsbmd.paldataoffset
+        f.seek(2, 1)
+        nsbmd.palettes.append(pal)
+    # Palette size
+    if palnum > 0:
+        for i in range(palnum):
+            r = i + 1
+            while r < len(nsbmd.palettes) and nsbmd.palettes[r].offset == nsbmd.palettes[i].offset:
+                r += 1
+            if r != palnum:
+                nsbmd.palettes[i].size = nsbmd.palettes[r].offset - nsbmd.palettes[i].offset
+            else:
+                nsbmd.palettes[i].size = nsbmd.blocklimit - nsbmd.palettes[i].offset
+        nsbmd.palettes[i].size = nsbmd.blocklimit - nsbmd.palettes[i].offset
+    # Palette name
+    for pal in nsbmd.palettes:
+        pal.name = f.readString(16)
+        common.logDebug(vars(pal))
+    # Traverse palettes
+    for pal in nsbmd.palettes:
+        f.seek(pal.offset)
+        for i in range(pal.size // 2):
+            palcolor = common.readPalette(f.readShort())
+            if i == 0 and zerotransp:
+                palcolor = (palcolor[0], palcolor[1], palcolor[2], 0)
+            pal.data.append(palcolor)
+    # Traverse texture
+    spdataoffset = nsbmd.spdataoffset
+    for texi in range(len(nsbmd.textures)):
+        tex = nsbmd.textures[texi]
+        if tex.format == 5:
+            r = tex.size >> 1
+            f.seek(spdataoffset)
+            for i in range(r // 2):
+                tex.spdata.append(f.readUShort())
+            spdataoffset += r
+        # Export texture
+        f.seek(tex.offset)
+        if tex.format == 5:
+            for i in range(tex.size // 4):
+                tex.data.append(f.readUInt())
+        else:
+            tex.data = f.read(tex.size)
+    return nsbmd
+
 
 def readNSBMD(nsbmdfile, zerotransp=False):
     nsbmd = NSBMD()
@@ -1328,100 +1424,18 @@ def readNSBMD(nsbmdfile, zerotransp=False):
         f.seek(-4, 1)
         texstart = f.readUShort()
         nsbmd.blockoffset = nsbmdstart + texstart
-        # Read TEX0 block
-        f.seek(nsbmd.blockoffset + 4)
-        nsbmd.blocksize = f.readUInt()
-        nsbmd.blocklimit = nsbmd.blocksize + nsbmd.blockoffset
-        f.seek(4, 1)
-        nsbmd.texdatasize = f.readUShort() * 8
-        f.seek(6, 1)
-        nsbmd.texdataoffset = f.readUInt() + nsbmd.blockoffset
-        f.seek(4, 1)
-        nsbmd.sptexsize = f.readUShort() * 8
-        f.seek(6, 1)
-        nsbmd.sptexoffset = f.readUInt() + nsbmd.blockoffset
-        nsbmd.spdataoffset = f.readUInt() + nsbmd.blockoffset
-        f.seek(4, 1)
-        nsbmd.paldatasize = f.readUShort() * 8
-        f.seek(2, 1)
-        nsbmd.paldefoffset = f.readUInt() + nsbmd.blockoffset
-        nsbmd.paldataoffset = f.readUInt() + nsbmd.blockoffset
-        common.logDebug(vars(nsbmd))
-        # Texture definition
-        f.seek(1, 1)
-        texnum = f.readByte()
-        pos = f.tell()
-        f.seek(nsbmd.paldefoffset + 1)
-        palnum = f.readByte()
-        f.seek(pos)
-        common.logDebug("texnum:", texnum, "palnum:", palnum)
-        f.seek(14 + (texnum * 4), 1)
-        for i in range(texnum):
-            offset = f.readUShort() * 8
-            param = f.readUShort()
-            f.seek(4, 1)
-            tex = NSBMDTexture()
-            tex.format = (param >> 10) & 7
-            tex.width = 8 << ((param >> 4) & 7)
-            tex.height = 8 << ((param >> 7) & 7)
-            tex.size = tex.width * tex.height * NSBMDbpp[tex.format] // 8
-            if tex.format == 5:
-                tex.offset = offset + nsbmd.sptexoffset
-            else:
-                tex.offset = offset + nsbmd.texdataoffset
-            nsbmd.textures.append(tex)
-        # Texture name
-        for tex in nsbmd.textures:
-            tex.name = f.readString(16)
-            common.logDebug(vars(tex))
-        # Palette definition
-        f.seek(nsbmd.paldefoffset + 2 + 14 + (palnum * 4))
-        for i in range(palnum):
-            pal = NSBMDPalette()
-            pal.offset = (f.readUShort() * 8) + nsbmd.paldataoffset
-            f.seek(2, 1)
-            nsbmd.palettes.append(pal)
-        # Palette size
-        if palnum > 0:
-            for i in range(palnum):
-                r = i + 1
-                while r < len(nsbmd.palettes) and nsbmd.palettes[r].offset == nsbmd.palettes[i].offset:
-                    r += 1
-                if r != palnum:
-                    nsbmd.palettes[i].size = nsbmd.palettes[r].offset - nsbmd.palettes[i].offset
-                else:
-                    nsbmd.palettes[i].size = nsbmd.blocklimit - nsbmd.palettes[i].offset
-            nsbmd.palettes[i].size = nsbmd.blocklimit - nsbmd.palettes[i].offset
-        # Palette name
-        for pal in nsbmd.palettes:
-            pal.name = f.readString(16)
-            common.logDebug(vars(pal))
-        # Traverse palettes
-        for pal in nsbmd.palettes:
-            f.seek(pal.offset)
-            for i in range(pal.size // 2):
-                palcolor = common.readPalette(f.readShort())
-                if i == 0 and zerotransp:
-                    palcolor = (palcolor[0], palcolor[1], palcolor[2], 0)
-                pal.data.append(palcolor)
-        # Traverse texture
-        spdataoffset = nsbmd.spdataoffset
-        for texi in range(len(nsbmd.textures)):
-            tex = nsbmd.textures[texi]
-            if tex.format == 5:
-                r = tex.size >> 1
-                f.seek(spdataoffset)
-                for i in range(r // 2):
-                    tex.spdata.append(f.readUShort())
-                spdataoffset += r
-            # Export texture
-            f.seek(tex.offset)
-            if tex.format == 5:
-                for i in range(tex.size // 4):
-                    tex.data.append(f.readUInt())
-            else:
-                tex.data = f.read(tex.size)
-        return nsbmd
+        return readTEX0(nsbmd, f, zerotransp)
+
+
+def readNSBTX(nsbmdfile, zerotransp=False):
+    nsbmd = NSBMD()
+    with common.Stream(nsbmdfile, "rb") as f:
+        nsbmdstart = 0
+        # Read the TEX0 offset
+        f.seek(nsbmdstart + 0x10)
+        texstart = f.readUShort()
+        nsbmd.blockoffset = nsbmdstart + texstart
+        return readTEX0(nsbmd, f, zerotransp)
 
 
 def drawNSBMD(file, nsbmd, texi):
@@ -1431,6 +1445,9 @@ def drawNSBMD(file, nsbmd, texi):
         common.logError("PIL not found")
         return
     tex = nsbmd.textures[texi]
+    if tex.format != 7 and len(nsbmd.palettes) == 0:
+        common.logDebug("Skipping texture with no palettes")
+        return
     common.logDebug("Exporting", tex.name, "...")
     palette = None
     if tex.format != 7:
