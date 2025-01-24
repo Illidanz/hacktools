@@ -46,7 +46,7 @@ External dependencies not included are marked as `(through *dependency*)`
 - BRFNT fonts (through [brfnt2tpl](https://wiki.tockdom.com/wiki/Brfnt2tpl) and [wimgt](https://szs.wiimm.de))
 ### Other / Generic
 - CPK archives
-- ARCH archives
+- ARCH archives (including compression/decompression)
 - LZ10, LZ11, Huffman, CRILAYLA and RACJIN compression/decompression
 - ARM/MIPS binary patching
 - xdelta patch creation
