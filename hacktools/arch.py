@@ -83,10 +83,6 @@ def repack(fin, f, archive, infolder):
                 with common.Stream(filepath, "rb") as subf:
                     filedata = subf.read()
                     compdata = compress(filedata)
-                    # For testing
-                    uncompdata = decompress(compdata, subfile.declength)
-                    if uncompdata != filedata:
-                        common.logError("Error", subfile.name)
                 f.writeUInt(len(compdata))
                 f.writeUInt(size)
                 f.writeUInt(dataoff)
