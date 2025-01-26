@@ -181,7 +181,7 @@ def searchUMD(f, filename, path, lba, length):
                 found = searchUMD(f, filename, newpath, newlba, newlen)
                 if found != 0:
                     return found
-            elif newpath.lower() == filename.lower():
+            elif newpath.lower() == filename.lower() or newpath.lower() == filename.lower() + ".":
                 return 0x800 * (lba + i) + pos
     return 0
 
