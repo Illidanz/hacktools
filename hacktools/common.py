@@ -969,7 +969,7 @@ def detectASCIIString(f, encoding="ascii", startascii=[]):
     return ret
 
 
-def writeEncodedString(f, s, maxlen=0, encoding="shift_jis"):
+def writeEncodedString(f, s, maxlen=0, encoding="shift_jis", zerobytes=1):
     i = 0
     x = 0
     s = s.replace("～", "〜")
@@ -1000,7 +1000,8 @@ def writeEncodedString(f, s, maxlen=0, encoding="shift_jis"):
             f.write(c.encode(encoding))
             i += 2
         x += 1
-    f.writeByte(0x00)
+    if zerobytes > 0:
+        f.writeZero(zerobytes)
     return i
 
 
