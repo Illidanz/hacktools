@@ -113,7 +113,7 @@ def repackIMG(workfolder, infolder, outfolder, extensions=".NCGR", readfunc=None
         common.copyFile(infolder + file, outfolder + file)
         transptile = False
         if writefunc is not None:
-            image, palettes, map, cell, width, height, transptile = writefunc(infolder, file, image, palettes, map, cell, width, height)
+            image, palettes, map, cell, width, height, transptile = writefunc(workfolder, infolder, outfolder, file, image, palettes, map, cell, width, height)
         if image is not None:
             if map is None and cell is None:
                 writeNCGR(outfolder + file, image, workfolder + pngfile, palettes, width, height)
