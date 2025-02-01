@@ -113,19 +113,20 @@ def repackIMG(workfolder, infolder, outfolder, extensions=".NCGR", readfunc=None
         common.copyFile(infolder + file, outfolder + file)
         transptile = False
         if writefunc is not None:
-            image, map, cell, width, height, transptile = writefunc(file, image, map, cell, width, height)
-        if map is None and cell is None:
-            writeNCGR(outfolder + file, image, workfolder + pngfile, palettes, width, height)
-        elif cell is None:
-            common.copyFile(infolder + mapfile, outfolder + mapfile)
-            writeMappedNSCR(outfolder + file, outfolder + mapfile, image, map, workfolder + pngfile, palettes, width, height, transptile)
-        else:
-            if os.path.isfile(workfolder + cellfile):
-                cell = readNCER(workfolder + cellfile)
-                common.copyFile(workfolder + cellfile, outfolder + cellfile)
+            image, palettes, map, cell, width, height, transptile = writefunc(infolder, file, image, palettes, map, cell, width, height)
+        if image is not None:
+            if map is None and cell is None:
+                writeNCGR(outfolder + file, image, workfolder + pngfile, palettes, width, height)
+            elif cell is None:
+                common.copyFile(infolder + mapfile, outfolder + mapfile)
+                writeMappedNSCR(outfolder + file, outfolder + mapfile, image, map, workfolder + pngfile, palettes, width, height, transptile)
             else:
-                common.copyFile(infolder + cellfile, outfolder + cellfile)
-            writeNCER(outfolder + file, outfolder + cellfile, image, cell, workfolder + pngfile, palettes, width, height)
+                if os.path.isfile(workfolder + cellfile):
+                    cell = readNCER(workfolder + cellfile)
+                    common.copyFile(workfolder + cellfile, outfolder + cellfile)
+                else:
+                    common.copyFile(infolder + cellfile, outfolder + cellfile)
+                writeNCER(outfolder + file, outfolder + cellfile, image, cell, workfolder + pngfile, palettes, width, height)
     common.logMessage("Done!")
 
 
