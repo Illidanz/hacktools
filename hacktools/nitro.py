@@ -1007,7 +1007,7 @@ def writeNCGR(file, ncgr, infile, palettes, width=-1, height=-1):
                 writeNCGRTile(f, pixels, width, ncgr, i, j, palettes[0])
 
 
-def writeNSCR(file, ncgr, nscr, infile, palettes, width=-1, height=-1):
+def writeNSCR(file, ncgr, nscr, infile, palettes, width=-1, height=-1, skipfirst=False):
     try:
         from PIL import Image
     except ImportError:
@@ -1029,10 +1029,16 @@ def writeNSCR(file, ncgr, nscr, infile, palettes, width=-1, height=-1):
                 if map.xflip or map.yflip:
                     x += 1
                     continue
+                if skipfirst and x == 0:
+                    x += 1
+                    continue
                 # Write the tile if it's a new one
                 if map.tile not in donetiles:
                     donetiles.append(map.tile)
-                    f.seek(ncgr.tileoffset + map.tile * (8 * ncgr.bpp))
+                    tilenum = map.tile
+                    if skipfirst:
+                        tilenum -= 1
+                    f.seek(ncgr.tileoffset + tilenum * (8 * ncgr.bpp))
                     writeNCGRTile(f, pixels, width, ncgr, i, j, palettes[map.pal])
                 x += 1
 
