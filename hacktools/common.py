@@ -504,7 +504,7 @@ def logDebug(*messages):
 
 def logWarning(*messages):
     message = " ".join(str(x) for x in messages)
-    logging.debug("[WARNING]" + message)
+    logging.debug("[WARNING] " + message)
 
 
 def logError(*messages):
