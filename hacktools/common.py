@@ -1001,6 +1001,10 @@ def writeEncodedString(f, s, maxlen=0, encoding="shift_jis", zerobytes=1):
             i += 2
         x += 1
     if zerobytes > 0:
+        if zerobytes > 1:
+            if maxlen > 0 and i+1 > maxlen:
+                return -1
+            i += zerobytes - 1
         f.writeZero(zerobytes)
     return i
 
