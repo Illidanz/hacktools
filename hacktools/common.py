@@ -759,16 +759,25 @@ class TranslationFile:
 
     def preloadLookup(self, comments="#"):
         self.lookup = {}
+        self.offlookup = {}
         self.chartot = 0
         self.transtot = 0
         for file in self.files:
             for unit in self.files[file][0]:
+                self.offlookup[int(unit.attrib["id"])] = unit[0].text
                 self.chartot += len(unit[0].text)
                 if unit[1].text is not None and unit[1].text != "":
                     if comments in unit[1].text:
                         unit[1].text = unit[1].text.split(comments)[0]
                     self.lookup[unit[0].text] = unit[1].text
                     self.transtot += len(unit[0].text)
+
+    def preloadOffsets(self):
+        self.offsets = {}
+        for file in self.files:
+            self.offsets[file] = []
+            for unit in self.files[file][0]:
+                self.offsets[file].append(int(unit.attrib["id"]))
 
     def getEntry(self, text, filename, offset):
         stroffset = str(offset)
@@ -786,6 +795,19 @@ class TranslationFile:
             return self.lookup[text]
         return ""
 
+    def setEntry(self, text, filename, offset, newtext):
+        stroffset = str(offset)
+        if filename in self.files:
+            # Try to match offset
+            for unit in self.files[filename][0]:
+                if unit.attrib["id"] == stroffset:
+                    unit[1].text = newtext
+                    return
+            # Try to match string
+            for unit in self.files[filename][0]:
+                if unit[0].text == text:
+                    unit[1].text = newtext
+
     def hasFile(self, filename):
         return filename in self.files
 
@@ -802,6 +824,7 @@ class TranslationFile:
         xmlstr = ET.tostring(self.root, encoding="unicode", xml_declaration=True)
         # Change this to match what Weblate does
         xmlstr = xmlstr.replace("<target />", "<target/>") + "\n"
+        xmlstr = xmlstr.replace("<?xml version='1.0' encoding='utf-8'?>", "<?xml version=\"1.0\" encoding=\"UTF-8\"?>")
         with codecs.open(filename, "w", "utf-8") as f:
             f.write(xmlstr)
 
@@ -1021,7 +1044,7 @@ def extractBinaryStrings(infile, binranges, func=detectEncodedString, encoding="
                 check = func(f, encoding)
                 if check != "":
                     if check not in strings:
-                        logDebug("Found string at", pos)
+                        logDebug("Found string", check, "at", toHex(pos))
                         strings.append(check)
                         positions.append([pos])
                     else:
@@ -1082,7 +1105,7 @@ def repackBinaryStrings(section, infile, outfile, binranges, freeranges=None, re
                                 else:
                                     # Add this to the freeranges
                                     freeranges.append([pos, endpos])
-                                    logDebug("Adding new freerage", toHex(pos), toHex(endpos))
+                                    logDebug("Adding new freerange", toHex(pos), toHex(endpos))
                                     range = None
                                     rangelen = 0
                                     for c in newsjis:

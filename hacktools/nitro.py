@@ -434,6 +434,7 @@ class NCGR:
         self.bpp = 4
         self.tilesize = 8
         self.tileoffset = 0
+        self.tilelen = 0
         self.lineal = False
         self.tiles = []
 

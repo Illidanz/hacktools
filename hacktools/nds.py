@@ -149,7 +149,7 @@ def repackBIN(binrange, freeranges=[], readfunc=common.detectEncodedString, writ
             chartot, transtot = common.getSectionPercentage(section)
     else:
         section = common.TranslationFile(binfile)
-        section.preloadLookup()
+        section.preloadLookup(comments)
     if type(binrange) == tuple:
         binrange = [binrange]
     notfound = common.repackBinaryStrings(section, binin, binout, binrange, freeranges, readfunc, writefunc, encoding, pointerstart, injectstart, fallbackf, injectfallback, sectionname, preformat, postformat)

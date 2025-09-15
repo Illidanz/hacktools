@@ -87,7 +87,7 @@ class UMDFile():
 
 
 def repackUMD(umdfile, umdpatch, workfolder, patchfile="", sectorpadding=1):
-    common.logMessage("Repacking UMD", umdpatch, "...")
+    common.logMessage("Repacking ISO/UMD", umdpatch, "...")
     allfiles = common.getFiles(workfolder)
     isofiles = []
     with common.Stream(umdfile, "rb") as fin:
