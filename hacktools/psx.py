@@ -7,13 +7,13 @@ from hacktools import common
 # Image functions
 def extractBIN(infolder, outfolder, cuefile):
     try:
-        import pymkpsxiso
+        import pydumpsxiso
     except ImportError:
-        common.logError("pymkpsxiso not found")
+        common.logError("pydumpsxiso not found")
         return
     common.logMessage("Extracting BIN", cuefile, "...")
     common.makeFolder(infolder)
-    pymkpsxiso.dump(cuefile.replace(".cue", ".bin"), infolder[:-1], infolder[:-1] + ".xml")
+    pydumpsxiso.run(cuefile.replace(".cue", ".bin"), infolder[:-1], infolder[:-1] + ".xml")
     common.logMessage("Copying data to", outfolder, "...")
     common.copyFolder(infolder, outfolder)
     with open(infolder[:-1] + ".xml", "r") as f:
@@ -30,7 +30,7 @@ def repackBIN(infolder, binin, binout, cuefile, patchfile=""):
         common.logError("pymkpsxiso not found")
         return
     common.logMessage("Repacking BIN", binout, "...")
-    pymkpsxiso.make(binout, cuefile, infolder[:-1] + ".xml")
+    pymkpsxiso.run(binout, cuefile, infolder[:-1] + ".xml")
     common.logMessage("Done!")
     # Create xdelta patch
     if patchfile != "":
