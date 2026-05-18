@@ -1171,7 +1171,7 @@ def repackBinaryStrings(section, infile, outfile, binranges, freeranges=None, re
                                 fo.writeZero(endpos - fo.tell())
                         pos = fi.tell() - 1
                     fi.seek(pos + 1)
-    return notfound
+    return notfound, freeranges
 
 
 # Folders

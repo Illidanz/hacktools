@@ -152,14 +152,14 @@ def repackBIN(binrange, freeranges=[], readfunc=common.detectEncodedString, writ
         section.preloadLookup(comments)
     if type(binrange) == tuple:
         binrange = [binrange]
-    notfound = common.repackBinaryStrings(section, binin, binout, binrange, freeranges, readfunc, writefunc, encoding, pointerstart, injectstart, fallbackf, injectfallback, sectionname, preformat, postformat)
+    notfound, freeranges = common.repackBinaryStrings(section, binin, binout, binrange, freeranges, readfunc, writefunc, encoding, pointerstart, injectstart, fallbackf, injectfallback, sectionname, preformat, postformat)
     for pointer in notfound:
         common.logError("Pointer", common.toHex(pointer.old), "->", common.toHex(pointer.new), "not found for string", pointer.str)
     if binfile.endswith(".txt"):
         common.logMessage("Done! Translation is at {0:.2f}%".format((100 * transtot) / chartot))
     else:
         common.logMessage("Done! Translation is at {0:.2f}%".format(section.getProgress()))
-    return True
+    return freeranges
 
 
 class BINSection:
