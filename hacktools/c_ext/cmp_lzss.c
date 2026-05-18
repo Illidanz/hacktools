@@ -210,7 +210,10 @@ static PyObject* compressLZ10(PyObject* m, PyObject* args, PyObject* kwargs)
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s#i", kwlist, &indata, &inlength, &mindisp))
         return NULL;
 
-    unsigned char* out = PyMem_Malloc(inlength);
+    // Worst case: uncompressible data emits 1 flag byte per 8 input bytes,
+    // so output can reach inlength + ceil(inlength/8)
+    size_t outcap = inlength + (inlength + 7) / 8 + 32;
+    unsigned char* out = PyMem_Malloc(outcap);
     MALLOC_CHECK(out);
 
     unsigned int compressedlength = 0;
@@ -288,7 +291,10 @@ static PyObject* compressLZ11(PyObject* m, PyObject* args, PyObject* kwargs)
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s#i", kwlist, &indata, &inlength, &mindisp))
         return NULL;
 
-    unsigned char* out = PyMem_Malloc(inlength);
+    // Worst case: uncompressible data emits 1 flag byte per 8 input bytes,
+    // so output can reach inlength + ceil(inlength/8)
+    size_t outcap = inlength + (inlength + 7) / 8 + 32;
+    unsigned char* out = PyMem_Malloc(outcap);
     MALLOC_CHECK(out);
 
     unsigned int compressedlength = 0;
