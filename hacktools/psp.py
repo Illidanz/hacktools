@@ -243,6 +243,168 @@ def readELF(infile):
     return elf
 
 
+def expandELF(elfpath, n, fixheap=True):
+    # Inserts a code cave of n bytes at the end of the RWX PT_LOAD segment of a
+    # 32-bit ELF, fixing up all the headers so the file stays valid. Returns the
+    # virtual address of the cave (the old segment _end). When fixheap is set,
+    # MIPS references to _end used as the heap base are bumped past the cave.
+    # Read headers
+    with common.Stream(elfpath, "rb") as f:
+        e_phoff = f.readUIntAt(0x1c)
+        e_shoff = f.readUIntAt(0x20)
+        f.seek(0x2a)
+        e_phentsize = f.readUShort()
+        e_phnum = f.readUShort()
+        e_shentsize = f.readUShort()
+        e_shnum = f.readUShort()
+
+        phs = []  # (ph_off, p_type, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_flags, p_align)
+        for i in range(e_phnum):
+            ph_off = e_phoff + i * e_phentsize
+            f.seek(ph_off)
+            entry = (ph_off,
+                     f.readUInt(), f.readUInt(), f.readUInt(), f.readUInt(),
+                     f.readUInt(), f.readUInt(), f.readUInt(), f.readUInt())
+            phs.append(entry)
+
+        sections = []  # (sh_off, sh_addr, sh_offset, sh_size)
+        for i in range(e_shnum):
+            sh_off = e_shoff + i * e_shentsize
+            f.seek(sh_off + 0x0c)
+            sh_addr = f.readUInt()
+            sh_offset = f.readUInt()
+            sh_size = f.readUInt()
+            sections.append((sh_off, sh_addr, sh_offset, sh_size))
+
+        f.seek(0)
+        data = bytearray(f.read())
+
+    # Identify the RWX PT_LOAD segment that holds .text/.data
+    target = next((p for p in phs if p[1] == 1 and p[7] == 7), None)
+    if target is None:
+        common.logError("Could not find RWX PT_LOAD segment")
+        return 0
+    _, _, p_offset, p_vaddr, _, p_filesz, p_memsz, _, _ = target
+
+    # The cave will live at vaddr = p_vaddr + p_memsz, above all original BSS
+    # We need filesz to reach that vaddr and cover the cave, which means inserting
+    # (p_memsz - p_filesz) zero bytes for the BSS gap + n cave bytes
+    bss_gap = p_memsz - p_filesz
+    insert_total = bss_gap + n
+    insert_at = p_offset + p_filesz
+
+    # Splice the inserted bytes (all zero) into the file
+    data[insert_at:insert_at] = bytes(insert_total)
+    with common.Stream(elfpath, "wb") as f:
+        f.write(bytes(data))
+
+    # Patch headers (positions are post-splice)
+    new_shoff = e_shoff + insert_total if e_shoff >= insert_at else e_shoff
+    with common.Stream(elfpath, "r+b") as f:
+        # e_shoff
+        f.writeUIntAt(0x20, new_shoff)
+
+        # Program headers
+        for (ph_off, p_type, ph_p_offset, ph_p_vaddr, ph_p_paddr, ph_p_filesz, ph_p_memsz, ph_p_flags, ph_p_align) in phs:
+            # Program header table itself doesn't move (e_phoff < insert_at).
+            new_p_offset = ph_p_offset + insert_total if ph_p_offset >= insert_at else ph_p_offset
+            new_p_vaddr = ph_p_vaddr
+            new_p_paddr = ph_p_paddr
+            new_p_filesz = ph_p_filesz
+            new_p_memsz = ph_p_memsz
+            if (p_type, ph_p_flags) == (1, 7):
+                # The cave segment grows in both file and memory.
+                new_p_filesz = ph_p_filesz + insert_total
+                new_p_memsz = ph_p_memsz + n
+            elif ph_p_vaddr >= p_vaddr + p_memsz:
+                # Any segment that lived at/above the old memsz boundary (e.g. PH1)
+                # gets shifted up by the cave size so it doesn't overlap
+                new_p_vaddr = ph_p_vaddr + n
+                new_p_paddr = ph_p_paddr + n
+            f.writeUIntAt(ph_off + 0x04, new_p_offset)
+            f.writeUIntAt(ph_off + 0x08, new_p_vaddr)
+            f.writeUIntAt(ph_off + 0x0c, new_p_paddr)
+            f.writeUIntAt(ph_off + 0x10, new_p_filesz)
+            f.writeUIntAt(ph_off + 0x14, new_p_memsz)
+
+        # Section headers
+        for sh_off, sh_addr, sh_offset, sh_size in sections:
+            new_addr, new_offset, new_size = sh_addr, sh_offset, sh_size
+            if sh_offset >= insert_at:
+                new_offset = sh_offset + insert_total
+            elif sh_offset != 0 and sh_size != 0 and sh_offset + sh_size == insert_at:
+                new_size = sh_size + insert_total
+            if sh_addr >= p_vaddr + p_memsz:
+                new_addr = sh_addr + n
+            new_sh_off = sh_off + insert_total if sh_off >= insert_at else sh_off
+            f.writeUIntAt(new_sh_off + 0x0c, new_addr)
+            f.writeUIntAt(new_sh_off + 0x10, new_offset)
+            f.writeUIntAt(new_sh_off + 0x14, new_size)
+
+    # Bump references to the original _end (= old PT_LOAD memsz boundary) that
+    # are used as the heap base. If we don't shift them, the game's first
+    # malloc/sbrk lands on top of our cave
+    old_end = p_vaddr + p_memsz
+    new_end = old_end + n
+    if fixheap:
+        sec_lo = p_offset
+        sec_hi = p_offset + p_filesz + insert_total
+        with common.Stream(elfpath, "r+b") as f:
+            # Literals: any 4-byte word equal to old_end gets bumped.
+            for off in range(sec_lo, sec_hi - 3, 4):
+                if f.readUIntAt(off) == old_end:
+                    f.writeUIntAt(off, new_end)
+            # lui+addiu/ori pairs producing old_end, followed by a syscall nearby
+            for off in range(sec_lo, sec_hi - 4, 4):
+                w = f.readUIntAt(off)
+                if (w >> 26) != 0x0f:
+                    continue
+                rt = (w >> 16) & 0x1f
+                hi = (w & 0xffff) << 16
+                for j in range(1, 9):
+                    off2 = off + j * 4
+                    if off2 >= sec_hi:
+                        break
+                    w2 = f.readUIntAt(off2)
+                    op2 = w2 >> 26
+                    rs2 = (w2 >> 21) & 0x1f
+                    if rs2 != rt:
+                        continue
+                    if op2 == 0x09:
+                        lo = w2 & 0xffff
+                        if lo >= 0x8000:
+                            lo -= 0x10000
+                        addr = (hi + lo) & 0xffffffff
+                    elif op2 == 0x0d:
+                        addr = hi | (w2 & 0xffff)
+                    else:
+                        continue
+                    if addr != old_end:
+                        break
+                    # Look ahead up to 3 instructions for a "syscall" (opcode=0, funct=0x0c)
+                    # Only the heap-setup site matches this
+                    has_syscall = False
+                    for k in range(1, 5):
+                        off3 = off2 + k * 4
+                        if off3 >= sec_hi:
+                            break
+                        w3 = f.readUIntAt(off3)
+                        if (w3 >> 26) == 0 and (w3 & 0x3f) == 0x0c:
+                            has_syscall = True
+                            break
+                    if not has_syscall:
+                        break
+                    new_hi = (new_end >> 16) & 0xffff
+                    new_lo = new_end & 0xffff
+                    if op2 == 0x09 and (new_lo & 0x8000):
+                        new_hi = (new_hi + 1) & 0xffff
+                    f.writeUIntAt(off, (w & 0xffff0000) | new_hi)
+                    f.writeUIntAt(off2, (w2 & 0xffff0000) | new_lo)
+                    break
+    common.logDebug("Expanded ELF, cave at", common.toHex(old_end), "size", common.toHex(n))
+    return old_end
+
+
 def extractBinaryStrings(elf, foundstrings, infile, func, encoding="shift_jis", elfsections=[".rodata"]):
     with common.Stream(infile, "rb") as f:
         for sectionname in elfsections:
