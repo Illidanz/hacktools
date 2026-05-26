@@ -1061,7 +1061,7 @@ class BinaryPointer:
         self.str = str
 
 
-def repackBinaryStrings(section, infile, outfile, binranges, freeranges=None, readfunc=detectEncodedString, writefunc=writeEncodedString, encoding="shift_jis", pointerstart=0, injectstart=0, fallbackf=None, injectfallback=0, sectionname="bin", preformat=None, postformat=None):
+def repackBinaryStrings(section, infile, outfile, binranges, freeranges=None, readfunc=detectEncodedString, writefunc=writeEncodedString, encoding="shift_jis", pointerstart=0, injectstart=0, fallbackf=None, injectfallback=0, sectionname="bin", preformat=None, postformat=None, pointeralign=1):
     insize = os.path.getsize(infile)
     notfound = []
     with Stream(infile, "rb") as fi:
@@ -1158,6 +1158,11 @@ def repackBinaryStrings(section, infile, outfile, binranges, freeranges=None, re
                                             index = allbin.find(pointersearch, index)
                                             if index < 0:
                                                 break
+                                            # Skip matches that aren't aligned: the pattern can collide with
+                                            # bytes inside code/data, and overwriting those corrupts the binary
+                                            if pointeralign > 1 and index % pointeralign != 0:
+                                                index += 1
+                                                continue
                                             foundone = True
                                             logDebug("Replaced pointer at", toHex(pointerstart + index), "with", toHex(newpointer))
                                             fo.seek(index)
