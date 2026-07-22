@@ -1,6 +1,8 @@
 # hacktools
 A set of utilities and tools for rom hacking and translations.
 
+Documentation is available at [illidanz.github.io/hacktools](https://illidanz.github.io/hacktools/).
+
 ## Installing dependencies
 Most dependencies are optional, and can be installed with `pip install 'hacktools[name1,name2]'` or `pip install 'hacktools[all]'` to install all of them.
 ### Dependencies list

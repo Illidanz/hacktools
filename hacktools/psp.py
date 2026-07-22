@@ -1,3 +1,8 @@
+"""Support for PSP games.
+
+Includes ISO and UMD images, EBOOT decryption and signing, ELF expansion
+and string repacking, GIM/GMO images and PGF fonts.
+"""
 import ctypes
 import codecs
 import json
@@ -7,7 +12,16 @@ import struct
 from hacktools import common
 
 
-def extractIso(isofile, extractfolder, workfolder="", fixfilename=False):
+def extractIso(isofile: str, extractfolder: str, workfolder: str = "", fixfilename: bool = False) -> None:
+    """Extract an ISO with pycdlib.
+
+    Args:
+        isofile: Path of the ISO file.
+        extractfolder: Path of the folder to extract to.
+        workfolder: Optional path of a work folder the extracted files are
+            copied to.
+        fixfilename: Whether to strip the ";1" suffix from file names.
+    """
     try:
         import pycdlib
     except ImportError:
@@ -31,7 +45,22 @@ def extractIso(isofile, extractfolder, workfolder="", fixfilename=False):
     common.logMessage("Done!")
 
 
-def repackIso(isofile, isopatch, workfolder, patchfile="", fixfilename=False, udf=False, ignorefiles=[]):
+def repackIso(isofile: str, isopatch: str, workfolder: str, patchfile: str = "", fixfilename: bool = False, udf: bool = False, ignorefiles: list = []) -> None:
+    """Repack an ISO with pycdlib, replacing the files found in a folder.
+
+    Files are modified in place, so each one needs to fit in its original
+    sectors.
+
+    Args:
+        isofile: Path of the original ISO file.
+        isopatch: Path of the output ISO file.
+        workfolder: Path of the folder with the replacement files.
+        patchfile: Path of the xdelta patch to create, or empty to skip
+            patch creation.
+        fixfilename: Whether to add back the ";1" suffix to file names.
+        udf: Whether the ISO has UDF entries.
+        ignorefiles: Unused.
+    """
     try:
         import pycdlib
     except ImportError:
@@ -75,18 +104,42 @@ def repackIso(isofile, isopatch, workfolder, patchfile="", fixfilename=False, ud
 
 # UMD functions
 class UMDFile():
+    """A file in a UMD image, as found by :func:`searchUMD`.
+
+    Attributes:
+        realname: Path of the file on disk.
+        filename: Path of the file in the image.
+        pos: Position of the directory record of the file.
+        lba: Sector of the directory record.
+        offset: Offset of the directory record within its sector.
+        oldsize: Original size of the file.
+        filelba: Sector of the file data.
+    """
     def __init__(self):
-        self.realname = ""
-        self.filename = ""
-        self.pos = 0
-        self.lba = 0
-        self.offset = 0
-        self.offset = 0
-        self.oldsize = 0
-        self.filelba = 0
+        self.realname: str = ""
+        self.filename: str = ""
+        self.pos: int = 0
+        self.lba: int = 0
+        self.offset: int = 0
+        self.oldsize: int = 0
+        self.filelba: int = 0
 
 
-def repackUMD(umdfile, umdpatch, workfolder, patchfile="", sectorpadding=1):
+def repackUMD(umdfile: str, umdpatch: str, workfolder: str, patchfile: str = "", sectorpadding: int = 1) -> None:
+    """Repack a UMD image, replacing all the files in a folder.
+
+    Files are written back at their original sector when possible, and the
+    directory records are updated with the new positions and sizes, so
+    files can grow.
+
+    Args:
+        umdfile: Path of the original UMD file.
+        umdpatch: Path of the output UMD file.
+        workfolder: Path of the folder with the replacement files.
+        patchfile: Path of the xdelta patch to create, or empty to skip
+            patch creation.
+        sectorpadding: Number of sectors the file data is padded to.
+    """
     common.logMessage("Repacking ISO/UMD", umdpatch, "...")
     allfiles = common.getFiles(workfolder)
     isofiles = []
@@ -150,7 +203,19 @@ def repackUMD(umdfile, umdpatch, workfolder, patchfile="", sectorpadding=1):
         common.xdeltaPatch(patchfile, umdfile, umdpatch)
 
 
-def searchUMD(f, filename, path, lba, length):
+def searchUMD(f: common.Stream, filename: str, path: str, lba: int, length: int) -> int:
+    """Search the directory records of a UMD image for a file.
+
+    Args:
+        f: Stream opened on the UMD file.
+        filename: Path of the file to search for.
+        path: Path of the directory being searched, "" for the root.
+        lba: Sector of the directory record.
+        length: Length of the directory record.
+
+    Returns:
+        The position of the directory record of the file, or 0 if not found.
+    """
     common.logDebug("searchUMD path", path, "filename", filename, "lba", common.toHex(lba), "length", common.toHex(length))
     totalsectors = (length + 0x800 - 1) // 0x800
     for i in range(totalsectors):
@@ -188,27 +253,56 @@ def searchUMD(f, filename, path, lba, length):
 
 # ELF functions
 class ELF():
+    """Structure of an ELF executable.
+
+    Attributes:
+        sections: List of sections in the executable.
+        sectionsdict: Lookup dictionary from section name to section.
+    """
     def __init__(self):
-        self.sections = []
-        self.sectionsdict = {}
+        self.sections: list[ELFSection] = []
+        self.sectionsdict: dict[str, ELFSection] = {}
 
 
 class ELFSection():
+    """Structure of a single ELF section header.
+
+    Attributes:
+        name: Name of the section.
+        nameoff: Offset of the section name in the string table.
+        type: Type of the section.
+        flags: Flags of the section.
+        addr: Virtual address of the section.
+        offset: Offset of the section data in the file.
+        size: Size of the section.
+        link: Section index link.
+        info: Extra section information.
+        addralign: Alignment of the section.
+        entsize: Size of each entry, for sections that hold a table.
+    """
     def __init__(self):
-        self.name = ""
-        self.nameoff = 0
-        self.type = 0
-        self.flags = 0
-        self.addr = 0
-        self.offset = 0
-        self.size = 0
-        self.link = 0
-        self.info = 0
-        self.addralign = 0
-        self.entsize = 0
+        self.name: str = ""
+        self.nameoff: int = 0
+        self.type: int = 0
+        self.flags: int = 0
+        self.addr: int = 0
+        self.offset: int = 0
+        self.size: int = 0
+        self.link: int = 0
+        self.info: int = 0
+        self.addralign: int = 0
+        self.entsize: int = 0
 
 
-def readELF(infile):
+def readELF(infile: str) -> ELF:
+    """Read the section headers of an ELF executable.
+
+    Args:
+        infile: Path of the ELF file.
+
+    Returns:
+        The parsed ELF structure.
+    """
     elf = ELF()
     with common.Stream(infile, "rb") as f:
         f.seek(0x20)
@@ -243,11 +337,23 @@ def readELF(infile):
     return elf
 
 
-def expandELF(elfpath, n, fixheap=True):
-    # Inserts a code cave of n bytes at the end of the RWX PT_LOAD segment of a
-    # 32-bit ELF, fixing up all the headers so the file stays valid. Returns the
-    # virtual address of the cave (the old segment _end). When fixheap is set,
-    # MIPS references to _end used as the heap base are bumped past the cave.
+def expandELF(elfpath: str, n: int, fixheap: bool = True) -> int:
+    """Insert a code cave of n bytes in a 32-bit ELF.
+
+    The cave is added at the end of the RWX PT_LOAD segment, fixing up all
+    the headers so the file stays valid. When fixheap is set, MIPS
+    references to _end used as the heap base are bumped past the cave, so
+    the game's first malloc/sbrk doesn't land on top of it.
+
+    Args:
+        elfpath: Path of the ELF file, modified in place.
+        n: Number of bytes to insert.
+        fixheap: Whether to bump heap base references past the cave.
+
+    Returns:
+        The virtual address of the cave (the old segment _end), or 0 if
+        the RWX PT_LOAD segment wasn't found.
+    """
     # Read headers
     with common.Stream(elfpath, "rb") as f:
         e_phoff = f.readUIntAt(0x1c)
@@ -405,7 +511,22 @@ def expandELF(elfpath, n, fixheap=True):
     return old_end
 
 
-def extractBinaryStrings(elf, foundstrings, infile, func, encoding="shift_jis", elfsections=[".rodata"]):
+def extractBinaryStrings(elf: ELF, foundstrings: list, infile: str, func, encoding: str = "shift_jis", elfsections: list = [".rodata"]) -> list:
+    """Extract strings from sections of an ELF executable.
+
+    Args:
+        elf: ELF structure returned by :func:`readELF`.
+        foundstrings: List of already known strings, new strings are added
+            to it.
+        infile: Path of the ELF file.
+        func: Function used to detect strings, called with
+            (stream, encoding).
+        encoding: Encoding passed to func.
+        elfsections: Names of the sections to scan.
+
+    Returns:
+        The updated foundstrings list.
+    """
     with common.Stream(infile, "rb") as f:
         for sectionname in elfsections:
             rodata = elf.sectionsdict[sectionname]
@@ -422,7 +543,24 @@ def extractBinaryStrings(elf, foundstrings, infile, func, encoding="shift_jis", 
     return foundstrings
 
 
-def repackBinaryStrings(elf, section, infile, outfile, readfunc, writefunc, encoding="shift_jis", elfsections=[".rodata"]):
+def repackBinaryStrings(elf: ELF, section: dict, infile: str, outfile: str, readfunc, writefunc, encoding: str = "shift_jis", elfsections: list = [".rodata"]) -> None:
+    """Repack translated strings into sections of an ELF executable.
+
+    Translations are written in place, padded with zeros. Strings that
+    don't fit are logged and skipped.
+
+    Args:
+        elf: ELF structure returned by :func:`readELF`.
+        section: Dictionary of translations.
+        infile: Path of the original ELF file.
+        outfile: Path of the output ELF file, already copied from infile.
+        readfunc: Function used to detect strings, called with
+            (stream, encoding).
+        writefunc: Function used to write strings, called with
+            (stream, string, maxlen).
+        encoding: Encoding passed to readfunc.
+        elfsections: Names of the sections to scan.
+    """
     with common.Stream(infile, "rb") as fi:
         with common.Stream(outfile, "r+b") as fo:
             for sectionname in elfsections:
@@ -447,7 +585,13 @@ def repackBinaryStrings(elf, section, infile, outfile, readfunc, writefunc, enco
                     fi.seek(pos + 1)
 
 
-def decryptBIN(ebinout, binout):
+def decryptBIN(ebinout: str, binout: str) -> None:
+    """Decrypt an EBOOT.BIN with pyeboot.
+
+    Args:
+        ebinout: Path of the encrypted EBOOT.BIN file.
+        binout: Path of the decrypted output file.
+    """
     try:
         import pyeboot.decrypt
     except ImportError:
@@ -456,7 +600,16 @@ def decryptBIN(ebinout, binout):
     pyeboot.decrypt(ebinout, binout)
 
 
-def signBIN(binout, ebinout, tag):
+def signBIN(binout: str, ebinout: str, tag: int) -> None:
+    """Sign a BOOT.BIN into an EBOOT.BIN with pyeboot.
+
+    If pyeboot is not available, the file is copied as-is.
+
+    Args:
+        binout: Path of the BOOT.BIN file.
+        ebinout: Path of the output EBOOT.BIN file.
+        tag: Tag to sign the file with.
+    """
     common.logMessage("Signing BIN ...")
     try:
         import pyeboot.sign
@@ -466,56 +619,116 @@ def signBIN(binout, ebinout, tag):
         common.copyFile(binout, ebinout)
 
 
-# https://www.psdevwiki.com/ps3/Graphic_Image_Map_(GIM)
 class GIM:
+    """Structure of a GIM image file.
+
+    Format reference: https://www.psdevwiki.com/ps3/Graphic_Image_Map_(GIM)
+
+    Attributes:
+        rootoff: Offset of the root block.
+        rootsize: Size of the root block.
+        images: List of images in the file.
+    """
     def __init__(self):
-        self.rootoff = 0
-        self.rootsize = 0
-        self.images = []
+        self.rootoff: int = 0
+        self.rootsize: int = 0
+        self.images: list[GIMImage] = []
 
 
 class GIMImage:
+    """Structure of a single image in a GIM file.
+
+    Attributes:
+        picoff: Offset of the picture block.
+        picsize: Size of the picture block.
+        imgoff: Offset of the image block.
+        imgsize: Size of the image block.
+        imgframeoff: Offset of the image data, relative to the image block.
+        format: Format of the image data, an index for palette formats or
+            a color format below 0x04.
+        bpp: Bits per pixel, derived from the format.
+        width: Width of the image.
+        height: Height of the image.
+        tiled: Whether the image data is tiled.
+        blockedwidth: Width rounded up to a multiple of the tile width.
+        blockedheight: Height rounded up to a multiple of the tile height.
+        tilewidth: Width of a single tile.
+        tileheight: Height of a single tile.
+        paloff: Offset of the palette block.
+        palsize: Size of the palette block.
+        palframeoff: Offset of the palette data, relative to the palette block.
+        palformat: Color format of the palette.
+        palette: Palette colors, as a list of RGBA tuples.
+        colors: Image data, a list of palette indexes or RGBA tuples
+            depending on the format.
+    """
     def __init__(self):
-        self.picoff = 0
-        self.picsize = 0
-        self.imgoff = 0
-        self.imgsize = 0
-        self.imgframeoff = 0
-        self.format = 0
-        self.width = 0
-        self.height = 0
-        self.tiled = 0
-        self.blockedwidth = 0
-        self.blockedheight = 0
-        self.tilewidth = 0
-        self.tileheight = 0
-        self.paloff = 0
-        self.palsize = 0
-        self.palframeoff = 0
-        self.palformat = 0
-        self.palette = []
-        self.colors = []
+        self.picoff: int = 0
+        self.picsize: int = 0
+        self.imgoff: int = 0
+        self.imgsize: int = 0
+        self.imgframeoff: int = 0
+        self.format: int = 0
+        self.width: int = 0
+        self.height: int = 0
+        self.tiled: int = 0
+        self.blockedwidth: int = 0
+        self.blockedheight: int = 0
+        self.tilewidth: int = 0
+        self.tileheight: int = 0
+        self.paloff: int = 0
+        self.palsize: int = 0
+        self.palframeoff: int = 0
+        self.palformat: int = 0
+        self.palette: list = []
+        self.colors: list = []
 
 
 class TGAImage:
+    """Structure of a TGA image, assumed to be 32bit RGBA.
+
+    Attributes:
+        rootoff: Offset of the image in the file.
+        format: Image type from the TGA header.
+        width: Width of the image.
+        height: Height of the image.
+        imgoff: Offset of the image data.
+        colors: Image data, as a list of RGBA tuples.
+    """
     def __init__(self):
-        self.rootoff = 0
-        self.format = 0
-        self.width = 0
-        self.height = 0
-        self.imgoff = 0
-        self.colors = []
+        self.rootoff: int = 0
+        self.format: int = 0
+        self.width: int = 0
+        self.height: int = 0
+        self.imgoff: int = 0
+        self.colors: list = []
 
 
 class GMO:
+    """Structure of a GMO model file, only its textures are parsed.
+
+    Attributes:
+        size: Size of the file data.
+        names: List of texture names.
+        offsets: List of texture data offsets.
+        gims: List of GIM textures, parsed from the offsets.
+    """
     def __init__(self):
-        self.size = 0
-        self.names = []
-        self.offsets = []
-        self.gims = []
+        self.size: int = 0
+        self.names: list[str] = []
+        self.offsets: list[int] = []
+        self.gims: list = []
 
 
-def readGMO(file):
+def readGMO(file: str) -> GMO:
+    """Read the texture names and GIM textures of a GMO model.
+
+    Args:
+        file: Path of the GMO file.
+
+    Returns:
+        The parsed GMO structure.
+    """
     gmo = GMO()
     with common.Stream(file, "rb") as f:
         f.seek(16 + 4)
@@ -530,7 +743,17 @@ def readGMO(file):
     return gmo
 
 
-def readGMOChunk(f, gmo, maxsize, nesting=""):
+def readGMOChunk(f: common.Stream, gmo: GMO, maxsize: int, nesting: str = "") -> None:
+    """Read a single GMO chunk, recursing into nested ones.
+
+    Texture names and data offsets are added to the GMO structure.
+
+    Args:
+        f: Stream opened on the GMO file.
+        gmo: GMO structure to update.
+        maxsize: Position the chunks end at.
+        nesting: Prefix used to indent the debug logs.
+    """
     offset = f.tell()
     id = f.readUShort()
     headerlen = f.readUShort()
@@ -558,7 +781,17 @@ def readGMOChunk(f, gmo, maxsize, nesting=""):
         f.seek(offset + blocklen)
 
 
-def readGIM(file, start=0):
+def readGIM(file: str, start: int = 0):
+    """Read a GIM image, or a TGA image if the MIG magic is not found.
+
+    Args:
+        file: Path of the image file.
+        start: Offset of the image in the file.
+
+    Returns:
+        The parsed :class:`GIM` or :class:`TGAImage` structure, or None if
+        a GIM block has an unexpected id.
+    """
     gim = GIM()
     with common.Stream(file, "rb") as f:
         f.seek(start)
@@ -594,7 +827,21 @@ def readGIM(file, start=0):
     return gim
 
 
-def readGIMBlock(f, gim, image):
+def readGIMBlock(f: common.Stream, gim: GIM, image: GIMImage):
+    """Read a single GIM block from the current stream position.
+
+    Picture blocks add a new image to the GIM structure, while image and
+    palette blocks fill the current one. Unknown blocks are skipped.
+
+    Args:
+        f: Stream opened on the GIM file.
+        gim: GIM structure to update.
+        image: Image being filled, None before the first picture block.
+
+    Returns:
+        A (nextblock, image) tuple with the offset of the next block and
+        the image being filled.
+    """
     offset = f.tell()
     id = f.readUShort()
     f.seek(2, 1)
@@ -678,7 +925,20 @@ def readGIMBlock(f, gim, image):
         return offset + f.readUInt(), image
 
 
-def writeGIM(file, gim, infile, backwardspal=False):
+def writeGIM(file: str, gim, infile: str, backwardspal: bool = False) -> None:
+    """Write a png image back into a GIM or TGA file.
+
+    The images are read from the png stacked vertically, in the same
+    layout drawn by :func:`drawGIM`.
+
+    Args:
+        file: Path of the image file to update.
+        gim: :class:`GIM` or :class:`TGAImage` structure returned by
+            :func:`readGIM`.
+        infile: Path of the png file to pack.
+        backwardspal: Whether to search the palettes backwards when
+            matching colors.
+    """
     try:
         from PIL import Image
     except ImportError:
@@ -719,7 +979,17 @@ def writeGIM(file, gim, infile, backwardspal=False):
                    writeColor(f, 0x03, pixels[j, gim.height - 1 - i])
 
 
-def writeGIMPixel(f, image, color, backwards=False):
+def writeGIMPixel(f: common.Stream, image: GIMImage, color, backwards: bool = False) -> None:
+    """Write a single pixel of a GIM image.
+
+    For palette formats, the index of the closest palette color is written.
+
+    Args:
+        f: Stream to write to.
+        image: Image the pixel belongs to.
+        color: RGBA tuple, or None to write index 0 or a transparent pixel.
+        backwards: Whether to search the palette backwards.
+    """
     if image.format == 0x04 or image.format == 0x05:
         index = common.getPaletteIndex(image.palette, color, False, 0, -1, True, False, backwards) if color is not None else 0
         if image.format == 0x04:
@@ -730,7 +1000,17 @@ def writeGIMPixel(f, image, color, backwards=False):
         writeColor(f, image.format, color if color is not None else (0, 0, 0, 0))
 
 
-def readColor(f, format):
+def readColor(f: common.Stream, format: int) -> tuple:
+    """Read a color in the given GIM color format.
+
+    Args:
+        f: Stream to read from.
+        format: Color format, 0x00 (RGBA5650), 0x01 (RGBA5551),
+            0x02 (RGBA4444) or 0x03 (RGBA8888).
+
+    Returns:
+        The color as an RGBA tuple.
+    """
     r, g, b, a = (0, 0, 0, 255)
     if format == 0x00:  # RGBA5650
         color = f.readUShort()
@@ -759,7 +1039,15 @@ def readColor(f, format):
     return (r, g, b, a)
 
 
-def writeColor(f, format, color):
+def writeColor(f: common.Stream, format: int, color: tuple) -> None:
+    """Write a color in the given GIM color format.
+
+    Args:
+        f: Stream to write to.
+        format: Color format, 0x00 (RGBA5650), 0x01 (RGBA5551),
+            0x02 (RGBA4444) or 0x03 (RGBA8888).
+        color: Color to write, as an RGBA tuple.
+    """
     if format == 0x00:  # RGBA5650
         enc = ((color[2] >> 3) << 11) | ((color[1] >> 2) << 5) | (color[0] >> 3)
         f.writeUShort(enc)
@@ -775,7 +1063,17 @@ def writeColor(f, format, color):
         f.writeUInt(enc)
 
 
-def drawGIM(outfile, gim):
+def drawGIM(outfile: str, gim) -> None:
+    """Draw a GIM or TGA image to a png file.
+
+    GIM images are stacked vertically, with their palettes drawn on the
+    right side.
+
+    Args:
+        outfile: Path of the png file to create.
+        gim: :class:`GIM` or :class:`TGAImage` structure returned by
+            :func:`readGIM`.
+    """
     try:
         from PIL import Image
     except ImportError:
@@ -834,7 +1132,16 @@ def drawGIM(outfile, gim):
     img.save(outfile, "PNG")
 
 
-def drawGIMPixel(image, pixels, x, y, i):
+def drawGIMPixel(image: GIMImage, pixels, x: int, y: int, i: int) -> None:
+    """Draw a single pixel of a GIM image.
+
+    Args:
+        image: Image the pixel belongs to.
+        pixels: PIL pixel access object to draw on.
+        x: X position to draw at.
+        y: Y position to draw at.
+        i: Index of the pixel in the image data.
+    """
     if len(image.palette) > 0:
         pixels[x, y] = image.palette[image.colors[i]]
     else:
@@ -842,8 +1149,39 @@ def drawGIMPixel(image, pixels, x, y, i):
 
 
 # Font files
-# https://github.com/tpunix/pgftool/blob/master/pgf.h
 class PGF:
+    """Structure of a PGF font.
+
+    Format reference: https://github.com/tpunix/pgftool/blob/master/pgf.h
+
+    Attributes:
+        headerlen: Length of the header.
+        charmaplen: Number of charmap entries.
+        charptrlen: Number of charptr entries.
+        charmapbpe: Bits per entry of the charmap table.
+        charptrbpe: Bits per entry of the charptr table.
+        charmapmin: First UCS code in the charmap.
+        charmapmax: Last UCS code in the charmap.
+        charptrscale: Scale applied to the charptr values.
+        dimensionlen: Number of entries in the dimension map.
+        bearingxlen: Number of entries in the horizontal bearing map.
+        bearingylen: Number of entries in the vertical bearing map.
+        advancelen: Number of entries in the advance map.
+        shadowmaplen: Number of entries in the shadowmap table.
+        shadowmapbpe: Bits per entry of the shadowmap table.
+        dimensionmap: List of {"x", "y"} glyph dimensions.
+        bearingxmap: List of {"x", "y"} horizontal bearings.
+        bearingymap: List of {"x", "y"} vertical bearings.
+        advancemap: List of {"x", "y"} advances.
+        shadowmap: UCS codes of the glyphs with a shadow.
+        charmap: Charmap table, mapping UCS codes to glyph pointers.
+        charptr: Charptr table, holding the offset of each glyph.
+        mapend: Offset of the end of the maps.
+        glyphpos: Offset of the glyph data.
+        ucslist: List of the UCS codes to load.
+        glyphs: List of glyphs in the font.
+        reversetable: Lookup dictionary from character to glyph indexes.
+    """
     def __init__(self):
         self.headerlen = 0
         self.charmaplen = 0
@@ -872,7 +1210,15 @@ class PGF:
         self.glyphs = []
         self.reversetable = {}
 
-    def ptr2ucs(self, ptr):
+    def ptr2ucs(self, ptr: int) -> int:
+        """Convert a glyph pointer index to its UCS code.
+
+        Args:
+            ptr: Glyph pointer index.
+
+        Returns:
+            The UCS code, or 0xffff if not found.
+        """
         for i in range(self.charmaplen):
             if self.charmap[i] == ptr:
                 return self.charmapmin + i
@@ -880,6 +1226,33 @@ class PGF:
 
 
 class PGFGlyph:
+    """Structure of a single glyph in a PGF font.
+
+    Attributes:
+        index: Index of the glyph.
+        ucs: UCS code of the glyph.
+        char: Character the glyph represents.
+        size: Size of the glyph data.
+        oldsize: Original size of the glyph data, before repacking.
+        width: Width of the bitmap.
+        height: Height of the bitmap.
+        left: Left offset of the bitmap.
+        top: Top offset of the bitmap.
+        flag: Glyph flags, holding the RLE order and which values use maps.
+        totlen: Length in bits of the glyph header.
+        shadow: Whether the glyph has a shadow.
+        shadowflag: Shadow flags.
+        shadowid: Index in the shadowmap table.
+        dimensionid: Index in the dimension map, or -1 for an inline value.
+        bearingxid: Index in the horizontal bearing map, or -1 for an inline value.
+        bearingyid: Index in the vertical bearing map, or -1 for an inline value.
+        advanceid: Index in the advance map, or -1 for an inline value.
+        dimension: Dimension of the glyph, as a {"x", "y"} dictionary.
+        bearingx: Horizontal bearing, as a {"x", "y"} dictionary.
+        bearingy: Vertical bearing, as a {"x", "y"} dictionary.
+        advance: Advance, as a {"x", "y"} dictionary.
+        bitmap: RLE encoded bitmap data, filled when repacking.
+    """
     def __init__(self):
         self.index = 0
         self.ucs = 0
@@ -906,7 +1279,19 @@ class PGFGlyph:
         self.bitmap = None
 
 
-def getBPEValue(bpe, buf, pos, float=False):
+def getBPEValue(bpe: int, buf: bytes, pos: int, float: bool = False):
+    """Read a bit-packed value from a buffer.
+
+    Args:
+        bpe: Number of bits to read.
+        buf: Buffer to read from.
+        pos: Bit position to read at.
+        float: Whether the value is a 26.6 fixed point number, converted
+            to float.
+
+    Returns:
+        A (value, position) tuple with the new bit position.
+    """
     v = 0
     for i in range(bpe):
         v |= ((buf[pos // 8] >> (pos % 8)) & 1) << i
@@ -917,7 +1302,17 @@ def getBPEValue(bpe, buf, pos, float=False):
     return v, pos
 
 
-def readBPETable(f, num, bpe):
+def readBPETable(f: common.Stream, num: int, bpe: int) -> list:
+    """Read a table of bit-packed values.
+
+    Args:
+        f: Stream to read from.
+        num: Number of values to read.
+        bpe: Bits per entry.
+
+    Returns:
+        The list of values.
+    """
     table = []
     buf = f.read(((num * bpe + 31) // 32) * 4)
     pos = 0
@@ -927,7 +1322,19 @@ def readBPETable(f, num, bpe):
     return table
 
 
-def setBPEValue(bpe, buf, pos, data, float=False):
+def setBPEValue(bpe: int, buf: bytearray, pos: int, data, float: bool = False) -> int:
+    """Write a bit-packed value in a buffer.
+
+    Args:
+        bpe: Number of bits to write.
+        buf: Buffer to write to.
+        pos: Bit position to write at.
+        data: Value to write.
+        float: Whether the value is a float, converted to 26.6 fixed point.
+
+    Returns:
+        The new bit position.
+    """
     if float:
         data = ctypes.c_int(data * 64).value
     for i in range(bpe):
@@ -939,7 +1346,15 @@ def setBPEValue(bpe, buf, pos, data, float=False):
     return pos
 
 
-def setBPETable(f, num, bpe, table):
+def setBPETable(f: common.Stream, num: int, bpe: int, table: list) -> None:
+    """Write a table of bit-packed values.
+
+    Args:
+        f: Stream to write to.
+        num: Number of values in the table.
+        bpe: Bits per entry.
+        table: List of values to write.
+    """
     buf = bytearray(((num * bpe + 31) // 32) * 4)
     pos = 0
     for i in range(len(table)):
@@ -947,8 +1362,17 @@ def setBPETable(f, num, bpe, table):
     f.write(buf)
 
 
-# https://github.com/tpunix/pgftool/blob/master/libpgf.c
-def readPGFData(file):
+def readPGFData(file: str) -> PGF:
+    """Read the header, maps and glyphs of a PGF font.
+
+    Based on https://github.com/tpunix/pgftool/blob/master/libpgf.c
+
+    Args:
+        file: Path of the PGF file.
+
+    Returns:
+        The parsed font structure.
+    """
     pgf = PGF()
     with common.Stream(file, "rb") as f:
         # Read header
@@ -1066,9 +1490,17 @@ fontpalette = [(0x0,  0x0,  0x0,  0xff), (0x1f, 0x1f, 0x1f, 0xff), (0x2f, 0x2f, 
                (0x4f, 0x4f, 0x4f, 0xff), (0x5f, 0x5f, 0x5f, 0xff), (0x6f, 0x6f, 0x6f, 0xff), (0x7f, 0x7f, 0x7f, 0xff),
                (0x8f, 0x8f, 0x8f, 0xff), (0x9f, 0x9f, 0x9f, 0xff), (0xaf, 0xaf, 0xaf, 0xff), (0xbf, 0xbf, 0xbf, 0xff),
                (0xcf, 0xcf, 0xcf, 0xff), (0xdf, 0xdf, 0xdf, 0xff), (0xef, 0xef, 0xef, 0xff), (0xff, 0xff, 0xff, 0xff)]
+"""Grayscale palette used for the 4-bit glyph bitmaps."""
 
 
-def extractPGFBitmap(buf, glyph, outfile):
+def extractPGFBitmap(buf: bytes, glyph: PGFGlyph, outfile: str) -> None:
+    """Decode the RLE bitmap of a glyph and draw it to a png file.
+
+    Args:
+        buf: Buffer holding the encoded bitmap.
+        glyph: Glyph the bitmap belongs to.
+        outfile: Path of the png file to create.
+    """
     try:
         from PIL import Image
     except ImportError:
@@ -1076,7 +1508,7 @@ def extractPGFBitmap(buf, glyph, outfile):
         return
     pos = 0
     i = 0
-    bitmapdata = []
+    bitmapdata: list[int] = []
     while len(bitmapdata) < glyph.width * glyph.height:
         nb, pos = getBPEValue(4, buf, pos)
         if nb < 8:
@@ -1106,7 +1538,15 @@ def extractPGFBitmap(buf, glyph, outfile):
     img.save(outfile)
 
 
-def bitmapRLE(pixels):
+def bitmapRLE(pixels: list) -> bytearray:
+    """Encode glyph pixel indexes with the PGF RLE scheme.
+
+    Args:
+        pixels: List of palette indexes to encode.
+
+    Returns:
+        The encoded data.
+    """
     data = bytearray(1024)
     i = j = pos = rcnt = scnt = rlen = slen = 0
     while i < len(pixels):
@@ -1161,7 +1601,20 @@ def bitmapRLE(pixels):
     return data[:int(math.ceil(pos / 8))]
 
 
-def repackPGFBitmap(glyph, infile):
+def repackPGFBitmap(glyph: PGFGlyph, infile: str):
+    """Encode a png glyph bitmap with the PGF RLE scheme.
+
+    The bitmap is encoded both in horizontal and vertical order, keeping
+    the smaller of the two.
+
+    Args:
+        glyph: Glyph the bitmap belongs to.
+        infile: Path of the png file to encode.
+
+    Returns:
+        A (data, rleflag, width, height) tuple with the encoded data, the
+        flag holding the chosen order, and the bitmap size.
+    """
     try:
         from PIL import Image
     except ImportError:
@@ -1185,7 +1638,20 @@ def repackPGFBitmap(glyph, infile):
     return rlev, 0x02, img.width, img.height
 
 
-def extractPGFData(file, outfile, bitmapout="", justadvance=False):
+def extractPGFData(file: str, outfile: str, bitmapout: str = "", justadvance: bool = False) -> None:
+    """Extract the glyph data of a PGF font to a text file.
+
+    Each line has the char=json format, with "=" characters written as
+    <3D>, or char=advance when justadvance is set.
+
+    Args:
+        file: Path of the PGF file.
+        outfile: Path of the output text file.
+        bitmapout: Folder to extract the glyph bitmaps to as numbered png
+            files, or empty to skip them.
+        justadvance: Whether to only write the x advance of each glyph,
+            instead of the full json data.
+    """
     pgf = readPGFData(file)
     with common.Stream(file, "rb") as fin:
         with codecs.open(outfile, "w", "utf-8") as f:
@@ -1205,7 +1671,16 @@ def extractPGFData(file, outfile, bitmapout="", justadvance=False):
                     extractPGFBitmap(buf, glyph, bitmapout + str(glyph.index).zfill(4) + ".png")
 
 
-def checkPGFDataMap(datamap, newvalue):
+def checkPGFDataMap(datamap: list, newvalue: dict) -> int:
+    """Get the index of a value in a PGF map, adding it if missing.
+
+    Args:
+        datamap: Map to search, a list of {"x", "y"} dictionaries.
+        newvalue: Value to search for, as a {"x", "y"} dictionary.
+
+    Returns:
+        The index of the value, or -1 if it's missing and the map is full.
+    """
     mapid = -1
     newvaluex = int(newvalue["x"] * 64)
     newvaluey = int(newvalue["y"] * 64)
@@ -1221,7 +1696,20 @@ def checkPGFDataMap(datamap, newvalue):
     return mapid
 
 
-def repackPGFData(fontin, fontout, configfile, bitmapin=""):
+def repackPGFData(fontin: str, fontout: str, configfile: str, bitmapin: str = "") -> None:
+    """Repack glyph data and bitmaps into a PGF font.
+
+    The glyph information is read from a config file in the format written
+    by :func:`extractPGFData`, and the bitmaps from numbered png files
+    when they exist.
+
+    Args:
+        fontin: Path of the original PGF file.
+        fontout: Path of the output PGF file.
+        configfile: Path of the config file.
+        bitmapin: Folder with the glyph bitmaps, or empty to keep the
+            original ones.
+    """
     pgf = readPGFData(fontin)
     section = {}
     if os.path.isfile(configfile):
@@ -1365,7 +1853,16 @@ def repackPGFData(fontin, fontout, configfile, bitmapin=""):
             setBPETable(f, pgf.charptrlen, pgf.charptrbpe, charptrs)
 
 
-def mpstopmf(infile, outfile, duration):
+def mpstopmf(infile: str, outfile: str, duration: int) -> None:
+    """Convert a MPS video to PMF, prepending the PSMF header.
+
+    Based on https://github.com/TeamPBCN/pmftools/blob/main/mps2pmf/mps2pmf.cpp
+
+    Args:
+        infile: Path of the MPS file.
+        outfile: Path of the output PMF file.
+        duration: Duration of the video.
+    """
     with common.Stream(infile, "rb", False) as fin:
         # Check header
         check1 = fin.readUInt()
@@ -1375,7 +1872,6 @@ def mpstopmf(infile, outfile, duration):
             return
         fin.seek(0)
         mpsdata = fin.read()
-    # https://github.com/TeamPBCN/pmftools/blob/main/mps2pmf/mps2pmf.cpp
     with common.Stream(outfile, "wb", False) as f:
         # Magic
         f.writeString("PSMF")

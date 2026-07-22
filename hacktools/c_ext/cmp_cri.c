@@ -1,5 +1,20 @@
 #include "inc.h"
 
+PyDoc_STRVAR(compressCRILAYLA_doc,
+"compressCRILAYLA($module, /, indata)\n"
+"--\n"
+"\n"
+"Compress data with the CRILAYLA scheme used by CPK archives.\n"
+"\n"
+"The first 0x100 bytes of the input are stored uncompressed after the\n"
+"compressed stream, so the input must be at least 0x100 bytes long.\n"
+"\n"
+"Args:\n"
+"    indata (bytes): Data to compress.\n"
+"\n"
+"Returns:\n"
+"    bytes: The compressed data, starting with the CRILAYLA signature.");
+
 // https://github.com/ConnorKrammer/cpk-tools/blob/master/LibCRIComp/LibCRIComp.cpp
 static PyObject* compressCRILAYLA(PyObject* module, PyObject* args, PyObject* kwargs)
 {
@@ -160,6 +175,18 @@ static inline uint16_t get_next_bits(unsigned char* input_buffer, long* const of
     return out_bits;
 }
 
+PyDoc_STRVAR(decompressCRILAYLA_doc,
+"decompressCRILAYLA($module, /, indata)\n"
+"--\n"
+"\n"
+"Decompress CRILAYLA-compressed data.\n"
+"\n"
+"Args:\n"
+"    indata (bytes): Compressed data, starting with the CRILAYLA signature.\n"
+"\n"
+"Returns:\n"
+"    bytes: The decompressed data.");
+
 // https://github.com/hcs64/vgm_ripping/blob/master/multi/utf_tab/cpk_uncompress.c
 static PyObject* decompressCRILAYLA(PyObject* m, PyObject* args, PyObject* kwargs)
 {
@@ -244,15 +271,15 @@ static PyObject* decompressCRILAYLA(PyObject* m, PyObject* args, PyObject* kwarg
 }
 
 static PyMethodDef Cmp_criMethods[] = {
-    {"compressCRILAYLA", (PyCFunction)compressCRILAYLA, METH_VARARGS | METH_KEYWORDS, "Compress CRILAYLA data."},
-    {"decompressCRILAYLA", (PyCFunction)decompressCRILAYLA, METH_VARARGS | METH_KEYWORDS, "Decompress CRILAYLA data."},
+    {"compressCRILAYLA", (PyCFunction)compressCRILAYLA, METH_VARARGS | METH_KEYWORDS, compressCRILAYLA_doc},
+    {"decompressCRILAYLA", (PyCFunction)decompressCRILAYLA, METH_VARARGS | METH_KEYWORDS, decompressCRILAYLA_doc},
     {NULL, NULL, 0, NULL}
 };
 
 static struct PyModuleDef cmp_crimodule = {
     PyModuleDef_HEAD_INIT,
     "cmp_cri",
-    "CRILAYLA functions.",
+    "C implementation of the CRILAYLA compression scheme used by CPK archives.",
     -1,
     Cmp_criMethods
 };

@@ -1,27 +1,70 @@
+"""Support for CRI CPK archives, used by many CRI Middleware based games.
+
+A CPK archive is a container indexed by one or more tables (TOC, ETOC,
+ITOC, GTOC) serialized in the CRI @UTF table format. Files can optionally
+be compressed with the CRILAYLA scheme and the @UTF packets themselves can
+be encrypted with a simple XOR scheme. Based on CriPakTools.
+"""
 import os
+from collections.abc import Callable
 from enum import IntEnum
 from hacktools import common, cmp_cri
 
 
 class CPK:
-    def __init__(self):
-        self.filetable = []
-        self.data = {}
-        self.align = 0
+    """Structure of a CPK archive.
 
-    def getFileEntry(self, filename, filetype="", tocname=""):
+    Attributes:
+        filetable: List of file and header entries in the archive.
+        data: Extra data associated with the archive, not used by this module.
+        align: Alignment of file data in the archive.
+    """
+    def __init__(self):
+        self.filetable: list[CPKFileEntry] = []
+        self.data: dict = {}
+        self.align: int = 0
+
+    def getFileEntry(self, filename: str, filetype: str = "", tocname: str = "") -> "CPKFileEntry | None":
+        """Search the file table for an entry with the given filename.
+
+        Args:
+            filename: Name of the entry to search for.
+            filetype: If not empty, only match entries with this filetype.
+            tocname: If not empty, only match entries with this tocname.
+
+        Returns:
+            The first matching entry, or None if not found.
+        """
         for i in range(len(self.filetable)):
             if self.filetable[i].filename == filename and (filetype == "" or self.filetable[i].filetype == filetype) and (tocname == "" or self.filetable[i].tocname == tocname):
                 return self.filetable[i]
         return None
 
-    def getIDEntry(self, id, filetype="", tocname=""):
+    def getIDEntry(self, id: int, filetype: str = "", tocname: str = "") -> "CPKFileEntry | None":
+        """Search the file table for an entry with the given ID.
+
+        Args:
+            id: ID of the entry to search for.
+            filetype: If not empty, only match entries with this filetype.
+            tocname: If not empty, only match entries with this tocname.
+
+        Returns:
+            The first matching entry, or None if not found.
+        """
         for i in range(len(self.filetable)):
             if self.filetable[i].id == id and (filetype == "" or self.filetable[i].filetype == filetype) and (tocname == "" or self.filetable[i].tocname == tocname):
                 return self.filetable[i]
         return None
 
-    def getEntries(self, filetype):
+    def getEntries(self, filetype: str) -> "list[CPKFileEntry]":
+        """Get all the file table entries with the given filetype.
+
+        Args:
+            filetype: Filetype to search for, usually "FILE".
+
+        Returns:
+            The list of matching entries.
+        """
         ret = []
         for i in range(len(self.filetable)):
             if self.filetable[i].filetype == filetype:
@@ -30,30 +73,72 @@ class CPK:
 
 
 class CPKFileEntry:
+    """Structure of a single entry in a CPK file table.
+
+    Both actual files and internal headers (CPK, TOC, ETOC, ITOC, GTOC)
+    are represented as entries, distinguished by their filetype.
+
+    Attributes:
+        dirname: Directory name of the file.
+        filename: Name of the file.
+        filesize: Size of the file as stored in the archive.
+        filesizepos: Position of the filesize value in the @UTF packet.
+        filesizetype: Data type of the filesize value, as a :class:`UTFStructTypes`.
+        fileoffset: Absolute offset of the file data in the archive.
+        fileoffsetpos: Position of the fileoffset value in the @UTF packet.
+        fileoffsettype: Data type of the fileoffset value, as a :class:`UTFStructTypes`.
+        extractsize: Size of the file after decompression, equal to filesize
+            if the file is not compressed.
+        extractsizepos: Position of the extractsize value in the @UTF packet.
+        extractsizetype: Data type of the extractsize value, as a :class:`UTFStructTypes`.
+        offset: Base offset that was added to fileoffset when reading the entry.
+        id: Numeric ID of the file.
+        userstring: Optional user string attached to the file.
+        updatetime: Update timestamp read from the ETOC.
+        localdir: Local directory read from the ETOC.
+        tocname: Name of the TOC the entry belongs to ("TOC", "ITOC" or "CPK").
+        encrypted: Whether the @UTF packet of this entry is encrypted.
+        filetype: Type of the entry ("FILE", "CPK", "HDR" or "CONTENT").
+        utf: Parsed @UTF table for header entries, None otherwise.
+    """
     def __init__(self):
-        self.dirname = ""
-        self.filename = ""
-        self.filesize = 0
-        self.filesizepos = 0
-        self.filesizetype = UTFStructTypes.DATA_TYPE_NONE
-        self.fileoffset = 0
-        self.fileoffsetpos = 0
-        self.fileoffsettype = UTFStructTypes.DATA_TYPE_NONE
-        self.extractsize = 0
-        self.extractsizepos = 0
-        self.extractsizetype = UTFStructTypes.DATA_TYPE_NONE
-        self.offset = 0
-        self.id = 0
-        self.userstring = ""
-        self.updatetime = 0
-        self.localdir = ""
-        self.tocname = ""
-        self.encrypted = False
-        self.filetype = ""
-        self.utf = None
+        self.dirname: str = ""
+        self.filename: str = ""
+        self.filesize: int = 0
+        self.filesizepos: int = 0
+        self.filesizetype: int = UTFStructTypes.DATA_TYPE_NONE
+        self.fileoffset: int = 0
+        self.fileoffsetpos: int = 0
+        self.fileoffsettype: int = UTFStructTypes.DATA_TYPE_NONE
+        self.extractsize: int = 0
+        self.extractsizepos: int = 0
+        self.extractsizetype: int = UTFStructTypes.DATA_TYPE_NONE
+        self.offset: int = 0
+        self.id: int = 0
+        self.userstring: str = ""
+        self.updatetime: int = 0
+        self.localdir: str = ""
+        self.tocname: str = ""
+        self.encrypted: bool = False
+        self.filetype: str = ""
+        self.utf: UTF | None = None
 
     @classmethod
-    def createEntry(cls, filename, fileoffset, fileoffsettype, fileoffsetpos, tocname, filetype, encrypted):
+    def createEntry(cls, filename: str, fileoffset: int, fileoffsettype: int, fileoffsetpos: int, tocname: str, filetype: str, encrypted: bool) -> "CPKFileEntry":
+        """Create an entry with the given attributes.
+
+        Args:
+            filename: Name of the file.
+            fileoffset: Absolute offset of the file data in the archive.
+            fileoffsettype: Data type of the fileoffset value, as a :class:`UTFStructTypes`.
+            fileoffsetpos: Position of the fileoffset value in the @UTF packet.
+            tocname: Name of the TOC the entry belongs to.
+            filetype: Type of the entry.
+            encrypted: Whether the @UTF packet of this entry is encrypted.
+
+        Returns:
+            The new entry.
+        """
         entry = cls()
         entry.filename = filename
         entry.fileoffset = fileoffset
@@ -64,7 +149,18 @@ class CPKFileEntry:
         entry.encrypted = encrypted
         return entry
 
-    def getFolderFile(self, basefolder):
+    def getFolderFile(self, basefolder: str) -> tuple[str, str]:
+        """Get the extraction folder and filename for this entry.
+
+        The folder is basefolder plus the entry dirname, if any. If the entry
+        has no filename, an "ID" name is generated from the entry ID.
+
+        Args:
+            basefolder: Base folder the path should start with.
+
+        Returns:
+            A (folder, filename) tuple.
+        """
         folder = basefolder
         if self.dirname is not None and self.dirname != "" and self.dirname != "<NULL>":
             folder = basefolder + self.dirname + "/"
@@ -77,6 +173,7 @@ class CPKFileEntry:
 
 
 class UTFStructTypes(IntEnum):
+    """Data types of the values stored in a @UTF table."""
     DATA_TYPE_UINT8 = 0
     DATA_TYPE_INT8 = 1
     DATA_TYPE_UINT16 = 2
@@ -93,26 +190,63 @@ class UTFStructTypes(IntEnum):
 
 
 class UTF:
-    def __init__(self):
-        self.columns = []
-        self.rows = []
-        self.tablesize = 0
-        self.rowsoffset = 0
-        self.stringsoffset = 0
-        self.dataoffset = 0
-        self.tablename = 0
-        self.numcolumns = 0
-        self.rowlength = 0
-        self.numrows = 0
-        self.columnlookup = {}
-        self.baseoffset = 0
-        self.rawpacket = None
-        self.datalpos = 0
-        self.datahpos = 0
-        self.utfdatal = None
-        self.utfdatah = None
+    """Structure of a @UTF table, a set of typed columns and rows.
 
-    def getColumnData(self, row, name, type):
+    Attributes:
+        columns: List of columns in the table.
+        rows: List of rows, each row being a list of one :class:`UTFRow` per column.
+        tablesize: Size of the table.
+        rowsoffset: Absolute offset of the rows data.
+        stringsoffset: Absolute offset of the strings data.
+        dataoffset: Absolute offset of the binary data.
+        tablename: Offset of the table name in the strings data.
+        numcolumns: Number of columns in the table.
+        rowlength: Length in bytes of a single row.
+        numrows: Number of rows in the table.
+        columnlookup: Lookup dictionary from column name to column index.
+        baseoffset: Base offset passed to :func:`readUTF`.
+        rawpacket: Stream holding the decrypted @UTF packet, only set when
+            requested with storeraw.
+        datalpos: Position of the DataL value in the packet, used by ITOC tables.
+        datahpos: Position of the DataH value in the packet, used by ITOC tables.
+        utfdatal: Nested table parsed from the DataL value, used by ITOC tables.
+        utfdatah: Nested table parsed from the DataH value, used by ITOC tables.
+    """
+    def __init__(self):
+        self.columns: list[UTFColumn] = []
+        self.rows: list[list[UTFRow]] = []
+        self.tablesize: int = 0
+        self.rowsoffset: int = 0
+        self.stringsoffset: int = 0
+        self.dataoffset: int = 0
+        self.tablename: int = 0
+        self.numcolumns: int = 0
+        self.rowlength: int = 0
+        self.numrows: int = 0
+        self.columnlookup: dict[str, int] = {}
+        self.baseoffset: int = 0
+        self.rawpacket: common.Stream | None = None
+        self.datalpos: int = 0
+        self.datahpos: int = 0
+        self.utfdatal: UTF | None = None
+        self.utfdatah: UTF | None = None
+
+    def getColumnData(self, row: int, name: str, type: int) -> tuple[int | float | str | bytes, int]:
+        """Get the value of a column, with a default if it's missing.
+
+        Like :meth:`getColumnDataType` but if the column is missing or empty,
+        a default is returned instead of None: the maximum unsigned value
+        for integer types, or 0 for the other types.
+
+        Args:
+            row: Index of the row to read from.
+            name: Name of the column.
+            type: Expected data type, as a :class:`UTFStructTypes`, used to
+                pick the default value.
+
+        Returns:
+            A (data, position) tuple.
+        """
         data, pos, _ = self.getColumnDataType(row, name)
         if data is None:
             if type == UTFStructTypes.DATA_TYPE_UINT8 or type == UTFStructTypes.DATA_TYPE_INT8:
@@ -127,7 +261,21 @@ class UTF:
                 data = 0
         return data, pos
 
-    def getColumnDataType(self, row, name):
+    def getColumnDataType(self, row: int, name: str) -> tuple[int | float | str | bytes | None, int, int]:
+        """Get the value, position and type of a column.
+
+        Constant column values are shared by all rows, otherwise the value is
+        read from the given row.
+
+        Args:
+            row: Index of the row to read from.
+            name: Name of the column.
+
+        Returns:
+            A (data, position, type) tuple with the type as a
+            :class:`UTFStructTypes`, or (None, 0, DATA_TYPE_NONE) if the
+            column is missing or holds no data.
+        """
         if name not in self.columnlookup:
             return None, 0, UTFStructTypes.DATA_TYPE_NONE
         columnid = self.columnlookup[name]
@@ -144,7 +292,17 @@ class UTF:
             type = self.rows[row][columnid].type
         return data, pos, type
 
-    def updateColumnDataType(self, data, pos, type):
+    def updateColumnDataType(self, data: int, pos: int, type: int) -> None:
+        """Write a new integer value in the raw packet of this table.
+
+        The position and type are usually the ones previously returned by
+        :meth:`getColumnDataType`. Only integer types are supported.
+
+        Args:
+            data: New value to write.
+            pos: Position to write the value at.
+            type: Data type of the value, as a :class:`UTFStructTypes`.
+        """
         self.rawpacket.seek(pos)
         if type == UTFStructTypes.DATA_TYPE_UINT8:
             self.rawpacket.writeByte(data)
@@ -167,6 +325,7 @@ class UTF:
 
 
 class UTFColumnFlags(IntEnum):
+    """Flags of a @UTF column, holding the storage type and data type."""
     STORAGE_NONE = 0x0
     STORAGE_MASK = 0xf0
     STORAGE_ZERO = 0x10
@@ -176,23 +335,53 @@ class UTFColumnFlags(IntEnum):
 
 
 class UTFColumn:
+    """Structure of a single column in a @UTF table.
+
+    Attributes:
+        flags: Raw flags of the column, as a :class:`UTFColumnFlags` mask.
+        name: Name of the column.
+        data: Value of the column if it's a constant one, None otherwise.
+        storagetype: Storage type of the column, as a :class:`UTFColumnFlags`.
+        type: Data type of the column if it's a constant one, as a
+            :class:`UTFStructTypes`, DATA_TYPE_NONE otherwise.
+        position: Position of the column value if it's a constant one.
+    """
     def __init__(self):
-        self.flags = 0
-        self.name = ""
-        self.data = None
-        self.storagetype = UTFColumnFlags.STORAGE_NONE
-        self.type = UTFStructTypes.DATA_TYPE_NONE
-        self.position = 0
+        self.flags: int = 0
+        self.name: str = ""
+        self.data: int | float | str | bytes | None = None
+        self.storagetype: int = UTFColumnFlags.STORAGE_NONE
+        self.type: int = UTFStructTypes.DATA_TYPE_NONE
+        self.position: int = 0
 
 
 class UTFRow:
+    """Structure of a single row value in a @UTF table.
+
+    Attributes:
+        data: Value of the row, None if the column stores no data.
+        type: Data type of the value, as a :class:`UTFStructTypes`.
+        position: Position of the value in the packet, for per-row storage.
+    """
     def __init__(self):
-        self.data = None
-        self.type = UTFStructTypes.DATA_TYPE_NONE
-        self.position = 0
+        self.data: int | float | str | bytes | None = None
+        self.type: int = UTFStructTypes.DATA_TYPE_NONE
+        self.position: int = 0
 
 
-def extract(file, outfolder, guessextension=None):
+def extract(file: str, outfolder: str, guessextension: "Callable[[bytes, CPKFileEntry, str], str] | None" = None) -> None:
+    """Extract all the files of a CPK archive to a folder.
+
+    Files compressed with CRILAYLA are decompressed. Files without a name
+    are extracted with a generated "ID" name.
+
+    Args:
+        file: Path of the CPK archive.
+        outfolder: Path of the folder to extract to.
+        guessextension: Optional function receiving the file data, the
+            :class:`CPKFileEntry` and the current filename, returning the
+            filename to use.
+    """
     common.logDebug("Processing", file, "...")
     common.makeFolder(outfolder)
     cpk = readCPK(file)
@@ -223,7 +412,24 @@ def extract(file, outfolder, guessextension=None):
                 fout.write(data)
 
 
-def repack(file, outfile, infolder, outfolder, nocmp=False):
+def repack(file: str, outfile: str, infolder: str, outfolder: str, nocmp: bool = False) -> None:
+    """Repack a CPK archive, replacing the files found in a folder.
+
+    Files that exist in outfolder are read from there and compressed if they
+    were compressed in the original archive, while the others are copied from
+    the original archive. Since CRILAYLA compression is slow, compressed data
+    is cached next to the input file in a .cache file tagged with the input
+    CRC, and reused as long as the input doesn't change. The TOC and ITOC
+    tables are updated with the new offsets and sizes.
+
+    Args:
+        file: Path of the original CPK archive.
+        outfile: Path of the output CPK archive.
+        infolder: Path of the folder the archive was extracted to, used to
+            look up the original filenames and extensions.
+        outfolder: Path of the folder containing the replacement files.
+        nocmp: Whether to store the replacement files uncompressed.
+    """
     common.logDebug("Processing", file, "...")
     cpk = readCPK(file)
     if cpk is None:
@@ -334,7 +540,19 @@ def repack(file, outfile, infolder, outfolder, nocmp=False):
                 fout.write(utfpacket)
 
 
-def readCPK(file):
+def readCPK(file: str) -> CPK | None:
+    """Read the header and file table of a CPK archive.
+
+    All the TOC tables present in the archive (TOC, ETOC, ITOC, GTOC) are
+    parsed, adding their header and file entries to the archive filetable.
+
+    Args:
+        file: Path of the CPK archive.
+
+    Returns:
+        The parsed archive structure, or None if the file is not a valid
+        CPK archive.
+    """
     with common.Stream(file, "rb") as f:
         magic = f.readString(4)
         if magic != "CPK ":
@@ -384,7 +602,16 @@ def readCPK(file):
         return cpk
 
 
-def readTOC(f, cpk, tocoffset, contentoffset):
+def readTOC(f: common.Stream, cpk: CPK, tocoffset: int, contentoffset: int) -> None:
+    """Read a TOC table, adding a file entry for each row.
+
+    Args:
+        f: Stream opened on the CPK archive.
+        cpk: Archive structure holding a TOC_HDR entry, updated in place.
+        tocoffset: Offset of the TOC table.
+        contentoffset: Offset of the archive content, used to compute the
+            base offset of the file entries.
+    """
     addoffset = 0
     if tocoffset > 0x800:
         tocoffset = 0x800
@@ -428,7 +655,15 @@ def readTOC(f, cpk, tocoffset, contentoffset):
 
 
 
-def readETOC(f, cpk, tocoffset):
+def readETOC(f: common.Stream, cpk: CPK, tocoffset: int) -> None:
+    """Read an ETOC table, updating the file entries with their local
+    directory and update time.
+
+    Args:
+        f: Stream opened on the CPK archive.
+        cpk: Archive structure holding an ETOC_HDR entry, updated in place.
+        tocoffset: Offset of the ETOC table.
+    """
     f.seek(tocoffset)
     headercheck = f.readString(4)
     if headercheck != "ETOC":
@@ -449,7 +684,20 @@ def readETOC(f, cpk, tocoffset):
         entries[i].updatetime = updatetime
 
 
-def readITOC(f, cpk, tocoffset, contentoffset, align):
+def readITOC(f: common.Stream, cpk: CPK, tocoffset: int, contentoffset: int, align: int) -> None:
+    """Read an ITOC table, holding files indexed by ID instead of name.
+
+    File sizes are read from the nested DataL and DataH tables, and a file
+    entry is added for each ID found. If the table has no nested data, the
+    IDs are assigned to the file entries already in the archive filetable.
+
+    Args:
+        f: Stream opened on the CPK archive.
+        cpk: Archive structure holding an ITOC_HDR entry, updated in place.
+        tocoffset: Offset of the ITOC table.
+        contentoffset: Offset of the archive content, where file data starts.
+        align: Alignment of the file data, used to compute the file offsets.
+    """
     f.seek(tocoffset)
     headercheck = f.readString(4)
     if headercheck != "ITOC":
@@ -517,7 +765,15 @@ def readITOC(f, cpk, tocoffset, contentoffset, align):
                 baseoffset += (align - (entry.filesize % align))
 
 
-def readGTOC(f, cpk, tocoffset):
+def readGTOC(f: common.Stream, cpk: CPK, tocoffset: int) -> None:
+    """Read a GTOC table, only checking the header and updating the GTOC_HDR
+    entry, since the table content is currently ignored.
+
+    Args:
+        f: Stream opened on the CPK archive.
+        cpk: Archive structure holding a GTOC_HDR entry, updated in place.
+        tocoffset: Offset of the GTOC table.
+    """
     f.seek(tocoffset)
     headercheck = f.readString(4)
     if headercheck != "GTOC":
@@ -527,12 +783,24 @@ def readGTOC(f, cpk, tocoffset):
     tocentry = cpk.getFileEntry("GTOC_HDR")
     tocentry.encrypted = encrypted
     tocentry.filesize = utfsize
-    files = readUTF(utfpacket, tocoffset)
+    readUTF(utfpacket, tocoffset)
 
 
-def readUTFData(f):
+def readUTFData(f: common.Stream) -> tuple[common.Stream, int, bool]:
+    """Read a @UTF packet from the current stream position.
+
+    The packet is decrypted if needed and returned as a new big endian
+    stream. The stream endianness is restored to little endian afterwards.
+
+    Args:
+        f: Stream opened on the CPK archive, positioned before a @UTF packet.
+
+    Returns:
+        A (packet, size, encrypted) tuple with the packet as a new stream,
+        its size, and whether it was encrypted in the archive.
+    """
     f.setEndian(True)
-    unk1 = f.readInt()
+    f.readInt()
     utfsize = f.readLong()
     # common.logDebug("readUTFData unk1", common.toHex(unk1), "size", common.toHex(utfsize))
     utfpacket = f.read(utfsize)
@@ -547,7 +815,18 @@ def readUTFData(f):
     return packetstream, utfsize, encrypted
 
 
-def decryptUTF(input):
+def decryptUTF(input: bytes) -> bytes:
+    """Decrypt a @UTF packet with the standard XOR scheme.
+
+    Since this is a simple XOR, calling it on a decrypted packet
+    encrypts it again.
+
+    Args:
+        input: Encrypted packet data.
+
+    Returns:
+        The decrypted packet data.
+    """
     ret = bytearray(input)
     m = 0x0000655f
     t = 0x00004115
@@ -559,7 +838,21 @@ def decryptUTF(input):
     return bytes(ret)
 
 
-def readUTF(f, baseoffset, storeraw=False):
+def readUTF(f: common.Stream, baseoffset: int, storeraw: bool = False) -> UTF | None:
+    """Read a @UTF table with all its columns and rows.
+
+    Args:
+        f: Stream holding the decrypted @UTF packet, usually returned by
+            :func:`readUTFData`.
+        baseoffset: Offset of the packet in the archive, stored in the table
+            for later use.
+        storeraw: Whether to store the packet stream in the rawpacket
+            attribute of the table, so it can be edited later with
+            :meth:`UTF.updateColumnDataType`.
+
+    Returns:
+        The parsed table, or None if the packet has a wrong header.
+    """
     offset = f.tell()
     headercheck = f.readString(4)
     if headercheck != "@UTF":
@@ -614,7 +907,20 @@ def readUTF(f, baseoffset, storeraw=False):
     return utf
 
 
-def readUTFTypedData(f, utf, flags):
+def readUTFTypedData(f: common.Stream, utf: UTF, flags: int) -> tuple[int | float | str | bytes, int]:
+    """Read a single value from a @UTF table.
+
+    String and bytearray values are read from the strings and data sections
+    of the table, following the offset at the current position.
+
+    Args:
+        f: Stream holding the decrypted @UTF packet, positioned on the value.
+        utf: Table the value belongs to.
+        flags: Column flags, masked with TYPE_MASK to get the data type.
+
+    Returns:
+        A (data, type) tuple with the type as a :class:`UTFStructTypes`.
+    """
     type = flags & UTFColumnFlags.TYPE_MASK
     if type == UTFStructTypes.DATA_TYPE_UINT8:
         return f.readByte(), type
@@ -641,3 +947,4 @@ def readUTFTypedData(f, utf, flags):
         datapos = f.readInt() + utf.dataoffset
         datasize = f.readInt()
         return f.readAt(datapos, datasize), type
+    raise ValueError("Unknown UTF data type " + str(type))

@@ -1,9 +1,26 @@
+"""Generic implementations of compression algorithms.
+
+Includes the Huffman coding scheme used by the GBA and NDS BIOS and the
+PRS scheme, an LZ77 variant used by several SEGA games.
+"""
 import ctypes
 from hacktools import common
 
 
 # https://forum.xentax.com/viewtopic.php?p=30390#p30387
-def getBits(n, f, blen, fbuf):
+def getBits(n: int, f: common.Stream, blen: int, fbuf: int) -> tuple[int, int, int]:
+    """Read bits from a stream, most significant first, through a byte buffer.
+
+    Args:
+        n: Number of bits to read.
+        f: Stream to read from.
+        blen: Number of bits still available in fbuf, 0 on the first call.
+        fbuf: Buffer with the current partially consumed byte, 0 on the first call.
+
+    Returns:
+        A tuple (value, blen, fbuf) with the bits that were read and the
+        updated buffer state to pass to the next call.
+    """
     retv = 0
     while n > 0:
         retv = retv << 1
@@ -18,7 +35,22 @@ def getBits(n, f, blen, fbuf):
     return retv, blen, fbuf
 
 
-def decompressHuffman(rawdata, decomplength, numbits=8, little=True):
+def decompressHuffman(rawdata: bytes, decomplength: int, numbits: int = 8, little: bool = True) -> bytes:
+    """Decompress Huffman-coded data, as used by the GBA and NDS BIOS.
+
+    The data is expected to start with the tree size and the tree itself,
+    followed by the 32-bit codeword stream, without the 4-byte header with
+    compression type and length.
+
+    Args:
+        rawdata: Compressed data to read.
+        decomplength: Length of the decompressed data.
+        numbits: Data size in bits, 8 or 4.
+        little: Whether nibbles are ordered low-first when numbits is 4.
+
+    Returns:
+        The decompressed data.
+    """
     with common.Stream() as data:
         data.write(rawdata)
         data.seek(0)
@@ -60,17 +92,34 @@ def decompressHuffman(rawdata, decomplength, numbits=8, little=True):
 
 
 class HuffmanNode:
-    children = []
+    """Node of the binary tree built by :func:`compressHuffman`.
+
+    Attributes:
+        freqcount: Number of occurrences of code in the input data.
+        code: Byte value for leaf nodes, label for branch nodes.
+        children: The two child nodes, empty for leaf nodes.
+        score: Temporary score used while labeling nodes.
+    """
+    children: list["HuffmanNode"] = []
     freqcount = 0
     code = 0
     score = 0
 
     def __init__(self, freqcount, code, children=[]):
-        self.freqcount = freqcount
-        self.code = code
-        self.children = children
+        self.freqcount: int = freqcount
+        self.code: int = code
+        self.children: list[HuffmanNode] = children
 
-    def getHuffCodes(self, seed):
+    def getHuffCodes(self, seed: str) -> list[tuple[int, str]]:
+        """Get the Huffman codes for all the leaf nodes under this node.
+
+        Args:
+            seed: Bit string prefix accumulated so far, "" for the root.
+
+        Returns:
+            A list of (code, bits) tuples, where bits is the string of "0"
+            and "1" characters that encodes the code byte value.
+        """
         if len(self.children) == 0:
             return [(self.code, seed)]
         ret = []
@@ -81,7 +130,21 @@ class HuffmanNode:
         return ret
 
 
-def compressHuffman(indata, numbits=8, little=True):
+def compressHuffman(indata: bytes, numbits: int = 8, little: bool = True) -> bytes:
+    """Compress data with Huffman coding, as used by the GBA and NDS BIOS.
+
+    The output starts with the tree size and the tree itself, followed by
+    the 32-bit codeword stream. The 4-byte header with compression type and
+    length is not included and should be written separately.
+
+    Args:
+        indata: Data to compress.
+        numbits: Data size in bits, 8 or 4.
+        little: Whether nibbles are ordered low-first when numbits is 4.
+
+    Returns:
+        The compressed data.
+    """
     # Read indata as nibbles if numbits is 4
     if numbits == 4:
         with common.Stream() as in4:
@@ -115,7 +178,7 @@ def compressHuffman(indata, numbits=8, little=True):
         freq.append(HuffmanNode(children[0].freqcount + children[1].freqcount, 0, children))
 
     # Label nodes to keep bandwidth small
-    lst = []
+    lst: list[HuffmanNode] = []
     while len(freq) > 0:
         scorelst = []
         for i in range(len(freq)):
@@ -176,7 +239,17 @@ def compressHuffman(indata, numbits=8, little=True):
         return out.read()
 
 
-def decompressPRS(f, slen, dlen):
+def decompressPRS(f: common.Stream, slen: int, dlen: int) -> bytearray:
+    """Decompress PRS data, an LZ77 variant.
+
+    Args:
+        f: Stream to read from, seeked to the start of the compressed data.
+        slen: Length of the compressed data.
+        dlen: Length of the decompressed data.
+
+    Returns:
+        The decompressed data.
+    """
     dbuf = bytearray(dlen)
     startpos = f.tell()
     blen = 0

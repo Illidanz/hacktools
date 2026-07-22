@@ -1,17 +1,27 @@
+"""x86 binary patching by calling the nasm executable externally."""
 import codecs
 import os
 import shlex
 from hacktools import common
 
 
-def run(asmfile):
-    # Support a syntax similar to armips, but simplified:
-    # .open file: opens a file
-    # .org 0x100: seek opened file to 0x100
-    #      Everything between this and the next .org/.close
-    #      is compiled and wrote to the file with nasm
-    # .import 0x200 file: imports the specified file and writes it to the address
-    # .close: close the opened file (required)
+def run(asmfile: str) -> None:
+    """Apply an asm patch file, with a syntax similar to armips but simplified.
+
+    The supported directives are:
+
+    * ``.open file``: opens a file
+    * ``.org 0x100``: seeks the opened file to 0x100, everything between
+      this and the next directive is compiled with nasm and written to
+      the file
+    * ``.import 0x200 file``: writes the contents of the given file at 0x200
+    * ``.close``: closes the opened file (required)
+
+    Code is compiled in 16-bit mode for the 186 cpu.
+
+    Args:
+        asmfile: Path of the asm patch file.
+    """
     tempfile = "asm.tmp"
     tempout = "asm.bin"
     with codecs.open(asmfile, "r", "utf-8") as asmf:

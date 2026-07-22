@@ -1,3 +1,9 @@
+"""Support for Wii ISOs, archives, textures and fonts.
+
+ISO, ARC, TPL and BREFT files are handled with the wit, wszst and wimgt
+tools from Wiimms ISO/SZS Tools, which need to be installed separately.
+BRFNT fonts are converted by calling the brfnt2tpl executable externally.
+"""
 import codecs
 import math
 import os
@@ -5,7 +11,13 @@ from hacktools import common
 
 
 # Generic extract/repack functions
-def extractARC(infolder, outfolder):
+def extractARC(infolder: str, outfolder: str) -> None:
+    """Extract all the .arc files in a folder with wszst.
+
+    Args:
+        infolder: Path of the folder to scan.
+        outfolder: Path of the folder to extract to.
+    """
     common.makeFolder(outfolder)
     common.logMessage("Extracting ARC to", outfolder, "...")
     files = common.getFiles(infolder, ".arc")
@@ -15,7 +27,15 @@ def extractARC(infolder, outfolder):
     common.logMessage("Done! Extracted", len(files), "files")
 
 
-def extractTPL(infolder, outfolder, splitName=True):
+def extractTPL(infolder: str, outfolder: str, splitName: bool = True) -> None:
+    """Extract all the .tpl files in a folder to png with wimgt.
+
+    Args:
+        infolder: Path of the folder to scan.
+        outfolder: Path of the folder to extract to.
+        splitName: Whether to name the output subfolder after the first
+            component of each file path, instead of mirroring the whole path.
+    """
     common.makeFolder(outfolder)
     common.logMessage("Extracting TPL to", outfolder, "...")
     files = common.getFiles(infolder, ".tpl")
@@ -26,7 +46,17 @@ def extractTPL(infolder, outfolder, splitName=True):
     common.logMessage("Done! Extracted", len(files), "files")
 
 
-def extractBREFT(infolder, tempfolder, outfolder):
+def extractBREFT(infolder: str, tempfolder: str, outfolder: str) -> None:
+    """Extract all the .breft files in a folder to png.
+
+    The files are first extracted with wszst to the temp folder, then every
+    texture found in them is decoded with wimgt.
+
+    Args:
+        infolder: Path of the folder to scan.
+        tempfolder: Path of the folder holding the extracted archives.
+        outfolder: Path of the folder the textures are decoded to.
+    """
     common.makeFolder(tempfolder)
     common.makeFolder(outfolder)
     common.logMessage("Extracting BREFT to", outfolder, "...")
@@ -41,7 +71,13 @@ def extractBREFT(infolder, tempfolder, outfolder):
     common.logMessage("Done! Extracted", len(files), "files")
 
 
-def extractBRFNT(infile, outfile):
+def extractBRFNT(infile: str, outfile: str) -> None:
+    """Extract a BRFNT font to png, with brfnt2tpl and wimgt.
+
+    Args:
+        infile: Path of the BRFNT file.
+        outfile: Path of the output png file.
+    """
     brfnt2tpl = common.bundledExecutable("brfnt2tpl.exe")
     if not os.path.isfile(brfnt2tpl):
         common.logError("brfnt2tpl not found")
@@ -52,7 +88,13 @@ def extractBRFNT(infile, outfile):
     os.remove(infile.replace(".brfnt", ".vbfta"))
 
 
-def repackBRFNT(outfile, workfile):
+def repackBRFNT(outfile: str, workfile: str) -> None:
+    """Repack a png into a BRFNT font, with brfnt2tpl.
+
+    Args:
+        outfile: Path of the BRFNT file to update.
+        workfile: Path of the png file to pack.
+    """
     brfnt2tpl = common.bundledExecutable("brfnt2tpl.exe")
     if not os.path.isfile(brfnt2tpl):
         common.logError("brfnt2tpl not found")
@@ -66,7 +108,15 @@ def repackBRFNT(outfile, workfile):
     os.remove(outfile.replace(".brfnt", ".vbfta"))
 
 
-def extractIso(isofile, extractfolder, workfolder=""):
+def extractIso(isofile: str, extractfolder: str, workfolder: str = "") -> None:
+    """Extract an ISO with wit.
+
+    Args:
+        isofile: Path of the ISO file.
+        extractfolder: Path of the folder to extract to.
+        workfolder: Optional path of a work folder the extracted files are
+            copied to.
+    """
     common.logMessage("Extracting ISO", isofile, "...")
     common.makeFolder(extractfolder)
     common.execute("wit EXTRACT -o {iso} {folder}".format(iso=isofile, folder=extractfolder), False)
@@ -75,7 +125,15 @@ def extractIso(isofile, extractfolder, workfolder=""):
     common.logMessage("Done!")
 
 
-def repackIso(isofile, isopatch, workfolder, patchfile=""):
+def repackIso(isofile: str, isopatch: str, workfolder: str, patchfile: str = "") -> None:
+    """Repack an ISO with wit.
+
+    Args:
+        isofile: Path of the original ISO file, unused.
+        isopatch: Path of the output ISO file.
+        workfolder: Path of the folder to repack.
+        patchfile: Unused.
+    """
     common.logMessage("Repacking ISO", isopatch, "...")
     if os.path.isfile(isopatch):
         os.remove(isopatch)
@@ -84,32 +142,66 @@ def repackIso(isofile, isopatch, workfolder, patchfile=""):
 
 
 # TPL files
-# http://wiki.tockdom.com/wiki/TPL_(File_Format)
 class TPL:
+    """Structure of a TPL texture file.
+
+    Format reference: http://wiki.tockdom.com/wiki/TPL_(File_Format)
+
+    Attributes:
+        imgnum: Number of images in the file.
+        tableoff: Offset of the image table.
+        images: List of images in the file.
+    """
     def __init__(self):
-        self.imgnum = 0
-        self.tableoff = 0
-        self.images = []
+        self.imgnum: int = 0
+        self.tableoff: int = 0
+        self.images: list[TPLImage] = []
 
 
 class TPLImage:
+    """Structure of a single image in a TPL file.
+
+    Attributes:
+        imgoff: Offset of the image header.
+        paloff: Offset of the palette header, 0 if the image has no palette.
+        palformat: Format of the palette colors, only 0x02 (RGB5A3) is supported.
+        paldataoff: Offset of the palette data.
+        palette: Palette colors, as a list of RGBA tuples.
+        width: Width of the image.
+        height: Height of the image.
+        format: Format of the image data, only 0x02 (IA8), 0x08 (C4) and
+            0x09 (C8) are supported.
+        dataoff: Offset of the image data.
+        tilewidth: Width of a single tile.
+        tileheight: Height of a single tile.
+        blockwidth: Width rounded up to a multiple of the tile width.
+        blockheight: Height rounded up to a multiple of the tile height.
+    """
     def __init__(self):
-        self.imgoff = 0
-        self.paloff = 0
-        self.palformat = 0x02
-        self.paldataoff = 0
-        self.palette = []
-        self.width = 0
-        self.height = 0
-        self.format = 0x09
-        self.dataoff = 0
-        self.tilewidth = 8
-        self.tileheight = 8
-        self.blockwidth = 0
-        self.blockheight = 0
+        self.imgoff: int = 0
+        self.paloff: int = 0
+        self.palformat: int = 0x02
+        self.paldataoff: int = 0
+        self.palette: list = []
+        self.width: int = 0
+        self.height: int = 0
+        self.format: int = 0x09
+        self.dataoff: int = 0
+        self.tilewidth: int = 8
+        self.tileheight: int = 8
+        self.blockwidth: int = 0
+        self.blockheight: int = 0
 
 
-def readTPL(file):
+def readTPL(file: str) -> TPL:
+    """Read the image table and palettes of a TPL file.
+
+    Args:
+        file: Path of the TPL file.
+
+    Returns:
+        The parsed TPL structure.
+    """
     tpl = TPL()
     with common.Stream(file, "rb", False) as f:
         f.seek(4)  # Header
@@ -149,7 +241,18 @@ def readTPL(file):
     return tpl
 
 
-def writeTPL(file, tpl, infile):
+def writeTPL(file: str, tpl: TPL, infile: str) -> None:
+    """Write png images back into a TPL file.
+
+    The first image is read from infile, the following ones from .mmN.png
+    files next to it, with N being the image number. If an image size
+    changed, the new size is written in the header.
+
+    Args:
+        file: Path of the TPL file to update.
+        tpl: TPL structure returned by :func:`readTPL`.
+        infile: Path of the png file to pack.
+    """
     try:
         from PIL import Image
     except ImportError:
@@ -191,7 +294,19 @@ def writeTPL(file, tpl, infile):
 
 
 # Font files
-def getFontGlyphs(file, encoding="shift_jis"):
+def getFontGlyphs(file: str, encoding: str = "shift_jis") -> dict:
+    """Read the glyph information of a BRFNT font.
+
+    The glyph widths are read from the HDWC section, and matched with the
+    character codes from the PAMC sections.
+
+    Args:
+        file: Path of the font file.
+        encoding: Encoding of the character codes.
+
+    Returns:
+        A dictionary of character -> FontGlyph.
+    """
     glyphs = {}
     with common.Stream(file, "rb", False) as f:
         # Header
@@ -240,7 +355,16 @@ def getFontGlyphs(file, encoding="shift_jis"):
     return glyphs
 
 
-def extractFontData(file, outfile):
+def extractFontData(file: str, outfile: str) -> None:
+    """Extract the glyph data of a font to a text file.
+
+    Each line has the char=start,width,length format, with "=" characters
+    written as <3D>.
+
+    Args:
+        file: Path of the font file.
+        outfile: Path of the output text file.
+    """
     common.logMessage("Extracting font data to", outfile, "...")
     glyphs = getFontGlyphs(file)
     with codecs.open(outfile, "w", "utf-8") as f:
@@ -250,7 +374,15 @@ def extractFontData(file, outfile):
     common.logMessage("Done!")
 
 
-def repackFontData(infile, outfile, datafile):
+def repackFontData(infile: str, outfile: str, datafile: str) -> None:
+    """Repack the glyph data of a font from a text file.
+
+    Args:
+        infile: Path of the original font file.
+        outfile: Path of the output font file.
+        datafile: Path of the text file, in the format written by
+            :func:`extractFontData`.
+    """
     common.logMessage("Repacking font data from", datafile, "...")
     common.copyFile(infile, outfile)
     glyphs = getFontGlyphs(infile)

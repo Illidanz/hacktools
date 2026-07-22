@@ -1,8 +1,23 @@
+"""Support for Game Boy ROMs, split into banks.
+
+ROMs are extracted and repacked as a set of bank_xx.bin files, one per
+bank, with xx being the bank number in hex. ASM patches are applied by
+calling the wla-gb and wlalink executables externally.
+"""
 import os
 from hacktools import common
 
 
-def extractRom(romfile, extractfolder, workfolder="", banksize=0x4000):
+def extractRom(romfile: str, extractfolder: str, workfolder: str = "", banksize: int = 0x4000) -> None:
+    """Extract a Game Boy ROM to a folder, splitting it into banks.
+
+    Args:
+        romfile: Path of the ROM file.
+        extractfolder: Path of the folder to extract to.
+        workfolder: Optional path of a work folder the extracted files are
+            copied to.
+        banksize: Size of a single bank.
+    """
     common.logMessage("Extracting ROM", romfile, "...")
     common.makeFolder(extractfolder)
     filesize = os.path.getsize(romfile)
@@ -21,7 +36,20 @@ def extractRom(romfile, extractfolder, workfolder="", banksize=0x4000):
     common.logMessage("Done!")
 
 
-def repackRom(romfile, rompatch, workfolder, patchfile="", banksize=0x4000):
+def repackRom(romfile: str, rompatch: str, workfolder: str, patchfile: str = "", banksize: int = 0x4000) -> None:
+    """Repack a Game Boy ROM from the bank files in a folder.
+
+    The global checksum in the ROM header is recalculated after the banks
+    are joined.
+
+    Args:
+        romfile: Path of the original ROM file.
+        rompatch: Path of the output ROM file.
+        workfolder: Path of the folder with the bank files.
+        patchfile: Path of the xdelta patch to create, an ips patch is also
+            created next to it. No patches are created if empty.
+        banksize: Size of a single bank.
+    """
     common.logMessage("Repacking ROM", rompatch, "...")
     filesize = os.path.getsize(romfile)
     banknum = filesize // banksize
@@ -48,7 +76,20 @@ def repackRom(romfile, rompatch, workfolder, patchfile="", banksize=0x4000):
         common.ipsPatch(patchfile.replace(".xdelta", ".ips"), romfile, rompatch)
 
 
-def asmPatch(file, workfolder, banks=[0x0], banksize=0x4000):
+def asmPatch(file: str, workfolder: str, banks: list[int] = [0x0], banksize: int = 0x4000) -> None:
+    """Apply an ASM patch with wla-gb, then extract the patched banks.
+
+    The asm file is compiled with wla-gb and linked with wlalink into a
+    temporary patched ROM, and the given banks are extracted from it into
+    the work folder. If a .txt file with the same name as the asm file
+    exists, it's used as the linkfile, otherwise a temporary one is created.
+
+    Args:
+        file: Path of the asm file.
+        workfolder: Path of the folder the patched banks are extracted to.
+        banks: List of bank numbers the patch is expected to change.
+        banksize: Size of a single bank.
+    """
     common.logMessage("Applying ASM patch ...")
     wlagb = common.bundledExecutable("wla-gb.exe")
     if not os.path.isfile(wlagb):

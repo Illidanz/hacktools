@@ -4,6 +4,7 @@ __pycache__
 *.egg-info
 build
 dist
+docs/_build
 *.pyd
 *.so
 notes.md

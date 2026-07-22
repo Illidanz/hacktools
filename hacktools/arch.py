@@ -1,29 +1,63 @@
+"""Support for ARCH archives, including compression and decompression.
+
+An ARCH archive starts with an "ARCH" magic followed by a header, a name
+table, a file allocation table and the file data. Files can optionally be
+compressed with a byte-pair encoding scheme, based on Tinke's implementation.
+"""
 import os
 from collections import Counter
 from hacktools import common
 
 
 class ARCHArchive:
+    """Structure of an ARCH archive header.
+
+    Attributes:
+        filenum: Number of files in the archive.
+        tableoff: Offset of the name table.
+        fatoff: Offset of the file allocation table.
+        nameindexoff: Offset of the name index.
+        dataoff: Offset of the file data.
+        files: List of files in the archive.
+    """
     def __init__(self):
-        self.filenum = 0
-        self.tableoff = 0
-        self.fatoff = 0
-        self.nameindexoff = 0
-        self.dataoff = 0
-        self.files = []
+        self.filenum: int = 0
+        self.tableoff: int = 0
+        self.fatoff: int = 0
+        self.nameindexoff: int = 0
+        self.dataoff: int = 0
+        self.files: list[ARCHFile] = []
 
 
 class ARCHFile:
+    """Structure of a single file entry in an ARCH archive.
+
+    Attributes:
+        name: File name, read from the archive name table.
+        length: Length of the file data as stored in the archive.
+        declength: Decompressed length, equal to length if not encoded.
+        offset: Offset of the file data, relative to the archive dataoff.
+        nameoffset: Offset of the file name, relative to the archive tableoff.
+        encoded: Whether the file data is compressed.
+    """
     def __init__(self):
-        self.name = ""
-        self.length = 0
-        self.declength = 0
-        self.offset = 0
-        self.nameoffset = 0
-        self.encoded = False
+        self.name: str = ""
+        self.length: int = 0
+        self.declength: int = 0
+        self.offset: int = 0
+        self.nameoffset: int = 0
+        self.encoded: bool = False
 
 
-def read(f):
+def read(f: common.Stream) -> ARCHArchive:
+    """Read the header and file table of an ARCH archive.
+
+    Args:
+        f: Stream opened on the archive file.
+
+    Returns:
+        The parsed archive structure.
+    """
     f.seek(4)  # Magic: ARCH
     archive = ARCHArchive()
     archive.filenum = f.readUInt()
@@ -47,7 +81,19 @@ def read(f):
     return archive
 
 
-def repack(fin, f, archive, infolder):
+def repack(fin: common.Stream, f: common.Stream, archive: ARCHArchive, infolder: str) -> None:
+    """Repack an ARCH archive, replacing the files found in a folder.
+
+    Files that exist in infolder are read from there, compressing the ones
+    marked as encoded in the archive, while the others are copied from fin.
+    File data is aligned to 16 bytes with zeros.
+
+    Args:
+        fin: Stream opened on the original archive file.
+        f: Stream opened on the output archive file.
+        archive: Archive structure returned by :func:`read`.
+        infolder: Path of the folder containing the replacement files.
+    """
     # Copy everything up to dataoff
     fin.seek(0)
     f.seek(0)
@@ -96,7 +142,16 @@ def repack(fin, f, archive, infolder):
         dataoff = f.tell() - archive.dataoff
 
 
-def extract(f, archive, outfolder):
+def extract(f: common.Stream, archive: ARCHArchive, outfolder: str) -> None:
+    """Extract all the files of an ARCH archive to a folder.
+
+    Files marked as encoded are decompressed.
+
+    Args:
+        f: Stream opened on the archive file.
+        archive: Archive structure returned by :func:`read`.
+        outfolder: Path of the folder to extract the files to.
+    """
     for subfile in archive.files:
         with common.Stream(outfolder + subfile.name, "wb") as fout:
             f.seek(archive.dataoff + subfile.offset)
@@ -106,7 +161,19 @@ def extract(f, archive, outfolder):
                 fout.write(decompress(f.read(subfile.length), subfile.declength))
 
 
-def compress(data):
+def compress(data: bytes) -> bytes:
+    """Compress data with the byte-pair encoding used by ARCH archives.
+
+    The most common byte pairs are recursively replaced with single bytes
+    that don't occur in the data, and a dictionary of these replacements is
+    written before the encoded content.
+
+    Args:
+        data: Data to compress.
+
+    Returns:
+        The compressed data.
+    """
     # Find unused bytes in the data
     dictkeys = []
     for i in range(1, 0x100):
@@ -199,7 +266,16 @@ def compress(data):
         return f.read()
 
 
-def decompress(data, declen):
+def decompress(data: bytes, declen: int) -> bytes:
+    """Decompress byte-pair encoded data from an ARCH archive.
+
+    Args:
+        data: Data to decompress.
+        declen: Expected length of the decompressed data, currently unused.
+
+    Returns:
+        The decompressed data.
+    """
     with common.Stream() as f:
         with common.Stream() as fout:
             f.write(data)
@@ -235,7 +311,7 @@ def decompress(data, declen):
                 # Process
                 numloops = (f.readByte() << 8) + f.readByte()
                 common.logDebug("Decompressing with", common.toHex(numloops), "loops starting at", common.toHex(f.tell()))
-                nextsamples = []
+                nextsamples: list[int] = []
                 while True:
                     if len(nextsamples) == 0:
                         if numloops == 0:

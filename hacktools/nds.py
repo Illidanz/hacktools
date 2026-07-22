@@ -1,3 +1,9 @@
+"""Support for NDS ROMs, based on ndspy.
+
+Includes ROM extraction and repacking, banner editing, string extraction
+and repacking for binary files, arm9.bin expansion and the BIOS
+compression formats.
+"""
 import codecs
 from enum import IntFlag
 import os
@@ -5,7 +11,18 @@ import struct
 from hacktools import common, compression, cmp_lzss, cmp_misc
 
 
-def extractRom(romfile, extractfolder, workfolder=""):
+def extractRom(romfile: str, extractfolder: str, workfolder: str = "") -> None:
+    """Extract a NDS ROM with ndspy.
+
+    The filesystem is extracted to a data subfolder, along with the header,
+    banner, arm7/arm9 binaries, overlay tables (y7/y9) and arm9 overlays.
+
+    Args:
+        romfile: Path of the ROM file.
+        extractfolder: Path of the folder to extract to.
+        workfolder: Optional path of a work folder the extracted files are
+            copied to.
+    """
     try:
         import ndspy.rom
     except ImportError:
@@ -49,7 +66,17 @@ def extractRom(romfile, extractfolder, workfolder=""):
     common.logMessage("Done!")
 
 
-def repackRom(romfile, rompatch, workfolder, patchfile=""):
+def repackRom(romfile: str, rompatch: str, workfolder: str, patchfile: str = "") -> None:
+    """Repack a NDS ROM, replacing the files found in a folder.
+
+    Args:
+        romfile: Path of the original ROM file.
+        rompatch: Path of the output ROM file.
+        workfolder: Path of the folder with the files to replace, as
+            extracted by :func:`extractRom`.
+        patchfile: Path of the xdelta patch to create, or empty to skip
+            patch creation.
+    """
     try:
         import ndspy.rom
     except ImportError:
@@ -87,7 +114,15 @@ def repackRom(romfile, rompatch, workfolder, patchfile=""):
         common.xdeltaPatch(patchfile, romfile, rompatch)
 
 
-def editBannerTitle(file, title):
+def editBannerTitle(file: str, title: str) -> None:
+    """Write a new game title in a banner file and update its CRC.
+
+    The title is written for all the 6 languages.
+
+    Args:
+        file: Path of the banner file.
+        title: Title to write.
+    """
     with common.Stream(file, "r+b") as f:
         for i in range(6):
             # Write new text for all languages
@@ -102,16 +137,42 @@ def editBannerTitle(file, title):
             f.writeUShort(crc)
 
 
-def getHeaderID(file):
+def getHeaderID(file: str) -> str:
+    """Read the 6 character game ID from a header file.
+
+    Args:
+        file: Path of the header or ROM file.
+
+    Returns:
+        The game and maker codes as a single string.
+    """
     with common.Stream(file, "rb") as f:
         f.seek(12)
         return f.readString(6)
 
 
 # Binary-related functions
-def extractBIN(binrange, readfunc=common.detectEncodedString, encoding="shift_jis", binin="data/extract/arm9.bin", binfile="data/bin_output.txt", writepos=False, writedupes=False, sectionname="bin"):
+def extractBIN(binrange, readfunc=common.detectEncodedString, encoding: str = "shift_jis", binin: str = "data/extract/arm9.bin", binfile: str = "data/bin_output.txt", writepos: bool = False, writedupes: bool = False, sectionname: str = "bin") -> None:
+    """Extract strings from ranges of a binary file.
+
+    The strings are written to a text file, or to an xliff translation
+    file if binfile doesn't have a .txt extension.
+
+    Args:
+        binrange: A (start, end) range, or a list of them.
+        readfunc: Function used to detect strings, called with
+            (stream, encoding).
+        encoding: Encoding passed to readfunc.
+        binin: Path of the binary file.
+        binfile: Path of the output text or xliff file.
+        writepos: Whether to write the positions of each string before it,
+            for text file outputs.
+        writedupes: Whether to write one entry for every position a string
+            is found at, instead of just the first one.
+        sectionname: File entry name for xliff outputs.
+    """
     common.logMessage("Extracting BIN to", binfile, "...")
-    if type(binrange) == tuple:
+    if isinstance(binrange, tuple):
         binrange = [binrange]
     strings, positions = common.extractBinaryStrings(binin, binrange, readfunc, encoding)
     if binfile.endswith(".txt"):
@@ -133,8 +194,43 @@ def extractBIN(binrange, readfunc=common.detectEncodedString, encoding="shift_ji
     common.logMessage("Done! Extracted", len(strings), "lines")
 
 
-def repackBIN(binrange, freeranges=[], readfunc=common.detectEncodedString, writefunc=common.writeEncodedString, encoding="shift_jis", comments="#",
-              binin="data/extract/arm9.bin", binout="data/repack/arm9.bin", binfile="data/bin_input.txt", fixchars=[], pointerstart=0x02000000, injectstart=0x02000000, fallbackf=None, injectfallback=0, nocopy=False, sectionname="bin", preformat=None, postformat=None):
+def repackBIN(binrange, freeranges: list = [], readfunc=common.detectEncodedString, writefunc=common.writeEncodedString, encoding: str = "shift_jis", comments: str = "#",
+              binin: str = "data/extract/arm9.bin", binout: str = "data/repack/arm9.bin", binfile: str = "data/bin_input.txt", fixchars: list = [], pointerstart: int = 0x02000000, injectstart: int = 0x02000000, fallbackf: common.Stream | None = None, injectfallback: int = 0, nocopy: bool = False, sectionname: str = "bin", preformat=None, postformat=None):
+    """Repack translated strings into a binary file.
+
+    The strings are read from a text file, or from an xliff translation
+    file if binfile doesn't have a .txt extension, and repacked with
+    common.repackBinaryStrings.
+
+    Args:
+        binrange: A (start, end) range, or a list of them.
+        freeranges: List of (start, end) ranges that can hold relocated
+            strings.
+        readfunc: Function used to detect strings, called with
+            (stream, encoding).
+        writefunc: Function used to write strings, called with
+            (stream, string, maxlen, encoding).
+        encoding: Encoding passed to readfunc and writefunc.
+        comments: Comment marker used in the text file.
+        binin: Path of the original binary file.
+        binout: Path of the output binary file.
+        binfile: Path of the input text or xliff file.
+        fixchars: List of (old, new) character replacements to apply.
+        pointerstart: Value added to file offsets to form pointers, usually
+            the load address of the binary.
+        injectstart: Pointer start for free ranges marked with a boolean.
+        fallbackf: Stream to write strings to when no free range has room.
+        injectfallback: Pointer start of the fallback stream.
+        nocopy: Whether to skip copying binin to binout first.
+        sectionname: File entry name for xliff inputs.
+        preformat: Function called on each detected string, returning
+            (string, pre, post) data passed to postformat.
+        postformat: Function called with (translation, pre, post), returning
+            the final string to write.
+
+    Returns:
+        The updated free ranges, or False if the input file is missing.
+    """
     if not os.path.isfile(binfile):
         common.logError("Input file", binfile, "not found")
         return False
@@ -150,7 +246,7 @@ def repackBIN(binrange, freeranges=[], readfunc=common.detectEncodedString, writ
     else:
         section = common.TranslationFile(binfile)
         section.preloadLookup(comments)
-    if type(binrange) == tuple:
+    if isinstance(binrange, tuple):
         binrange = [binrange]
     notfound, freeranges = common.repackBinaryStrings(section, binin, binout, binrange, freeranges, readfunc, writefunc, encoding, pointerstart, injectstart, fallbackf, injectfallback, sectionname, preformat, postformat)
     for pointer in notfound:
@@ -163,12 +259,31 @@ def repackBIN(binrange, freeranges=[], readfunc=common.detectEncodedString, writ
 
 
 class BINSection:
-    def __init__(self, f, ramaddr, ramlen, fileoff, bsssize, real = True):
-        self.offset = fileoff
-        self.length = ramlen
-        self.ramaddr = ramaddr
-        self.bsssize = bsssize
-        self.real = real
+    """Section of an arm9.bin binary, as listed in its copytable.
+
+    Args:
+        f: Stream to read the section data from, or None to create a
+            zero-filled section.
+        ramaddr: RAM address the section is copied to.
+        ramlen: Length of the section.
+        fileoff: Offset of the section data in the file.
+        bsssize: Size of the section bss.
+        real: Whether the section is listed in the copytable.
+
+    Attributes:
+        offset: Offset of the section data in the file.
+        length: Length of the section.
+        ramaddr: RAM address the section is copied to.
+        bsssize: Size of the section bss.
+        real: Whether the section is listed in the copytable.
+        data: Data of the section.
+    """
+    def __init__(self, f: common.Stream, ramaddr: int, ramlen: int, fileoff: int, bsssize: int, real: bool = True):
+        self.offset: int = fileoff
+        self.length: int = ramlen
+        self.ramaddr: int = ramaddr
+        self.bsssize: int = bsssize
+        self.real: bool = real
         if f is not None:
             f.seek(self.offset)
             self.data = f.read(ramlen)
@@ -176,7 +291,25 @@ class BINSection:
             self.data = bytearray(ramlen)
 
 
-def expandBIN(binin, binout, headerin, headerout, newlengths, injectpos):
+def expandBIN(binin: str, binout: str, headerin: str, headerout: str, newlengths, injectpos):
+    """Expand arm9.bin, adding new sections to its copytable.
+
+    The code settings offset is read from the header, or searched with a
+    heuristic if it's not there. A new section is added for each of the
+    given lengths, the copytable is rebuilt, and the new arm9 length is
+    written in the header along with its updated checksum.
+
+    Args:
+        binin: Path of the original arm9.bin file.
+        binout: Path of the output arm9.bin file.
+        headerin: Path of the original header file.
+        headerout: Path of the output header file.
+        newlengths: Length of the new section, or a list of lengths.
+        injectpos: RAM address of the new section, or a list of addresses.
+
+    Returns:
+        The file offset of the last added section, or False on error.
+    """
     if not os.path.isfile(binin):
         common.logError("Input file", binin, "not found")
         return False
@@ -267,6 +400,7 @@ def expandBIN(binin, binout, headerin, headerout, newlengths, injectpos):
 
 # Compression-related functions
 class CompressionType(IntFlag):
+    """Compression types supported by :func:`decompress` and :func:`compress`."""
     LZ10 = 0x10,
     LZ11 = 0x11,
     Huff4 = 0x24,
@@ -276,7 +410,20 @@ class CompressionType(IntFlag):
     LZ60 = 0x60
 
 
-def decompress(f, complength):
+def decompress(f: common.Stream, complength: int) -> bytes:
+    """Decompress BIOS-compressed data from the current stream position.
+
+    The compression type and decompressed length are read from the 4-byte
+    header before the data.
+
+    Args:
+        f: Stream to read from.
+        complength: Length of the compressed data.
+
+    Returns:
+        The decompressed data, or the raw data if the compression type is
+        not supported.
+    """
     header = f.readUInt()
     type = header & 0xff
     decomplength = ((header & 0xffffff00) >> 8)
@@ -297,7 +444,20 @@ def decompress(f, complength):
         return data
 
 
-def compress(data, type):
+def compress(data: bytes, type: CompressionType) -> bytes:
+    """Compress data with the given BIOS compression type.
+
+    The output starts with the 4-byte header holding the compression type
+    and the decompressed length.
+
+    Args:
+        data: Data to compress.
+        type: Compression type to use.
+
+    Returns:
+        The compressed data, or the raw data if the compression type is
+        not supported.
+    """
     with common.Stream() as out:
         length = len(data)
         out.writeByte(type.value)
@@ -319,21 +479,40 @@ def compress(data, type):
         return out.read()
 
 
-def decompressFile(infile, outfile):
+def decompressFile(infile: str, outfile: str) -> None:
+    """Decompress a BIOS-compressed file.
+
+    Args:
+        infile: Path of the compressed file.
+        outfile: Path of the output file.
+    """
     insize = os.path.getsize(infile)
     with common.Stream(infile, "rb") as fin:
         with common.Stream(outfile, "wb") as fout:
             fout.write(decompress(fin, insize - 4))
 
 
-def compressFile(infile, outfile, type):
+def compressFile(infile: str, outfile: str, type: CompressionType) -> None:
+    """Compress a file with the given BIOS compression type.
+
+    Args:
+        infile: Path of the file to compress.
+        outfile: Path of the output file.
+        type: Compression type to use.
+    """
     with common.Stream(infile, "rb") as fin:
         data = fin.read()
         with common.Stream(outfile, "wb") as fout:
             fout.write(compress(data, type))
 
 
-def decompressBinary(infile, outfile):
+def decompressBinary(infile: str, outfile: str) -> None:
+    """Decompress an arm9.bin or overlay file with ndspy.
+
+    Args:
+        infile: Path of the compressed file.
+        outfile: Path of the output file.
+    """
     try:
         import ndspy.codeCompression
     except ImportError:
@@ -346,7 +525,16 @@ def decompressBinary(infile, outfile):
         f.write(uncdata)
 
 
-def compressBinary(infile, outfile, arm9=True):
+def compressBinary(infile: str, outfile: str, arm9: bool = True) -> None:
+    """Compress an arm9.bin or overlay file with ndspy.
+
+    For arm9 files, the compressed size in the code settings is updated.
+
+    Args:
+        infile: Path of the file to compress.
+        outfile: Path of the output file.
+        arm9: Whether the file is an arm9.bin, instead of an overlay.
+    """
     try:
         import ndspy.codeCompression
     except ImportError:

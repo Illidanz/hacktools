@@ -1,5 +1,17 @@
 #include "inc.h"
 
+PyDoc_STRVAR(compressRACJIN_doc,
+"compressRACJIN($module, /, indata)\n"
+"--\n"
+"\n"
+"Compress data with the scheme used by Racjin games.\n"
+"\n"
+"Args:\n"
+"    indata (bytes): Data to compress.\n"
+"\n"
+"Returns:\n"
+"    bytes: The compressed data.");
+
 // https://github.com/Raw-man/Racjin-de-compression/blob/master/src/encode.cpp
 static PyObject* compressRACJIN(PyObject* module, PyObject* args, PyObject* kwargs)
 {
@@ -120,6 +132,19 @@ static PyObject* compressRACJIN(PyObject* module, PyObject* args, PyObject* kwar
     return output;
 }
 
+PyDoc_STRVAR(decompressRACJIN_doc,
+"decompressRACJIN($module, /, indata, decomplength)\n"
+"--\n"
+"\n"
+"Decompress Racjin-compressed data.\n"
+"\n"
+"Args:\n"
+"    indata (bytes): Compressed data to read.\n"
+"    decomplength (int): Length of the decompressed data.\n"
+"\n"
+"Returns:\n"
+"    bytes: The decompressed data.");
+
 // https://github.com/Raw-man/Racjin-de-compression/blob/master/src/decode.cpp
 static PyObject* decompressRACJIN(PyObject* m, PyObject* args, PyObject* kwargs)
 {
@@ -208,15 +233,15 @@ static PyObject* decompressRACJIN(PyObject* m, PyObject* args, PyObject* kwargs)
 }
 
 static PyMethodDef Cmp_racjinMethods[] = {
-    {"compressRACJIN", (PyCFunction)compressRACJIN, METH_VARARGS | METH_KEYWORDS, "Compress RACJIN data."},
-    {"decompressRACJIN", (PyCFunction)decompressRACJIN, METH_VARARGS | METH_KEYWORDS, "Decompress RACJIN data."},
+    {"compressRACJIN", (PyCFunction)compressRACJIN, METH_VARARGS | METH_KEYWORDS, compressRACJIN_doc},
+    {"decompressRACJIN", (PyCFunction)decompressRACJIN, METH_VARARGS | METH_KEYWORDS, decompressRACJIN_doc},
     {NULL, NULL, 0, NULL}
 };
 
 static struct PyModuleDef cmp_racjinmodule = {
     PyModuleDef_HEAD_INIT,
     "cmp_racjin",
-    "RACJIN functions.",
+    "C implementation of the compression scheme used by Racjin games.",
     -1,
     Cmp_racjinMethods
 };

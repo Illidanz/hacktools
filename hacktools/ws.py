@@ -1,9 +1,24 @@
+"""Support for WonderSwan ROMs, split into banks.
+
+ROMs are extracted and repacked as a set of bank_xx.bin files, one per
+0x10000 byte bank, with xx being the bank number in hex. Images are
+handled as 8x8 tiles, either sequential or arranged by tile maps and
+sprites, in the 2bpp grayscale and 4bpp color formats.
+"""
 import os
 import struct
 from hacktools import common
 
 
-def extractRom(romfile, extractfolder, workfolder=""):
+def extractRom(romfile: str, extractfolder: str, workfolder: str = "") -> None:
+    """Extract a WonderSwan ROM to a folder, splitting it into banks.
+
+    Args:
+        romfile: Path of the ROM file.
+        extractfolder: Path of the folder to extract to.
+        workfolder: Optional path of a work folder the extracted files are
+            copied to.
+    """
     common.logMessage("Extracting ROM", romfile, "...")
     common.makeFolder(extractfolder)
     filesize = os.path.getsize(romfile)
@@ -22,7 +37,19 @@ def extractRom(romfile, extractfolder, workfolder=""):
     common.logMessage("Done!")
 
 
-def repackRom(romfile, rompatch, workfolder, patchfile=""):
+def repackRom(romfile: str, rompatch: str, workfolder: str, patchfile: str = "") -> None:
+    """Repack a WonderSwan ROM from the bank files in a folder.
+
+    The checksum in the last 2 bytes of the ROM is recalculated after the
+    banks are joined.
+
+    Args:
+        romfile: Path of the original ROM file.
+        rompatch: Path of the output ROM file.
+        workfolder: Path of the folder with the bank files.
+        patchfile: Path of the xdelta patch to create, an ips patch is also
+            created next to it. No patches are created if empty.
+    """
     common.logMessage("Repacking ROM", rompatch, "...")
     filesize = os.path.getsize(romfile)
     banknum = filesize // 0x10000
@@ -46,8 +73,26 @@ def repackRom(romfile, rompatch, workfolder, patchfile=""):
         common.ipsPatch(patchfile.replace(".xdelta", ".ips"), romfile, rompatch)
 
 
-# rom0 = 0xc2, rom1 = 0xc3, rom2 = 0xc0, sram = 0xc1
-def memoryToBank(segment, address, rom0, rom1, rom2, sram=0, nbanks=64, justbank=False):
+def memoryToBank(segment: int, address: int, rom0: int, rom1: int, rom2: int, sram: int = 0, nbanks: int = 64, justbank: bool = False) -> int:
+    """Convert a segmented memory address to a linear ROM position.
+
+    The rom0, rom1, rom2 and sram values are the contents of the 0xc2,
+    0xc3, 0xc0 and 0xc1 bank registers.
+
+    Args:
+        segment: Segment part of the address.
+        address: Address part of the address.
+        rom0: Bank mapped in the rom0 slot.
+        rom1: Bank mapped in the rom1 slot.
+        rom2: High nibble of the banks mapped in the linear slots.
+        sram: Bank mapped in the sram slot.
+        nbanks: Total number of banks in the ROM.
+        justbank: Whether to return just the bank number, instead of the
+            full position.
+
+    Returns:
+        The linear ROM position, or the bank number if justbank is True.
+    """
     j = (rom2 << 4) & 0xf0
     rommap = [0] * 0x100
     for i in range(nbanks):
@@ -66,13 +111,34 @@ def memoryToBank(segment, address, rom0, rom1, rom2, sram=0, nbanks=64, justbank
     return (pages[ptrbank] * 0x10000) + ptr & 0xffff
 
 
-def readPointer(f, bankoff=0):
+def readPointer(f: common.Stream, bankoff: int = 0) -> int:
+    """Read a segmented pointer, stored as address followed by segment.
+
+    Args:
+        f: Stream to read from.
+        bankoff: Offset subtracted from the linear address.
+
+    Returns:
+        The linear address the pointer refers to.
+    """
     address = f.readUShort()
     segment = f.readUShort()
     return (segment << 4) + address - bankoff
 
 
-def readTile(f, pixels, x, y, palette, hflip=False, vflip=False, bpp=2):
+def readTile(f: common.Stream, pixels, x: int, y: int, palette: list, hflip: bool = False, vflip: bool = False, bpp: int = 2) -> None:
+    """Read a single 8x8 tile and draw it on an image.
+
+    Args:
+        f: Stream to read from.
+        pixels: PIL pixel access object to draw on.
+        x: X position to draw at.
+        y: Y position to draw at.
+        palette: Palette to use, as a list of RGBA tuples.
+        hflip: Whether the tile is flipped horizontally.
+        vflip: Whether the tile is flipped vertically.
+        bpp: Bits per pixel, 2 or 4.
+    """
     for y2 in range(8):
         if bpp == 2:
             b1 = f.readByte()
@@ -100,7 +166,17 @@ def readTile(f, pixels, x, y, palette, hflip=False, vflip=False, bpp=2):
                 pixels[x + posx, y + posy] = palette[index]
 
 
-def writeTile(f, pixels, x, y, palette, bpp=2):
+def writeTile(f: common.Stream, pixels, x: int, y: int, palette: list, bpp: int = 2) -> None:
+    """Write a single 8x8 tile from an image.
+
+    Args:
+        f: Stream to write to.
+        pixels: PIL pixel access object to read from.
+        x: X position to read at.
+        y: Y position to read at.
+        palette: Palette to use, as a list of RGBA tuples.
+        bpp: Bits per pixel, 2 or 4.
+    """
     for y2 in range(8):
         if bpp == 2:
             b1 = b2 = 0
@@ -131,13 +207,27 @@ def writeTile(f, pixels, x, y, palette, bpp=2):
 
 
 bwpalette = [[(0x0, 0x0, 0x0, 0xff), (0x50, 0x50, 0x50, 0xff), (0xb0, 0xb0, 0xb0, 0xff), (0xf0, 0xf0, 0xf0, 0xff)]]
+"""Default grayscale palette used for 2bpp images."""
+
 colpalette = [[(0x0,  0x0,  0x0,  0xff), (0x1f, 0x1f, 0x1f, 0xff), (0x2f, 0x2f, 0x2f, 0xff), (0x3f, 0x3f, 0x3f, 0xff),
                (0x4f, 0x4f, 0x4f, 0xff), (0x5f, 0x5f, 0x5f, 0xff), (0x6f, 0x6f, 0x6f, 0xff), (0x7f, 0x7f, 0x7f, 0xff),
                (0x8f, 0x8f, 0x8f, 0xff), (0x9f, 0x9f, 0x9f, 0xff), (0xaf, 0xaf, 0xaf, 0xff), (0xbf, 0xbf, 0xbf, 0xff),
                (0xcf, 0xcf, 0xcf, 0xff), (0xdf, 0xdf, 0xdf, 0xff), (0xef, 0xef, 0xef, 0xff), (0xff, 0xff, 0xff, 0xff)]]
+"""Default grayscale palette used for 4bpp images."""
 
 
-def extractImage(f, outfile, width, height, palette=None, bpp=2):
+def extractImage(f: common.Stream, outfile: str, width: int, height: int, palette: list | None = None, bpp: int = 2) -> None:
+    """Extract an image made of sequential tiles to png.
+
+    Args:
+        f: Stream to read from, seeked to the tile data.
+        outfile: Path of the png file to create.
+        width: Width of the image.
+        height: Height of the image.
+        palette: Palette to use, as a list of RGBA tuples, or None for the
+            default grayscale one.
+        bpp: Bits per pixel, 2 or 4.
+    """
     try:
         from PIL import Image
     except ImportError:
@@ -156,7 +246,18 @@ def extractImage(f, outfile, width, height, palette=None, bpp=2):
     img.save(outfile, "PNG")
 
 
-def repackImage(f, infile, width, height, palette=None, bpp=2):
+def repackImage(f: common.Stream, infile: str, width: int, height: int, palette: list | None = None, bpp: int = 2) -> None:
+    """Repack a png into an image made of sequential tiles.
+
+    Args:
+        f: Stream to write to, seeked to the tile data.
+        infile: Path of the png file to pack.
+        width: Width of the image.
+        height: Height of the image.
+        palette: Palette to use, as a list of RGBA tuples, or None for the
+            default grayscale one.
+        bpp: Bits per pixel, 2 or 4.
+    """
     try:
         from PIL import Image
     except ImportError:
@@ -172,7 +273,20 @@ def repackImage(f, infile, width, height, palette=None, bpp=2):
             writeTile(f, pixels, x * 8, y * 8, palette, bpp=bpp)
 
 
-def extractTiledImage(f, outfile, width, height, palette=None, bpp=2):
+def extractTiledImage(f: common.Stream, outfile: str, width: int, height: int, palette: list | None = None, bpp: int = 2) -> None:
+    """Extract an image made of tiles in 2x2 groups to png.
+
+    Within each group, tiles are ordered top to bottom, then left to right.
+
+    Args:
+        f: Stream to read from, seeked to the tile data.
+        outfile: Path of the png file to create.
+        width: Width of the image.
+        height: Height of the image.
+        palette: Palette to use, as a list of RGBA tuples, or None for the
+            default grayscale one.
+        bpp: Bits per pixel, 2 or 4.
+    """
     try:
         from PIL import Image
     except ImportError:
@@ -197,7 +311,20 @@ def extractTiledImage(f, outfile, width, height, palette=None, bpp=2):
     img.save(outfile, "PNG")
 
 
-def repackTiledImage(f, infile, width, height, palette=None, bpp=2):
+def repackTiledImage(f: common.Stream, infile: str, width: int, height: int, palette: list | None = None, bpp: int = 2) -> None:
+    """Repack a png into an image made of tiles in 2x2 groups.
+
+    Within each group, tiles are ordered top to bottom, then left to right.
+
+    Args:
+        f: Stream to write to, seeked to the tile data.
+        infile: Path of the png file to pack.
+        width: Width of the image.
+        height: Height of the image.
+        palette: Palette to use, as a list of RGBA tuples, or None for the
+            default grayscale one.
+        bpp: Bits per pixel, 2 or 4.
+    """
     try:
         from PIL import Image
     except ImportError:
@@ -217,37 +344,81 @@ def repackTiledImage(f, infile, width, height, palette=None, bpp=2):
 
 
 class TileMap:
+    """Structure of a tile map.
+
+    Attributes:
+        name: Path of the png file the map is extracted to.
+        offset: Offset of the map data.
+        width: Width of the map, in tiles.
+        height: Height of the map, in tiles.
+        map: List of tile entries.
+        bpp: Bits per pixel of the tiles.
+    """
     def __init__(self):
-        self.name = ""
-        self.offset = 0
-        self.width = 0
-        self.height = 0
-        self.map = []
-        self.bpp = 2
+        self.name: str = ""
+        self.offset: int = 0
+        self.width: int = 0
+        self.height: int = 0
+        self.map: list = []
+        self.bpp: int = 2
 
 
 class TileData:
-    def __init__(self, tile=0, pal=0, hflip=False, vflip=False):
-        self.tile = tile
-        self.data = 0
-        self.pal = pal
-        self.bank = 0
-        self.hflip = hflip
-        self.vflip = vflip
+    """Structure of a single tile map entry.
+
+    Attributes:
+        tile: Index of the tile.
+        data: Raw map entry value.
+        pal: Palette of the tile.
+        bank: Bank of the tile.
+        hflip: Whether the tile is flipped horizontally.
+        vflip: Whether the tile is flipped vertically.
+    """
+    def __init__(self, tile: int = 0, pal: int = 0, hflip: bool = False, vflip: bool = False):
+        self.tile: int = tile
+        self.data: int = 0
+        self.pal: int = pal
+        self.bank: int = 0
+        self.hflip: bool = hflip
+        self.vflip: bool = vflip
 
 
 class SpriteData:
+    """Structure of a single sprite entry.
+
+    Attributes:
+        tile: Index of the tile.
+        data: Raw sprite entry value.
+        pal: Palette of the tile.
+        hflip: Whether the tile is flipped horizontally.
+        vflip: Whether the tile is flipped vertically.
+        xpos: X position of the sprite.
+        ypos: Y position of the sprite.
+    """
     def __init__(self):
-        self.tile = 0
-        self.data = 0
-        self.pal = 0
-        self.hflip = False
-        self.vflip = False
-        self.xpos = 0
-        self.ypos = 0
+        self.tile: int = 0
+        self.data: int = 0
+        self.pal: int = 0
+        self.hflip: bool = False
+        self.vflip: bool = False
+        self.xpos: int = 0
+        self.ypos: int = 0
 
 
-def readPalette(f, bpp=2, num=16):
+def readPalette(f: common.Stream, bpp: int = 2, num: int = 16) -> list:
+    """Read palettes from the current stream position.
+
+    2bpp palettes hold 4 grayscale nibbles, 4bpp ones hold 16 12-bit
+    colors.
+
+    Args:
+        f: Stream to read from.
+        bpp: Bits per pixel, 2 or 4.
+        num: Number of palettes to read.
+
+    Returns:
+        The list of palettes, each a list of RGBA tuples.
+    """
     palettes = []
     for i in range(num):
         if bpp == 2:
@@ -268,7 +439,14 @@ def readPalette(f, bpp=2, num=16):
     return palettes
 
 
-def writePalette(f, palettes, bpp=2):
+def writePalette(f: common.Stream, palettes: list, bpp: int = 2) -> None:
+    """Write palettes to the current stream position.
+
+    Args:
+        f: Stream to write to.
+        palettes: List of palettes, each a list of RGBA tuples.
+        bpp: Bits per pixel, 2 or 4.
+    """
     for palette in palettes:
         for color in palette:
             if bpp == 2:
@@ -280,7 +458,25 @@ def writePalette(f, palettes, bpp=2):
                 f.writeUShort(col)
 
 
-def readMappedImage(f, outfile, mapstart=0, num=1, bpp=2, width=0, height=0):
+def readMappedImage(f: common.Stream, outfile: str, mapstart: int = 0, num: int = 1, bpp: int = 2, width: int = 0, height: int = 0) -> list:
+    """Read tile maps from a stream.
+
+    Each map starts with its width and height in tiles, when they're not
+    given, followed by one 16-bit entry per tile.
+
+    Args:
+        f: Stream to read from.
+        outfile: Path of the png file for the map, numbered suffixes are
+            added when num is more than 1.
+        mapstart: Offset of the map data.
+        num: Number of maps to read.
+        bpp: Bits per pixel of the tiles.
+        width: Width of the maps, or 0 to read it from the data.
+        height: Height of the maps, or 0 to read it from the data.
+
+    Returns:
+        The list of maps.
+    """
     f.seek(mapstart)
     maps = []
     for j in range(num):
@@ -323,7 +519,25 @@ def readMappedImage(f, outfile, mapstart=0, num=1, bpp=2, width=0, height=0):
 # 12    Window clip mode (0=Display Outside, 1=Inside)
 # 9-11  Palette
 # 0-8   Tile
-def readSprite(f, spritelen, outfile, spritestart=0, bpp=2, width=0, height=0, ignorepal=False):
+def readSprite(f: common.Stream, spritelen: int, outfile: str, spritestart: int = 0, bpp: int = 2, width: int = 0, height: int = 0, ignorepal: bool = False) -> list:
+    """Read sprite data and convert it to a tile map.
+
+    The map size is computed from the sprite positions, and one map entry
+    is created for the sprite found at each tile position.
+
+    Args:
+        f: Stream to read from.
+        spritelen: Number of sprites to read.
+        outfile: Path of the png file for the map.
+        spritestart: Offset of the sprite data.
+        bpp: Bits per pixel of the tiles.
+        width: Unused.
+        height: Unused.
+        ignorepal: Whether to ignore the sprite palettes.
+
+    Returns:
+        A list holding the single converted map.
+    """
     f.seek(spritestart)
     xmax = ymax = 0
     tiles = []
@@ -368,7 +582,22 @@ def readSprite(f, spritelen, outfile, spritestart=0, bpp=2, width=0, height=0, i
     return [map]
 
 
-def extractMappedImage(f, outfile, tilestart, mapstart, num=1, readpal=False, bpp=2, forcewidth=0, forceheight=0):
+def extractMappedImage(f: common.Stream, outfile: str, tilestart: int, mapstart: int, num: int = 1, readpal: bool = False, bpp: int = 2, forcewidth: int = 0, forceheight: int = 0) -> None:
+    """Extract a tile-mapped image to png.
+
+    Args:
+        f: Stream to read from.
+        outfile: Path of the png file to create, numbered suffixes are
+            added when num is more than 1.
+        tilestart: Offset of the tile data.
+        mapstart: Offset of the map data.
+        num: Number of maps to extract.
+        readpal: Whether to read the palettes from before the map data,
+            instead of using the default grayscale ones.
+        bpp: Bits per pixel of the tiles.
+        forcewidth: Width of the maps, or 0 to read it from the data.
+        forceheight: Height of the maps, or 0 to read it from the data.
+    """
     common.logDebug("Extracting", outfile)
     maps = readMappedImage(f, outfile, mapstart, num, bpp, forcewidth, forceheight)
     if readpal:
@@ -379,7 +608,20 @@ def extractMappedImage(f, outfile, tilestart, mapstart, num=1, readpal=False, bp
     writeMappedImage(f, tilestart, maps, palettes, num)
 
 
-def writeMappedImage(f, tilestart, maps, palettes, num=1, skipzero=False):
+def writeMappedImage(f: common.Stream, tilestart: int, maps: list, palettes: list, num: int = 1, skipzero: bool = False) -> None:
+    """Draw tile maps to png files.
+
+    For 4bpp images with custom palettes, the palettes are also drawn on
+    the right side of the image.
+
+    Args:
+        f: Stream to read the tile data from.
+        tilestart: Offset of the tile data.
+        maps: List of maps returned by :func:`readMappedImage`.
+        palettes: List of palettes, each a list of RGBA tuples.
+        num: Number of maps to draw.
+        skipzero: Whether to skip tile 0.
+    """
     try:
         from PIL import Image
     except ImportError:
@@ -432,7 +674,24 @@ def writeMappedImage(f, tilestart, maps, palettes, num=1, skipzero=False):
     common.logDebug("Tile data ended at", common.toHex(tilestart + maxtile * tilesize + tilesize))
 
 
-def repackMappedImage(f, infile, tilestart, mapstart, num=1, readpal=False, writepal=False):
+def repackMappedImage(f: common.Stream, infile: str, tilestart: int, mapstart: int, num: int = 1, readpal: bool = False, writepal: bool = False) -> None:
+    """Repack a png into a tile-mapped image.
+
+    Tiles are deduplicated, reusing already written tiles and their flipped
+    versions, and the map data is updated accordingly.
+
+    Args:
+        f: Stream to write to.
+        infile: Path of the png file to pack, numbered suffixes are added
+            when num is more than 1.
+        tilestart: Offset of the tile data.
+        mapstart: Offset of the map data.
+        num: Number of maps to repack.
+        readpal: Whether to read the palettes from before the map data,
+            instead of using the default grayscale ones.
+        writepal: Whether to pick the best palette for each tile and write
+            it in the map data, instead of keeping the original one.
+    """
     try:
         from PIL import Image
     except ImportError:
@@ -440,7 +699,7 @@ def repackMappedImage(f, infile, tilestart, mapstart, num=1, readpal=False, writ
         return
     common.logDebug("Repacking", infile)
     maps = readMappedImage(f, infile, mapstart, num)
-    tiles = {}
+    tiles: dict[tuple, int] = {}
     if readpal:
         f.seek(mapstart - 32)
         palettes = readPalette(f, maps[0].bpp)
@@ -538,7 +797,18 @@ def repackMappedImage(f, infile, tilestart, mapstart, num=1, readpal=False, writ
                 x = 0
 
 
-def repackMappedTiles(f, tilestart, mapdata, palettes):
+def repackMappedTiles(f: common.Stream, tilestart: int, mapdata: TileMap, palettes: list) -> None:
+    """Repack the tiles of a single map from a png, keeping the map data.
+
+    Flipped tiles are skipped, since their unflipped version is written by
+    another entry.
+
+    Args:
+        f: Stream to write to.
+        tilestart: Offset of the tile data.
+        mapdata: Map holding the tile entries.
+        palettes: List of palettes, only the first one is used.
+    """
     try:
         from PIL import Image
     except ImportError:

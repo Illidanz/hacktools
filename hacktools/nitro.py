@@ -1,3 +1,9 @@
+"""Support for the NDS Nitro file formats.
+
+Includes NFTR fonts, NARC archives, the NCLR/NCGR/NSCR/NCER graphic
+formats and their raw NBFP/NBFC/NBFS variants, and the textures of
+NSBMD/NSBTX 3D models.
+"""
 import math
 import os
 import shlex
@@ -8,7 +14,16 @@ from hacktools import common
 
 
 # Generic extract/repack functions
-def extractNSBMD(infolder, outfolder, extension=".nsbmd", readfunc=None):
+def extractNSBMD(infolder: str, outfolder: str, extension: str = ".nsbmd", readfunc=None) -> None:
+    """Extract the textures of all the NSBMD models in a folder to png.
+
+    Args:
+        infolder: Path of the folder to scan.
+        outfolder: Path of the folder to extract to.
+        extension: Extension of the model files.
+        readfunc: Optional function called with each file name, returning
+            whether the first palette color should be transparent.
+    """
     common.makeFolder(outfolder)
     common.logMessage("Extracting NSBMD to", outfolder, "...")
     files = common.getFiles(infolder, extension)
@@ -25,7 +40,20 @@ def extractNSBMD(infolder, outfolder, extension=".nsbmd", readfunc=None):
     common.logMessage("Done! Extracted", len(files), "files")
 
 
-def repackNSBMD(workfolder, infolder, outfolder, extension=".nsbmd", readfunc=None, writefunc=None):
+def repackNSBMD(workfolder: str, infolder: str, outfolder: str, extension: str = ".nsbmd", readfunc=None, writefunc=None) -> None:
+    """Repack the textures of all the NSBMD models in a folder from png.
+
+    Args:
+        workfolder: Path of the folder with the png files to pack.
+        infolder: Path of the folder with the original models.
+        outfolder: Path of the folder the repacked models are written to.
+        extension: Extension of the model files.
+        readfunc: Optional function called with each file name, returning
+            whether the first palette color should be transparent.
+        writefunc: Optional function called with (file, nsbmd), returning
+            the (fixtransp, checkalpha, zerotransp, backwards) options used
+            when matching palette colors.
+    """
     common.logMessage("Repacking NSBMD from", workfolder, "...")
     files = common.getFiles(infolder, extension)
     for file in common.showProgress(files):
@@ -47,7 +75,21 @@ def repackNSBMD(workfolder, infolder, outfolder, extension=".nsbmd", readfunc=No
     common.logMessage("Done!")
 
 
-def extractIMG(infolder, outfolder, extensions=".NCGR", readfunc=None):
+def extractIMG(infolder: str, outfolder: str, extensions=".NCGR", readfunc=None) -> None:
+    """Extract all the Nitro graphics in a folder to png.
+
+    The palette, map and cell files matching each image name are loaded
+    with :func:`readNitroGraphic`. Images with a cell file are drawn with
+    :func:`drawNCER`, the others with :func:`drawNCGR`.
+
+    Args:
+        infolder: Path of the folder to scan.
+        outfolder: Path of the folder to extract to.
+        extensions: Extension or list of extensions to filter by.
+        readfunc: Optional function called with (infolder, file, extension),
+            returning a (palettes, image, map, cell, width, height, mapfile,
+            cellfile) tuple, for files that need custom loading.
+    """
     common.makeFolder(outfolder)
     common.logMessage("Extracting IMG to", outfolder, "...")
     files = common.getFiles(infolder, extensions)
@@ -73,7 +115,23 @@ def extractIMG(infolder, outfolder, extensions=".NCGR", readfunc=None):
     common.logMessage("Done! Extracted", len(files), "files")
 
 
-def repackIMG(workfolder, infolder, outfolder, extensions=".NCGR", readfunc=None, writefunc=None, clean=False):
+def repackIMG(workfolder: str, infolder: str, outfolder: str, extensions=".NCGR", readfunc=None, writefunc=None, clean: bool = False) -> None:
+    """Repack all the Nitro graphics in a folder from png or psd files.
+
+    Args:
+        workfolder: Path of the folder with the png or psd files to pack.
+        infolder: Path of the folder with the original files.
+        outfolder: Path of the folder the repacked files are written to.
+        extensions: Extension or list of extensions to filter by.
+        readfunc: Optional function called with (infolder, file, extension),
+            returning a (palettes, image, map, cell, width, height, mapfile,
+            cellfile) tuple, for files that need custom loading.
+        writefunc: Optional function called with (workfolder, infolder,
+            outfolder, file, image, palettes, map, cell, width, height),
+            returning the same data updated, plus a transptile option.
+        clean: Whether to delete output files with no matching image,
+            instead of copying the originals.
+    """
     common.logMessage("Repacking IMG from", workfolder, "...")
     files = common.getFiles(infolder, extensions)
     for file in common.showProgress(files):
@@ -132,44 +190,93 @@ def repackIMG(workfolder, infolder, outfolder, extensions=".NCGR", readfunc=None
 
 # Font
 class FontNFTR:
+    """Structure of an NFTR font.
+
+    Attributes:
+        height: Line height of the font.
+        width: Max character width of the font.
+        plgcoffset: Offset of the PLGC section, holding the glyph images.
+        hdwcoffset: Offset of the HDWC section, holding the glyph widths.
+        pamcoffset: Offset of the first PAMC section, holding the character map.
+        plgcsize: Size of the PLGC section.
+        glyphwidth: Width of the glyph images.
+        glyphheight: Height of the glyph images.
+        glyphlength: Length in bytes of a single glyph image.
+        depth: Bits per pixel of the glyph images.
+        rotation: Rotation of the glyph images.
+        tilenum: Number of glyphs in the font.
+        firstcode: First glyph index from the HDWC section.
+        lastcode: Last glyph index from the HDWC section.
+        plgc: Glyph images, as a list of PIL images, only filled when
+            requested with generateglyphs.
+        colors: Grayscale palette generated from the depth.
+        hdwc: List of HDWC entries.
+        pamc: List of PAMC entries.
+        glyphs: Dictionary of character -> FontGlyph.
+    """
     def __init__(self):
-        self.height = 0
-        self.width = 0
-        self.plgcoffset = 0
-        self.hdwcoffset = 0
-        self.pamcoffset = 0
-        self.plgcsize = 0
-        self.glyphwidth = 0
-        self.glyphheight = 0
-        self.glyphlength = 0
-        self.depth = 0
-        self.rotation = 0
-        self.tilenum = 0
-        self.firstcode = 0
-        self.lastcode = 0
-        self.plgc = []
-        self.colors = []
-        self.hdwc = []
-        self.pamc = []
-        self.glyphs = {}
+        self.height: int = 0
+        self.width: int = 0
+        self.plgcoffset: int = 0
+        self.hdwcoffset: int = 0
+        self.pamcoffset: int = 0
+        self.plgcsize: int = 0
+        self.glyphwidth: int = 0
+        self.glyphheight: int = 0
+        self.glyphlength: int = 0
+        self.depth: int = 0
+        self.rotation: int = 0
+        self.tilenum: int = 0
+        self.firstcode: int = 0
+        self.lastcode: int = 0
+        self.plgc: list = []
+        self.colors: list = []
+        self.hdwc: list[FontHDWC] = []
+        self.pamc: list[FontPAMC] = []
+        self.glyphs: dict = {}
 
 
 class FontHDWC:
+    """Width data of a single NFTR glyph.
+
+    Attributes:
+        start: Left offset of the glyph.
+        width: Width of the glyph.
+        length: Horizontal space occupied by the glyph when drawn.
+    """
     def __init__(self):
-        self.start = 0
-        self.width = 0
-        self.length = 0
+        self.start: int = 0
+        self.width: int = 0
+        self.length: int = 0
 
 
 class FontPAMC:
+    """Header of a single NFTR character map section.
+
+    Attributes:
+        firstchar: First character code of the section.
+        lastchar: Last character code of the section.
+        type: Type of the section, 0 to 2.
+        nextoffset: Offset of the next PAMC section, 0 for the last one.
+    """
     def __init__(self):
-        self.firstchar = 0
-        self.lastchar = 0
-        self.type = 0
-        self.nextoffset = 0
+        self.firstchar: int = 0
+        self.lastchar: int = 0
+        self.type: int = 0
+        self.nextoffset: int = 0
 
 
-def readNFTR(file, generateglyphs=False, encoding="shift_jis"):
+def readNFTR(file: str, generateglyphs: bool = False, encoding: str = "shift_jis") -> FontNFTR:
+    """Read the glyph information of an NFTR font.
+
+    Args:
+        file: Path of the font file.
+        generateglyphs: Whether to also render the glyph images with PIL.
+        encoding: Encoding of the character codes.
+
+    Returns:
+        The parsed font structure.
+    """
     nftr = FontNFTR()
     with common.Stream(file, "rb") as f:
         # Header
@@ -288,7 +395,13 @@ def readNFTR(file, generateglyphs=False, encoding="shift_jis"):
     return nftr
 
 
-def extractFontData(fontfiles, out):
+def extractFontData(fontfiles, out: str) -> None:
+    """Write the length of the ASCII glyphs of some fonts to a binary file.
+
+    Args:
+        fontfiles: Path of the font file, or a list of paths.
+        out: Path of the output file.
+    """
     if isinstance(fontfiles, str):
         fontfiles = [fontfiles]
     with common.Stream(out, "wb") as f:
@@ -300,23 +413,49 @@ def extractFontData(fontfiles, out):
 
 # Archives
 class NARC:
+    """Structure of a NARC archive.
+
+    Attributes:
+        btaf: Offset of the BTAF section, holding the file offsets.
+        btnf: Offset of the BTNF section, holding the file names.
+        gmif: Offset of the GMIF section, holding the file data.
+        files: List of files in the archive.
+    """
     def __init__(self):
-        self.btaf = 0
-        self.btnf = 0
-        self.gmif = 0
-        self.files = []
+        self.btaf: int = 0
+        self.btnf: int = 0
+        self.gmif: int = 0
+        self.files: list[NARCFile] = []
 
 
 class NARCFile:
+    """Structure of a single file entry in a NARC archive.
+
+    Attributes:
+        start: Absolute offset of the file data.
+        size: Size of the file.
+        path: Directory part of the file path.
+        name: Name of the file.
+        fullname: Path and name of the file.
+    """
     def __init__(self):
-        self.start = 0
-        self.size = 0
-        self.path = ""
-        self.name = ""
-        self.fullname = ""
+        self.start: int = 0
+        self.size: int = 0
+        self.path: str = ""
+        self.name: str = ""
+        self.fullname: str = ""
 
 
-def readNARC(narcfile):
+def readNARC(narcfile: str) -> "NARC | None":
+    """Read the file table of a NARC archive.
+
+    Args:
+        narcfile: Path of the NARC file.
+
+    Returns:
+        The parsed archive structure, or None if a section has a wrong
+        header.
+    """
     common.logDebug("Reading", narcfile)
     narc = NARC()
     with common.Stream(narcfile, "rb") as f:
@@ -362,14 +501,27 @@ def readNARC(narcfile):
     return narc
 
 
-def extractNARCFile(narcfile, outfolder):
+def extractNARCFile(narcfile: str, outfolder: str) -> None:
+    """Extract all the files of a NARC archive to a folder.
+
+    Args:
+        narcfile: Path of the NARC file.
+        outfolder: Path of the folder to extract to.
+    """
     narc = readNARC(narcfile)
     if narc is None:
         return
     extractNARC(narcfile, outfolder, narc)
 
 
-def extractNARC(narcfile, outfolder, narc):
+def extractNARC(narcfile, outfolder: str, narc: NARC) -> None:
+    """Extract all the files of an already parsed NARC archive.
+
+    Args:
+        narcfile: Path of the NARC file.
+        outfolder: Path of the folder to extract to.
+        narc: Archive structure returned by :func:`readNARC`.
+    """
     common.logDebug("Extracting", narcfile, "to", outfolder)
     if not outfolder.endswith("/"):
         outfolder = outfolder + "/"
@@ -382,14 +534,32 @@ def extractNARC(narcfile, outfolder, narc):
                 fout.write(f.read(file.size))
 
 
-def repackNARCFile(narcfilein, narcfileout, infolder):
+def repackNARCFile(narcfilein: str, narcfileout: str, infolder: str) -> None:
+    """Repack a NARC archive, replacing the files found in a folder.
+
+    Args:
+        narcfilein: Path of the original NARC file.
+        narcfileout: Path of the output NARC file.
+        infolder: Path of the folder with the replacement files.
+    """
     narc = readNARC(narcfilein)
     if narc is None:
         return
     repackNARC(narcfilein, narcfileout, infolder, narc)
 
 
-def repackNARC(narcfilein, narcfileout, infolder, narc):
+def repackNARC(narcfilein: str, narcfileout: str, infolder: str, narc: NARC) -> None:
+    """Repack an already parsed NARC archive.
+
+    Files that exist in infolder replace the original ones, and the file
+    table and section sizes are updated, so files can grow.
+
+    Args:
+        narcfilein: Path of the original NARC file.
+        narcfileout: Path of the output NARC file.
+        infolder: Path of the folder with the replacement files.
+        narc: Archive structure returned by :func:`readNARC`.
+    """
     common.logDebug("Repacking", narcfileout, "from", infolder)
     with common.Stream(narcfilein, "rb") as fin:
         with common.Stream(narcfileout, "wb") as f:
@@ -428,90 +598,194 @@ def repackNARC(narcfilein, narcfileout, infolder, narc):
 
 # Graphics
 class NCGR:
+    """Structure of an NCGR tile file.
+
+    Attributes:
+        width: Width of the image in pixels.
+        height: Height of the image.
+        bpp: Bits per pixel, 4 or 8.
+        tilesize: Size of a single tile.
+        tileoffset: Offset of the tile data.
+        tilelen: Length of the tile data.
+        lineal: Whether the tiles are stored in lineal order, instead of
+            tiled.
+        tiles: List of tiles, each a flat list of palette indexes.
+    """
     def __init__(self):
-        self.width = 0
-        self.height = 0
-        self.bpp = 4
-        self.tilesize = 8
-        self.tileoffset = 0
-        self.tilelen = 0
-        self.lineal = False
-        self.tiles = []
+        self.width: int = 0
+        self.height: int = 0
+        self.bpp: int = 4
+        self.tilesize: int = 8
+        self.tileoffset: int = 0
+        self.tilelen: int = 0
+        self.lineal: bool = False
+        self.tiles: list = []
 
 
 class NSCR:
+    """Structure of an NSCR tile map file.
+
+    Attributes:
+        width: Width of the image in pixels.
+        height: Height of the image.
+        maplen: Length of the map data.
+        mapoffset: Offset of the map data.
+        maps: List of map entries.
+    """
     def __init__(self):
-        self.width = 0
-        self.height = 0
-        self.maplen = 0
-        self.mapoffset = 0
-        self.maps = []
+        self.width: int = 0
+        self.height: int = 0
+        self.maplen: int = 0
+        self.mapoffset: int = 0
+        self.maps: list[Map] = []
 
 
 class Map:
+    """Structure of a single NSCR map entry.
+
+    Attributes:
+        pal: Palette of the tile.
+        xflip: Whether the tile is flipped horizontally.
+        yflip: Whether the tile is flipped vertically.
+        tile: Index of the tile.
+    """
     def __init__(self):
-        self.pal = 0
-        self.xflip = False
-        self.yflip = False
-        self.tile = 0
+        self.pal: int = 0
+        self.xflip: bool = False
+        self.yflip: bool = False
+        self.tile: int = 0
 
 
 class NCER:
+    """Structure of an NCER cell file.
+
+    Attributes:
+        banknum: Number of banks in the file.
+        tbank: Bank type, 0x01 for extended banks with a bounding box.
+        bankoffset: Offset of the bank data.
+        blocksize: Tile offset shift of the banks.
+        partitionoffset: Offset of the partition data, if any.
+        maxpartitionsize: Max partition size from the partition data.
+        firstpartitionoffset: Offset of the first partition.
+        banks: List of banks in the file.
+    """
     def __init__(self):
-        self.tbank = 0
-        self.bankoffset = 0
-        self.blocksize = 0
-        self.partitionoffset = 0
-        self.maxpartitionsize = 0
-        self.firstpartitionoffset = 0
-        self.banks = []
+        self.tbank: int = 0
+        self.bankoffset: int = 0
+        self.blocksize: int = 0
+        self.partitionoffset: int = 0
+        self.maxpartitionsize: int = 0
+        self.firstpartitionoffset: int = 0
+        self.banks: list[Bank] = []
 
 
 class Bank:
+    """Structure of a single NCER bank, a group of cells forming a sprite.
+
+    Attributes:
+        cellnum: Number of cells in the bank.
+        cellinfo: Raw cell info value.
+        celloffset: Offset of the cell data, relative to the end of the
+            bank data.
+        objoffset: Absolute offset of the cell data.
+        partitionoffset: Offset of the bank partition.
+        partitionsize: Size of the bank partition.
+        cells: List of cells in the bank, sorted by drawing order.
+        xmax: Right edge of the bounding box.
+        ymax: Bottom edge of the bounding box.
+        xmin: Left edge of the bounding box.
+        ymin: Top edge of the bounding box.
+        width: Width of the bank.
+        height: Height of the bank.
+        layernum: Number of layers used for psd exporting, computed so
+            intersecting cells end up on different layers.
+        duplicate: Whether the bank has the same cells as a previous one.
+    """
     def __init__(self):
-        self.cellnum = 0
-        self.cellinfo = 0
-        self.celloffset = 0
-        self.objoffset = 0
-        self.partitionoffset = 0
-        self.partitionsize = 0
-        self.cells = []
-        self.xmax = 0
-        self.ymax = 0
-        self.xmin = 0
-        self.ymin = 0
-        self.width = 0
-        self.height = 0
-        self.layernum = 0
-        self.duplicate = False
+        self.cellnum: int = 0
+        self.cellinfo: int = 0
+        self.celloffset: int = 0
+        self.objoffset: int = 0
+        self.partitionoffset: int = 0
+        self.partitionsize: int = 0
+        self.cells: list[Cell] = []
+        self.xmax: int = 0
+        self.ymax: int = 0
+        self.xmin: int = 0
+        self.ymin: int = 0
+        self.width: int = 0
+        self.height: int = 0
+        self.layernum: int = 0
+        self.duplicate: bool = False
 
 
 class Cell:
+    """Structure of a single NCER cell, an OBJ entry of a bank.
+
+    Attributes:
+        x: X position of the cell in the bank.
+        y: Y position of the cell in the bank.
+        width: Width of the cell, derived from shape and size.
+        height: Height of the cell, derived from shape and size.
+        numcell: Index of the cell in the bank.
+        shape: OBJ shape attribute.
+        size: OBJ size attribute.
+        objoffset: Offset of the OBJ entry.
+        tileoffset: Tile offset of the cell.
+        rsflag: Whether rotation/scaling is enabled.
+        objdisable: Whether the OBJ is disabled, without rsflag.
+        doublesize: Whether the OBJ is double size, with rsflag.
+        objmode: OBJ mode attribute.
+        mosaic: Whether the mosaic effect is enabled.
+        depth: Whether the cell is 8bpp instead of 4bpp.
+        xflip: Whether the cell is flipped horizontally.
+        yflip: Whether the cell is flipped vertically.
+        selectparam: Rotation/scaling parameter selection, with rsflag.
+        priority: Drawing priority of the cell.
+        pal: Palette of the cell.
+        layer: Layer used for psd exporting.
+    """
     def __init__(self):
-        self.x = 0
-        self.y = 0
-        self.width = 0
-        self.height = 0
-        self.numcell = 0
-        self.shape = 0
-        self.size = 0
-        self.objoffset = 0
-        self.tileoffset = 0
-        self.rsflag = False
-        self.objdisable = False
-        self.doublesize = False
-        self.objmode = 0
-        self.mosaic = False
-        self.depth = False
-        self.xflip = False
-        self.yflip = False
-        self.selectparam = 0
-        self.priority = 0
-        self.pal = 0
-        self.layer = -1
+        self.x: int = 0
+        self.y: int = 0
+        self.width: int = 0
+        self.height: int = 0
+        self.numcell: int = 0
+        self.shape: int = 0
+        self.size: int = 0
+        self.objoffset: int = 0
+        self.tileoffset: int = 0
+        self.rsflag: bool = False
+        self.objdisable: bool = False
+        self.doublesize: bool = False
+        self.objmode: int = 0
+        self.mosaic: bool = False
+        self.depth: bool = False
+        self.xflip: bool = False
+        self.yflip: bool = False
+        self.selectparam: int = 0
+        self.priority: int = 0
+        self.pal: int = 0
+        self.layer: int = -1
 
 
-def readNitroGraphic(palettefile, tilefile, mapfile, cellfile, ignorepalindex=False, ignoredupes=False):
+def readNitroGraphic(palettefile: str, tilefile: str, mapfile: str, cellfile: str, ignorepalindex: bool = False, ignoredupes: bool = False):
+    """Read a Nitro graphic with all its related files.
+
+    The map and cell files are optional, the palette and tile ones aren't.
+
+    Args:
+        palettefile: Path of the NCLR palette file.
+        tilefile: Path of the NCGR tile file.
+        mapfile: Path of the NSCR map file.
+        cellfile: Path of the NCER cell file.
+        ignorepalindex: Whether to ignore the palette index section.
+        ignoredupes: Whether to skip marking duplicate cell banks.
+
+    Returns:
+        A (palettes, ncgr, nscr, ncer, width, height) tuple, with None for
+        the files that weren't found.
+    """
     if not os.path.isfile(palettefile):
         common.logError("Palette", palettefile, "not found")
         return [], None, None, None, 0, 0
@@ -533,7 +807,16 @@ def readNitroGraphic(palettefile, tilefile, mapfile, cellfile, ignorepalindex=Fa
     return palettes, ncgr, nscr, ncer, width, height
 
 
-def readNCLR(nclrfile, ignoreindex=False):
+def readNCLR(nclrfile: str, ignoreindex: bool = False) -> dict:
+    """Read the palettes of an NCLR file.
+
+    Args:
+        nclrfile: Path of the NCLR file.
+        ignoreindex: Whether to ignore the palette index section.
+
+    Returns:
+        A dictionary of palette index -> list of RGBA tuples.
+    """
     palettes = []
     with common.Stream(nclrfile, "rb") as f:
         # Read header
@@ -572,7 +855,15 @@ def readNCLR(nclrfile, ignoreindex=False):
     return indexedpalettes
 
 
-def readNCGR(ncgrfile):
+def readNCGR(ncgrfile: str) -> NCGR:
+    """Read the tiles of an NCGR file.
+
+    Args:
+        ncgrfile: Path of the NCGR file.
+
+    Returns:
+        The parsed tile structure.
+    """
     ncgr = NCGR()
     with common.Stream(ncgrfile, "rb") as f:
         f.seek(24)
@@ -596,7 +887,13 @@ def readNCGR(ncgrfile):
     return ncgr
 
 
-def readNCGRTiles(ncgr, tiledata):
+def readNCGRTiles(ncgr: NCGR, tiledata: bytes) -> None:
+    """Split raw tile data into the tiles of an NCGR structure.
+
+    Args:
+        ncgr: Tile structure to fill.
+        tiledata: Raw tile data.
+    """
     for i in range(ncgr.tilelen // (8 * ncgr.bpp)):
         singletile = []
         for j in range(ncgr.tilesize * ncgr.tilesize):
@@ -609,7 +906,15 @@ def readNCGRTiles(ncgr, tiledata):
         ncgr.tiles.append(singletile)
 
 
-def readNSCR(nscrfile):
+def readNSCR(nscrfile: str) -> NSCR:
+    """Read the map entries of an NSCR file.
+
+    Args:
+        nscrfile: Path of the NSCR file.
+
+    Returns:
+        The parsed map structure.
+    """
     nscr = NSCR()
     with common.Stream(nscrfile, "rb") as f:
         f.seek(24)
@@ -628,7 +933,15 @@ def readNSCR(nscrfile):
     return nscr
 
 
-def readMapData(data):
+def readMapData(data: int) -> Map:
+    """Parse a single 16-bit map entry.
+
+    Args:
+        data: Raw map entry value.
+
+    Returns:
+        The parsed map entry.
+    """
     map = Map()
     map.pal = (data >> 12) & 0xf
     map.xflip = (data >> 10) & 1
@@ -637,7 +950,16 @@ def readMapData(data):
     return map
 
 
-def getNCERCellSize(shape, size):
+def getNCERCellSize(shape: int, size: int) -> tuple:
+    """Get the size of a cell from its OBJ shape and size attributes.
+
+    Args:
+        shape: OBJ shape attribute, 0 to 2.
+        size: OBJ size attribute, 0 to 3.
+
+    Returns:
+        The (width, height) of the cell.
+    """
     cellsize = (0, 0)
     if shape == 0:
         if size == 0:
@@ -669,7 +991,20 @@ def getNCERCellSize(shape, size):
     return cellsize
 
 
-def readNCER(ncerfile, ignoredupes=False):
+def readNCER(ncerfile: str, ignoredupes: bool = False) -> NCER:
+    """Read the banks and cells of an NCER file.
+
+    The size and position of each bank is computed from its cells, and the
+    layers used for psd exporting are assigned so intersecting cells end
+    up on different layers.
+
+    Args:
+        ncerfile: Path of the NCER file.
+        ignoredupes: Whether to skip marking duplicate banks.
+
+    Returns:
+        The parsed cell structure.
+    """
     ncer = NCER()
     with common.Stream(ncerfile, "rb") as f:
         f.seek(24)
@@ -807,11 +1142,38 @@ def readNCER(ncerfile, ignoredupes=False):
     return ncer
 
 
-def cellIntersect(a, b):
+def cellIntersect(a: Cell, b: Cell) -> bool:
+    """Check if the bounding boxes of two cells intersect.
+
+    Args:
+        a: First cell.
+        b: Second cell.
+
+    Returns:
+        True if the cells intersect.
+    """
     return (a.x < b.x + b.width) and (a.x + a.width > b.x) and (a.y < b.y + b.height) and (a.y + a.height > b.y)
 
 
-def tileToPixels(pixels, width, ncgr, tile, xflip, yflip, i, j, palette, pali, usetransp=True):
+def tileToPixels(pixels, width: int, ncgr: NCGR, tile: int, xflip: bool, yflip: bool, i: int, j: int, palette: list, pali: int, usetransp: bool = True):
+    """Draw a single tile of an NCGR on an image.
+
+    Args:
+        pixels: PIL pixel access object to draw on.
+        width: Width of the image.
+        ncgr: Tile structure holding the tiles.
+        tile: Index of the tile to draw.
+        xflip: Whether the tile is flipped horizontally.
+        yflip: Whether the tile is flipped vertically.
+        i: Y position to draw at, in tiles.
+        j: X position to draw at, in tiles.
+        palette: Palette to use, as a list of RGBA tuples.
+        pali: Index of the first palette color to use.
+        usetransp: Whether to skip drawing index 0, leaving it transparent.
+
+    Returns:
+        The pixels object.
+    """
     try:
         tiledata = ncgr.tiles[tile]
     except IndexError:
@@ -837,7 +1199,21 @@ def tileToPixels(pixels, width, ncgr, tile, xflip, yflip, i, j, palette, pali, u
     return pixels
 
 
-def drawNCER(outfile, ncer, ncgr, palettes, usetransp=True, layered=False):
+def drawNCER(outfile: str, ncer: NCER, ncgr: NCGR, palettes: dict, usetransp: bool = True, layered: bool = False) -> None:
+    """Draw the banks of an NCER to a png file.
+
+    The banks are stacked vertically, with the palettes drawn on the right
+    side. When layered is set and ImageMagick is available, a psd file is
+    also created with each bank layer on its own named layer.
+
+    Args:
+        outfile: Path of the png file to create.
+        ncer: Cell structure returned by :func:`readNCER`.
+        ncgr: Tile structure returned by :func:`readNCGR`.
+        palettes: Dictionary of palette index -> list of RGBA tuples.
+        usetransp: Whether to skip drawing index 0, leaving it transparent.
+        layered: Whether to create the psd file.
+    """
     try:
         from PIL import Image
     except ImportError:
@@ -925,7 +1301,19 @@ def drawNCER(outfile, ncer, ncgr, palettes, usetransp=True, layered=False):
     img.save(outfile, "PNG")
 
 
-def drawNCGR(outfile, nscr, ncgr, palettes, width, height, usetransp=True):
+def drawNCGR(outfile: str, nscr: NSCR, ncgr: NCGR, palettes: dict, width: int, height: int, usetransp: bool = True) -> None:
+    """Draw an NCGR to a png file, with the palettes on the right side.
+
+    Args:
+        outfile: Path of the png file to create.
+        nscr: Map structure returned by :func:`readNSCR`, or None to draw
+            the tiles sequentially.
+        ncgr: Tile structure returned by :func:`readNCGR`.
+        palettes: Dictionary of palette index -> list of RGBA tuples.
+        width: Width of the image, 0xffff to assume a square image.
+        height: Height of the image, 0xffff to assume a square image.
+        usetransp: Whether to skip drawing index 0, leaving it transparent.
+    """
     try:
         from PIL import Image
     except ImportError:
@@ -966,7 +1354,15 @@ def drawNCGR(outfile, nscr, ncgr, palettes, width, height, usetransp=True):
     img.save(outfile, "PNG")
 
 
-def writeNCGRData(f, bpp, index1, index2):
+def writeNCGRData(f: common.Stream, bpp: int, index1: int, index2: int) -> None:
+    """Write two pixels of tile data, packed in one byte for 4bpp.
+
+    Args:
+        f: Stream to write to.
+        bpp: Bits per pixel, 4 or 8.
+        index1: First palette index.
+        index2: Second palette index.
+    """
     if bpp == 4:
         f.writeByte(((index2) << 4) | index1)
     else:
@@ -974,7 +1370,18 @@ def writeNCGRData(f, bpp, index1, index2):
         f.writeByte(index2)
 
 
-def writeNCGRTile(f, pixels, width, ncgr, i, j, palette):
+def writeNCGRTile(f: common.Stream, pixels, width: int, ncgr: NCGR, i: int, j: int, palette: list) -> None:
+    """Write a single tile of an NCGR from an image.
+
+    Args:
+        f: Stream to write to, seeked to the tile.
+        pixels: PIL pixel access object to read from.
+        width: Width of the image.
+        ncgr: Tile structure the tile belongs to.
+        i: Y position to read at, in tiles.
+        j: X position to read at, in tiles.
+        palette: Palette to use, as a list of RGBA tuples.
+    """
     for i2 in range(ncgr.tilesize):
         for j2 in range(0, ncgr.tilesize, 2):
             if ncgr.lineal:
@@ -989,7 +1396,17 @@ def writeNCGRTile(f, pixels, width, ncgr, i, j, palette):
             writeNCGRData(f, ncgr.bpp, index1, index2)
 
 
-def writeNCGR(file, ncgr, infile, palettes, width=-1, height=-1):
+def writeNCGR(file: str, ncgr: NCGR, infile: str, palettes: dict, width: int = -1, height: int = -1) -> None:
+    """Repack a png into an NCGR file with sequential tiles.
+
+    Args:
+        file: Path of the NCGR file to update.
+        ncgr: Tile structure returned by :func:`readNCGR`.
+        infile: Path of the png file to pack.
+        palettes: Dictionary of palettes, only the first one is used.
+        width: Width of the image, or -1 to use the NCGR one.
+        height: Height of the image, or -1 to use the NCGR one.
+    """
     try:
         from PIL import Image
     except ImportError:
@@ -1008,7 +1425,23 @@ def writeNCGR(file, ncgr, infile, palettes, width=-1, height=-1):
                 writeNCGRTile(f, pixels, width, ncgr, i, j, palettes[0])
 
 
-def writeNSCR(file, ncgr, nscr, infile, palettes, width=-1, height=-1, skipfirst=False):
+def writeNSCR(file: str, ncgr: NCGR, nscr: NSCR, infile: str, palettes: dict, width: int = -1, height: int = -1, skipfirst: bool = False) -> None:
+    """Repack a png into an NCGR file, following its original map data.
+
+    Tiles are written back where the map entries point, without changing
+    the map, so the png needs to keep the original tile layout. Flipped
+    tiles are skipped.
+
+    Args:
+        file: Path of the NCGR file to update.
+        ncgr: Tile structure returned by :func:`readNCGR`.
+        nscr: Map structure returned by :func:`readNSCR`.
+        infile: Path of the png file to pack.
+        palettes: Dictionary of palette index -> list of RGBA tuples.
+        width: Width of the image, or -1 to use the NSCR one.
+        height: Height of the image.
+        skipfirst: Whether to skip the first tile.
+    """
     try:
         from PIL import Image
     except ImportError:
@@ -1044,11 +1477,37 @@ def writeNSCR(file, ncgr, nscr, infile, palettes, width=-1, height=-1, skipfirst
                 x += 1
 
 
-def writeMappedNSCR(file, mapfile, ncgr, nscr, infile, palettes, width=-1, height=-1, transptile=False, writelen=True, useoldpal=False):
+def writeMappedNSCR(file: str, mapfile: str, ncgr: NCGR, nscr: NSCR, infile: str, palettes: dict, width: int = -1, height: int = -1, transptile: bool = False, writelen: bool = True, useoldpal: bool = False) -> None:
+    """Repack a png into an NCGR and NSCR pair, rebuilding the map.
+
+    Single map version of :func:`writeMultiMappedNSCR`, see that for the
+    parameters.
+    """
     writeMultiMappedNSCR(file, [mapfile], ncgr, [nscr], [infile], palettes, width, height, transptile, writelen, useoldpal)
 
 
-def writeMultiMappedNSCR(file, mapfiles, ncgr, nscrs, infiles, palettes, width=-1, height=-1, transptile=False, writelen=True, useoldpal=False):
+def writeMultiMappedNSCR(file: str, mapfiles: list, ncgr: NCGR, nscrs: list, infiles: list, palettes: dict, width: int = -1, height: int = -1, transptile: bool = False, writelen: bool = True, useoldpal: bool = False) -> None:
+    """Repack pngs into an NCGR and multiple NSCR maps, rebuilding them.
+
+    Tiles are deduplicated across all the maps, reusing already written
+    tiles and their flipped versions, and each map is rebuilt with the
+    best palette for each tile.
+
+    Args:
+        file: Path of the NCGR file to update.
+        mapfiles: Paths of the NSCR files to update.
+        ncgr: Tile structure returned by :func:`readNCGR`.
+        nscrs: Map structures returned by :func:`readNSCR`.
+        infiles: Paths of the png files to pack.
+        palettes: Dictionary of palette index -> list of RGBA tuples.
+        width: Width of the images, or -1 to use the NSCR ones.
+        height: Height of the images, or -1 to use the NSCR ones.
+        transptile: Whether to reserve the first tile as a fully
+            transparent one.
+        writelen: Whether to write the new tile data length in the NCGR.
+        useoldpal: Whether to keep the palette of the original map entries,
+            instead of picking the best one.
+    """
     try:
         from PIL import Image
     except ImportError:
@@ -1110,7 +1569,18 @@ def writeMultiMappedNSCR(file, mapfiles, ncgr, nscrs, infiles, palettes, width=-
             f.writeUInt(len(tiles) * (8 * ncgr.bpp))
 
 
-def searchTile(tile, tiles, tilesize=8):
+def searchTile(tile: list, tiles: list, tilesize: int = 8):
+    """Search for a tile in a list, also trying its flipped versions.
+
+    Args:
+        tile: Tile to search for, as a flat list of palette indexes.
+        tiles: List of tiles to search in.
+        tilesize: Size of the tiles.
+
+    Returns:
+        A (tile, xflip, yflip) tuple with the index of the matching tile,
+        or -1 if not found, and the flips needed to match it.
+    """
     tilex = common.flipTile(tile, True, False, tilesize, tilesize)
     tiley = common.flipTile(tile, False, True, tilesize, tilesize)
     tilexy = common.flipTile(tile, True, True, tilesize, tilesize)
@@ -1126,7 +1596,31 @@ def searchTile(tile, tiles, tilesize=8):
     return -1, False, False
 
 
-def writeNCER(file, ncerfile, ncgr, ncer, infile, palettes, width=0, height=0, appendTiles=False, checkRepeat=True, writelen=True, fixtransp=False, checkalpha=False, zerotransp=True):
+def writeNCER(file: str, ncerfile: str, ncgr: NCGR, ncer: NCER, infile: str, palettes: dict, width: int = 0, height: int = 0, appendTiles: bool = False, checkRepeat: bool = True, writelen: bool = True, fixtransp: bool = False, checkalpha: bool = False, zerotransp: bool = True) -> None:
+    """Repack a png or psd into the NCGR and NCER files of a sprite.
+
+    The image is expected in the layout drawn by :func:`drawNCER`. For psd
+    files, the bank layers are extracted with ImageMagick and matched by
+    name. Flipped and duplicate cells are skipped.
+
+    Args:
+        file: Path of the NCGR file to update.
+        ncerfile: Path of the NCER file to update.
+        ncgr: Tile structure returned by :func:`readNCGR`.
+        ncer: Cell structure returned by :func:`readNCER`.
+        infile: Path of the png or psd file to pack.
+        palettes: Dictionary of palette index -> list of RGBA tuples.
+        width: Unused.
+        height: Unused.
+        appendTiles: Whether cells that changed can have new tiles appended
+            at the end of the NCGR, updating their OBJ entries.
+        checkRepeat: Whether to skip tiles that were already written.
+        writelen: Whether to write the new tile count in the NCGR, when
+            tiles were appended.
+        fixtransp: Whether to skip the first palette color when matching.
+        checkalpha: Whether the alpha channel counts when matching colors.
+        zerotransp: Whether fully transparent colors match index 0.
+    """
     try:
         from PIL import Image
     except ImportError:
@@ -1172,7 +1666,7 @@ def writeNCER(file, ncerfile, ncgr, ncer, infile, palettes, width=0, height=0, a
         with common.Stream(ncerfile, "rb+") as fn:
             currheight = 0
             donetiles = []
-            cellboxes = {}
+            cellboxes: dict[int, list[int]] = {}
             for nceri in range(len(ncer.banks)):
                 bank = ncer.banks[nceri]
                 if bank.width == 0 or bank.height == 0 or bank.duplicate:
@@ -1281,44 +1775,94 @@ def writeNCER(file, ncerfile, ncgr, ncer, infile, palettes, width=0, height=0, a
 
 # 3D Models
 NSBMDbpp = [0, 8, 2, 4, 8, 2, 8, 16]
+"""Bits per pixel of each NSBMD texture format."""
 
 
 class NSBMD:
+    """Structure of the TEX0 block of an NSBMD or NSBTX file.
+
+    Attributes:
+        textures: List of textures in the file.
+        palettes: List of palettes in the file.
+        blockoffset: Offset of the TEX0 block.
+        blocksize: Size of the TEX0 block.
+        blocklimit: Offset of the end of the TEX0 block.
+        texdatasize: Size of the texture data.
+        texdataoffset: Offset of the texture data.
+        sptexsize: Size of the 4x4-texel texture data.
+        sptexoffset: Offset of the 4x4-texel texture data.
+        spdataoffset: Offset of the 4x4-texel palette index data.
+        paldatasize: Size of the palette data.
+        paldefoffset: Offset of the palette definitions.
+        paldataoffset: Offset of the palette data.
+    """
     def __init__(self):
-        self.textures = []
-        self.palettes = []
-        self.blocksize = 0
-        self.blocklimit = 0
-        self.texdatasize = 0
-        self.texdataoffset = 0
-        self.sptexsize = 0
-        self.sptexoffset = 0
-        self.spdataoffset = 0
-        self.paldatasize = 0
-        self.paldefoffset = 0
-        self.paldataoffset = 0
+        self.textures: list[NSBMDTexture] = []
+        self.palettes: list[NSBMDPalette] = []
+        self.blocksize: int = 0
+        self.blocklimit: int = 0
+        self.texdatasize: int = 0
+        self.texdataoffset: int = 0
+        self.sptexsize: int = 0
+        self.sptexoffset: int = 0
+        self.spdataoffset: int = 0
+        self.paldatasize: int = 0
+        self.paldefoffset: int = 0
+        self.paldataoffset: int = 0
 
 
 class NSBMDTexture:
+    """Structure of a single NSBMD texture.
+
+    Attributes:
+        name: Name of the texture.
+        offset: Offset of the texture data.
+        format: Format of the texture data, an index in :data:`NSBMDbpp`.
+        width: Width of the texture.
+        height: Height of the texture.
+        size: Size of the texture data.
+        data: Texture data.
+        spdata: Palette index data, for 4x4-texel textures.
+    """
     def __init__(self):
-        self.name = ""
-        self.offset = 0
-        self.format = 0
-        self.width = 0
-        self.height = 0
-        self.size = 0
+        self.name: str = ""
+        self.offset: int = 0
+        self.format: int = 0
+        self.width: int = 0
+        self.height: int = 0
+        self.size: int = 0
         self.data = []
-        self.spdata = []
+        self.spdata: list = []
 
 
 class NSBMDPalette:
-    def __init__(self):
-        self.name = ""
-        self.offset = 0
-        self.size = 0
-        self.data = []
+    """Structure of a single NSBMD palette.
 
-def readTEX0(nsbmd, f, zerotransp=False):
+    Attributes:
+        name: Name of the palette.
+        offset: Offset of the palette data.
+        size: Size of the palette data.
+        data: Palette colors, as a list of RGBA tuples.
+    """
+    def __init__(self):
+        self.name: str = ""
+        self.offset: int = 0
+        self.size: int = 0
+        self.data: list = []
+
+
+def readTEX0(nsbmd: NSBMD, f: common.Stream, zerotransp: bool = False) -> NSBMD:
+    """Read the textures and palettes of a TEX0 block.
+
+    Args:
+        nsbmd: Structure with the blockoffset already set, filled in place.
+        f: Stream opened on the model file.
+        zerotransp: Whether the first color of each palette should be
+            transparent.
+
+    Returns:
+        The filled nsbmd structure.
+    """
     # Read TEX0 block
     f.seek(nsbmd.blockoffset + 4)
     nsbmd.blocksize = f.readUInt()
@@ -1415,7 +1959,17 @@ def readTEX0(nsbmd, f, zerotransp=False):
     return nsbmd
 
 
-def readNSBMD(nsbmdfile, zerotransp=False):
+def readNSBMD(nsbmdfile: str, zerotransp: bool = False) -> "NSBMD | None":
+    """Read the textures and palettes of an NSBMD model.
+
+    Args:
+        nsbmdfile: Path of the NSBMD file, 3DG files are also supported.
+        zerotransp: Whether the first color of each palette should be
+            transparent.
+
+    Returns:
+        The parsed structure, or None if the model has no textures.
+    """
     nsbmd = NSBMD()
     with common.Stream(nsbmdfile, "rb") as f:
         nsbmdstart = 0
@@ -1435,7 +1989,17 @@ def readNSBMD(nsbmdfile, zerotransp=False):
         return readTEX0(nsbmd, f, zerotransp)
 
 
-def readNSBTX(nsbmdfile, zerotransp=False):
+def readNSBTX(nsbmdfile: str, zerotransp: bool = False) -> NSBMD:
+    """Read the textures and palettes of an NSBTX file.
+
+    Args:
+        nsbmdfile: Path of the NSBTX file.
+        zerotransp: Whether the first color of each palette should be
+            transparent.
+
+    Returns:
+        The parsed structure.
+    """
     nsbmd = NSBMD()
     with common.Stream(nsbmdfile, "rb") as f:
         nsbmdstart = 0
@@ -1446,7 +2010,17 @@ def readNSBTX(nsbmdfile, zerotransp=False):
         return readTEX0(nsbmd, f, zerotransp)
 
 
-def drawNSBMD(file, nsbmd, texi):
+def drawNSBMD(file: str, nsbmd: NSBMD, texi: int) -> None:
+    """Draw a single NSBMD texture to a png file.
+
+    All the texture formats are supported. The palette, if any, is drawn
+    on the right side.
+
+    Args:
+        file: Path of the png file to create.
+        nsbmd: Structure returned by :func:`readNSBMD`.
+        texi: Index of the texture to draw.
+    """
     try:
         from PIL import Image
     except ImportError:
@@ -1571,7 +2145,21 @@ def drawNSBMD(file, nsbmd, texi):
     img.save(file, "PNG")
 
 
-def writeNSBMD(file, nsbmd, texi, infile, fixtransp=False, checkalpha=False, zerotransp=True, backwards=False):
+def writeNSBMD(file: str, nsbmd: NSBMD, texi: int, infile: str, fixtransp: bool = False, checkalpha: bool = False, zerotransp: bool = True, backwards: bool = False) -> None:
+    """Write a png image back into a single NSBMD texture.
+
+    The 4x4-texel (5) and direct color (7) formats are not supported.
+
+    Args:
+        file: Path of the model file to update.
+        nsbmd: Structure returned by :func:`readNSBMD`.
+        texi: Index of the texture to write.
+        infile: Path of the png file to pack.
+        fixtransp: Whether to skip the first palette color when matching.
+        checkalpha: Whether the alpha channel counts when matching colors.
+        zerotransp: Whether fully transparent colors match index 0.
+        backwards: Whether to search the palette backwards.
+    """
     try:
         from PIL import Image
     except ImportError:
@@ -1626,7 +2214,20 @@ def writeNSBMD(file, nsbmd, texi, infile, fixtransp=False, checkalpha=False, zer
             common.logError("Texture format 7 not implemented")
 
 
-def readManualCells(manualcells):
+def readManualCells(manualcells: list) -> NCER:
+    """Build an NCER structure from a manual cell description.
+
+    Used for images that have cell data hardcoded in the game instead of
+    an NCER file.
+
+    Args:
+        manualcells: List of bank dictionaries, each holding a "cells"
+            list of {"width", "height", "x", "y"} dictionaries, and
+            optional "pal" and "repeat" values.
+
+    Returns:
+        The built cell structure.
+    """
     ncer = NCER()
     ncer.banknum = 0
     ncer.tbank = ncer.bankoffset = ncer.blocksize = ncer.partitionoffset = 0
@@ -1673,7 +2274,20 @@ def readManualCells(manualcells):
     return ncer
 
 
-def readNitroGraphicNBFC(palettefile, tilefile, mapfile, lineal=False, bpp=0):
+def readNitroGraphicNBFC(palettefile: str, tilefile: str, mapfile: str, lineal: bool = False, bpp: int = 0):
+    """Read a raw NBFP/NBFC/NBFS graphic.
+
+    Args:
+        palettefile: Path of the NBFP palette file.
+        tilefile: Path of the NBFC tile file.
+        mapfile: Path of the NBFS map file, optional.
+        lineal: Whether the tiles are stored in lineal order.
+        bpp: Bits per pixel, or 0 to guess it from the palette size.
+
+    Returns:
+        A (palettes, nbfc, nbfs) tuple, with None for the files that
+        weren't found.
+    """
     if not os.path.isfile(palettefile):
         common.logError("Palette", palettefile, "not found")
         return [], None, None
@@ -1689,7 +2303,17 @@ def readNitroGraphicNBFC(palettefile, tilefile, mapfile, lineal=False, bpp=0):
     return palettes, nbfc, nbfs
 
 
-def readNitroGraphicNTFT(palettefile, tilefile, lineal=True):
+def readNitroGraphicNTFT(palettefile: str, tilefile: str, lineal: bool = True):
+    """Read a raw NTFP/NTFT graphic.
+
+    Args:
+        palettefile: Path of the NTFP palette file.
+        tilefile: Path of the NTFT tile file.
+        lineal: Whether the tiles are stored in lineal order.
+
+    Returns:
+        A (palettes, ntft) tuple, or ([], None) if the palette is missing.
+    """
     if not os.path.isfile(palettefile):
         common.logError("Palette", palettefile, "not found")
         return [], None
@@ -1699,7 +2323,16 @@ def readNitroGraphicNTFT(palettefile, tilefile, lineal=True):
     return palettes, ntft
 
 
-def readNBFP(ntfpfile, bpp=8):
+def readNBFP(ntfpfile: str, bpp: int = 8) -> dict:
+    """Read the palettes of a raw NBFP or NTFP file.
+
+    Args:
+        ntfpfile: Path of the palette file.
+        bpp: Bits per pixel of the image the palette is for.
+
+    Returns:
+        A dictionary of palette index -> list of RGBA tuples.
+    """
     indexedpalettes = {}
     palettes = []
     size = os.path.getsize(ntfpfile)
@@ -1720,7 +2353,21 @@ def readNBFP(ntfpfile, bpp=8):
     return indexedpalettes
 
 
-def readNBFC(ntftfile, palette, lineal, bpp=0):
+def readNBFC(ntftfile: str, palette: list, lineal: bool, bpp: int = 0) -> NCGR:
+    """Read the tiles of a raw NBFC or NTFT file.
+
+    The image size is guessed from the data length, assuming a square
+    image when possible.
+
+    Args:
+        ntftfile: Path of the tile file.
+        palette: Palette of the image, used to guess the bpp.
+        lineal: Whether the tiles are stored in lineal order.
+        bpp: Bits per pixel, or 0 to guess it from the palette size.
+
+    Returns:
+        The parsed tile structure.
+    """
     nbfc = NCGR()
     if bpp == 0:
         nbfc.bpp = 4 if len(palette) <= 16 else 8
@@ -1755,7 +2402,18 @@ def readNBFC(ntftfile, palette, lineal, bpp=0):
     return nbfc
 
 
-def readNBFS(nscrfile):
+def readNBFS(nscrfile: str) -> NSCR:
+    """Read the map entries of a raw NBFS file.
+
+    The map size is guessed from the data length, assuming a square image
+    when possible.
+
+    Args:
+        nscrfile: Path of the map file.
+
+    Returns:
+        The parsed map structure.
+    """
     nbfs = NSCR()
     with common.Stream(nscrfile, "rb") as f:
         mapdata = f.read()

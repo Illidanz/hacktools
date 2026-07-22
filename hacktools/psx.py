@@ -1,3 +1,4 @@
+"""Support for PSX BIN/CUE images, EXE string repacking and TIM images."""
 import codecs
 import struct
 import os
@@ -5,7 +6,18 @@ from hacktools import common
 
 
 # Image functions
-def extractBIN(infolder, outfolder, cuefile):
+def extractBIN(infolder: str, outfolder: str, cuefile: str) -> None:
+    """Extract a BIN/CUE image with pydumpsxiso.
+
+    The image is extracted to infolder along with the rebuild xml file,
+    then everything is copied to outfolder, adjusting the xml to point to
+    the repack folder.
+
+    Args:
+        infolder: Path of the folder to extract to.
+        outfolder: Path of the work folder the files are copied to.
+        cuefile: Path of the cue file.
+    """
     try:
         import pydumpsxiso
     except ImportError:
@@ -23,7 +35,18 @@ def extractBIN(infolder, outfolder, cuefile):
     common.logMessage("Done!")
 
 
-def repackBIN(infolder, binin, binout, cuefile, patchfile=""):
+def repackBIN(infolder: str, binin: str, binout: str, cuefile: str, patchfile: str = "") -> None:
+    """Repack a BIN/CUE image with pymkpsxiso.
+
+    Args:
+        infolder: Path of the folder holding the rebuild xml file, as
+            extracted by :func:`extractBIN`.
+        binin: Path of the original bin file, used to create the patch.
+        binout: Path of the output bin file.
+        cuefile: Path of the output cue file.
+        patchfile: Path of the xdelta patch to create, or empty to skip
+            patch creation.
+    """
     try:
         import pymkpsxiso
     except ImportError:
@@ -38,9 +61,20 @@ def repackBIN(infolder, binin, binout, cuefile, patchfile=""):
 
 
 # Binary-related functions
-def extractEXE(binrange, readfunc=common.detectEncodedString, encoding="shift_jis", exein="", exefile="data/exe_output.txt", writepos=False):
+def extractEXE(binrange, readfunc=common.detectEncodedString, encoding: str = "shift_jis", exein: str = "", exefile: str = "data/exe_output.txt", writepos: bool = False) -> None:
+    """Extract strings from ranges of the EXE to a text file.
+
+    Args:
+        binrange: A (start, end) range, or a list of them.
+        readfunc: Function used to detect strings, called with
+            (stream, encoding).
+        encoding: Encoding passed to readfunc.
+        exein: Path of the EXE file.
+        exefile: Path of the output text file.
+        writepos: Whether to write the position of each string before it.
+    """
     common.logMessage("Extracting EXE to", exefile, "...")
-    if type(binrange) == tuple:
+    if isinstance(binrange, tuple):
         binrange = [binrange]
     strings, positions = common.extractBinaryStrings(exein, binrange, readfunc, encoding)
     with codecs.open(exefile, "w", "utf-8") as out:
@@ -51,7 +85,34 @@ def extractEXE(binrange, readfunc=common.detectEncodedString, encoding="shift_ji
     common.logMessage("Done! Extracted", len(strings), "lines")
 
 
-def repackEXE(binrange, freeranges=None, manualptrs=None, readfunc=common.detectEncodedString, writefunc=common.writeEncodedString, encoding="shift_jis", comments="#", exein="", exeout="", ptrfile="data/manualptrs.asm", exefile="data/exe_input.txt"):
+def repackEXE(binrange, freeranges: list | None = None, manualptrs: dict | None = None, readfunc=common.detectEncodedString, writefunc=common.writeEncodedString, encoding: str = "shift_jis", comments: str = "#", exein: str = "", exeout: str = "", ptrfile: str = "data/manualptrs.asm", exefile: str = "data/exe_input.txt") -> bool:
+    """Repack translated strings into the EXE.
+
+    Strings are repacked with common.repackBinaryStrings, using 0x8000f800
+    as the pointer start. Pointers that aren't found automatically are
+    looked up in manualptrs, and an asm file is written with a li opcode
+    for each of them.
+
+    Args:
+        binrange: A (start, end) range, or a list of them.
+        freeranges: List of (start, end) ranges that can hold relocated
+            strings.
+        manualptrs: Dictionary of pointer -> list of (location, register)
+            tuples for the manual pointers.
+        readfunc: Function used to detect strings, called with
+            (stream, encoding).
+        writefunc: Function used to write strings, called with
+            (stream, string, maxlen, encoding).
+        encoding: Encoding passed to readfunc and writefunc.
+        comments: Comment marker used in the text file.
+        exein: Path of the original EXE file.
+        exeout: Path of the output EXE file.
+        ptrfile: Path of the asm file written for the manual pointers.
+        exefile: Path of the input text file.
+
+    Returns:
+        False if the input text file is missing, True otherwise.
+    """
     if not os.path.isfile(exefile):
         common.logError("Input file", exefile, "not found")
         return False
@@ -62,7 +123,7 @@ def repackEXE(binrange, freeranges=None, manualptrs=None, readfunc=common.detect
     with codecs.open(exefile, "r", "utf-8") as bin:
         section = common.getSection(bin, "", comments)
         chartot, transtot = common.getSectionPercentage(section)
-    if type(binrange) == tuple:
+    if isinstance(binrange, tuple):
         binrange = [binrange]
     notfound, freeranges = common.repackBinaryStrings(section, exein, exeout, binrange, freeranges, readfunc, writefunc, encoding, 0x8000f800)
     # Handle not found pointers by manually replacing the opcodes
@@ -85,7 +146,17 @@ def repackEXE(binrange, freeranges=None, manualptrs=None, readfunc=common.detect
 
 
 # Images
-def extractTIM(infolder, outfolder, extensions=".tim", readfunc=None):
+def extractTIM(infolder: str, outfolder: str, extensions: str = ".tim", readfunc=None) -> None:
+    """Extract all the TIM images in a folder to png.
+
+    Args:
+        infolder: Path of the folder to scan.
+        outfolder: Path of the folder to extract to.
+        extensions: Extension or list of extensions to filter by.
+        readfunc: Optional function called with each file path, returning a
+            (tim, transp, forcepal) tuple, for files that need custom
+            parsing.
+    """
     common.makeFolder(outfolder)
     common.logMessage("Extracting TIM to", outfolder, "...")
     files = common.getFiles(infolder, extensions)
@@ -109,25 +180,55 @@ def extractTIM(infolder, outfolder, extensions=".tim", readfunc=None):
 
 
 class TIM:
+    """Structure of a TIM image.
+
+    Attributes:
+        bpp: Bits per pixel, 4, 8, 16 or 24.
+        clutsize: Size of the CLUT section.
+        clutposx: X position of the CLUT in the framebuffer.
+        clutposy: Y position of the CLUT in the framebuffer.
+        clutwidth: Number of colors in each CLUT.
+        clutheight: Number of CLUTs.
+        clutoff: Offset of the CLUT data.
+        cluts: List of CLUTs, each a list of RGBA tuples.
+        posx: X position of the image in the framebuffer.
+        posy: Y position of the image in the framebuffer.
+        width: Width of the image in pixels.
+        height: Height of the image.
+        size: Size of the image data section.
+        dataoff: Offset of the image data.
+        data: Image data, a list of palette indexes or RGBA tuples
+            depending on the bpp.
+    """
     def __init__(self):
-        self.bpp = 0
-        self.clutsize = 0
-        self.clutposx = 0
-        self.clutposy = 0
-        self.clutwidth = 0
-        self.clutheight = 0
-        self.clutoff = 0
-        self.cluts = []
-        self.posx = 0
-        self.posy = 0
-        self.width = 0
-        self.height = 0
-        self.size = 0
-        self.dataoff = 0
-        self.data = []
+        self.bpp: int = 0
+        self.clutsize: int = 0
+        self.clutposx: int = 0
+        self.clutposy: int = 0
+        self.clutwidth: int = 0
+        self.clutheight: int = 0
+        self.clutoff: int = 0
+        self.cluts: list = []
+        self.posx: int = 0
+        self.posy: int = 0
+        self.width: int = 0
+        self.height: int = 0
+        self.size: int = 0
+        self.dataoff: int = 0
+        self.data: list = []
 
 
-def readTIM(f, forcesize=0):
+def readTIM(f: common.Stream, forcesize: int = 0) -> "TIM | None":
+    """Read a TIM image from the current stream position.
+
+    Args:
+        f: Stream to read from.
+        forcesize: Number of pixels to read, or 0 to calculate it from the
+            data size.
+
+    Returns:
+        The parsed image, or None if the header or image type is not valid.
+    """
     tim = TIM()
     # Read header
     header = f.readUInt()
@@ -175,7 +276,16 @@ def readTIM(f, forcesize=0):
     return tim
 
 
-def readCLUTData(f, clutwidth):
+def readCLUTData(f: common.Stream, clutwidth: int) -> list:
+    """Read a single CLUT of a TIM image.
+
+    Args:
+        f: Stream to read from.
+        clutwidth: Number of colors to read.
+
+    Returns:
+        The palette, as a list of RGBA tuples.
+    """
     clut = []
     for j in range(clutwidth):
         color = common.readRGB5A1(f.readUShort())
@@ -183,7 +293,17 @@ def readCLUTData(f, clutwidth):
     return clut
 
 
-def readTIMData(f, tim, pixelnum):
+def readTIMData(f: common.Stream, tim: TIM, pixelnum: int) -> None:
+    """Read the pixel data of a TIM image.
+
+    Palette indexes are read for 4 and 8bpp images, RGBA colors otherwise.
+    Reading stops with a warning if the stream ends early.
+
+    Args:
+        f: Stream to read from.
+        tim: Image the data belongs to, updated in place.
+        pixelnum: Number of pixels to read.
+    """
     try:
         for i in range(pixelnum):
             if tim.bpp == 4:
@@ -199,7 +319,17 @@ def readTIMData(f, tim, pixelnum):
         common.logWarning("Malformed TIM")
 
 
-def getUniqueCLUT(tim, transp=False):
+def getUniqueCLUT(tim: TIM, transp: bool = False) -> int:
+    """Get the index of the first CLUT with no duplicated colors.
+
+    Args:
+        tim: Image to search the CLUTs of.
+        transp: Whether the alpha channel counts when comparing colors.
+
+    Returns:
+        The index of the first CLUT with all different colors, or 0 if
+        there's none.
+    """
     clut = 0
     # Look for a palette with all different colors to export
     for i in range(len(tim.cluts)):
@@ -215,7 +345,26 @@ def getUniqueCLUT(tim, transp=False):
     return clut
 
 
-def drawTIM(outfile, tim, transp=False, forcepal=-1, allpalettes=False, nopal=False):
+def drawTIM(outfile: str, tim: TIM, transp: bool = False, forcepal: int = -1, allpalettes: bool = False, nopal: bool = False):
+    """Draw a TIM image to a png file.
+
+    For 4 and 8bpp images, the palette is drawn on the right side of the
+    image, unless disabled with nopal.
+
+    Args:
+        outfile: Path of the png file to create, or "" to return the image
+            without saving it.
+        tim: Image to draw.
+        transp: Whether to keep the alpha channel of the colors.
+        forcepal: Index of the CLUT to use, or -1 to pick the first one
+            with no duplicated colors.
+        allpalettes: Whether to draw all the CLUTs instead of just the
+            used one.
+        nopal: Whether to skip drawing the palette.
+
+    Returns:
+        The image object if outfile is "", nothing otherwise.
+    """
     if tim.width == 0 or tim.height == 0:
         return
     try:
@@ -262,7 +411,19 @@ def drawTIM(outfile, tim, transp=False, forcepal=-1, allpalettes=False, nopal=Fa
     img.save(outfile, "PNG")
 
 
-def writeTIM(f, tim, infile, transp=False, forcepal=-1, palsize=0):
+def writeTIM(f: common.Stream, tim: TIM, infile, transp: bool = False, forcepal: int = -1, palsize: int = 0) -> None:
+    """Write a png image back into a TIM, only supported for 4 and 8bpp.
+
+    Args:
+        f: Stream opened on the TIM file.
+        tim: Image structure returned by :func:`readTIM`.
+        infile: Path of the png file, or a PIL pixel access object.
+        transp: Whether the alpha channel counts when matching colors.
+        forcepal: Index of the CLUT to use, or -1 to pick the first one
+            with no duplicated colors.
+        palsize: Width of the palette drawn on the right side of the png,
+            ignored when matching pixels.
+    """
     if tim.bpp > 8:
         common.logError("writeTIM bpp", tim.bpp, "not supported")
         return

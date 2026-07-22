@@ -3,6 +3,20 @@
 // Implementations based on Kurimuu's Kontract
 // https://github.com/IcySon55/Kuriimu/tree/master/src/Kontract/Compression
 
+PyDoc_STRVAR(decompressLZ10_doc,
+"decompressLZ10($module, /, data, decomplength, dispextra)\n"
+"--\n"
+"\n"
+"Decompress LZ10-compressed data.\n"
+"\n"
+"Args:\n"
+"    data (bytes): Compressed data to read, without the 4-byte header.\n"
+"    decomplength (int): Length of the decompressed data.\n"
+"    dispextra (int): Value added to the read displacements, usually 1.\n"
+"\n"
+"Returns:\n"
+"    bytes: The decompressed data.");
+
 static PyObject* decompressLZ10(PyObject* m, PyObject* args, PyObject* kwargs)
 {
     static char *kwlist[] = { "data", "decomplength", "dispextra", NULL };
@@ -90,6 +104,20 @@ static PyObject* decompressLZ10(PyObject* m, PyObject* args, PyObject* kwargs)
     PyMem_Free(buffer);
     return output;
 }
+
+PyDoc_STRVAR(decompressLZ11_doc,
+"decompressLZ11($module, /, data, decomplength, dispextra)\n"
+"--\n"
+"\n"
+"Decompress LZ11-compressed data.\n"
+"\n"
+"Args:\n"
+"    data (bytes): Compressed data to read, without the 4-byte header.\n"
+"    decomplength (int): Length of the decompressed data.\n"
+"    dispextra (int): Value added to the read displacements, usually 1.\n"
+"\n"
+"Returns:\n"
+"    bytes: The decompressed data.");
 
 static PyObject* decompressLZ11(PyObject* m, PyObject* args, PyObject* kwargs)
 {
@@ -199,6 +227,19 @@ static int getOccurrenceLength(unsigned char* newptr, int newlength, unsigned ch
     return maxlength;
 }
 
+PyDoc_STRVAR(compressLZ10_doc,
+"compressLZ10($module, /, indata, mindisp)\n"
+"--\n"
+"\n"
+"Compress data with the LZ10 scheme.\n"
+"\n"
+"Args:\n"
+"    indata (bytes): Data to compress.\n"
+"    mindisp (int): Minimum displacement for references, usually 1.\n"
+"\n"
+"Returns:\n"
+"    bytes: The compressed data, without the 4-byte header.");
+
 static PyObject* compressLZ10(PyObject* m, PyObject* args, PyObject* kwargs)
 {
     static char *kwlist[] = { "indata", "mindisp", NULL };
@@ -279,6 +320,19 @@ static PyObject* compressLZ10(PyObject* m, PyObject* args, PyObject* kwargs)
     PyMem_Free(out);
     return output;
 }
+
+PyDoc_STRVAR(compressLZ11_doc,
+"compressLZ11($module, /, indata, mindisp)\n"
+"--\n"
+"\n"
+"Compress data with the LZ11 scheme.\n"
+"\n"
+"Args:\n"
+"    indata (bytes): Data to compress.\n"
+"    mindisp (int): Minimum displacement for references, usually 1.\n"
+"\n"
+"Returns:\n"
+"    bytes: The compressed data, without the 4-byte header.");
 
 static PyObject* compressLZ11(PyObject* m, PyObject* args, PyObject* kwargs)
 {
@@ -385,17 +439,18 @@ static PyObject* compressLZ11(PyObject* m, PyObject* args, PyObject* kwargs)
 }
 
 static PyMethodDef Cmp_lzssMethods[] = {
-    {"decompressLZ10", (PyCFunction)decompressLZ10, METH_VARARGS | METH_KEYWORDS, "Decompress lz10 data."},
-    {"compressLZ10", (PyCFunction)compressLZ10, METH_VARARGS | METH_KEYWORDS, "Compress lz10 data."},
-    {"decompressLZ11", (PyCFunction)decompressLZ11, METH_VARARGS | METH_KEYWORDS, "Decompress lz11 data."},
-    {"compressLZ11", (PyCFunction)compressLZ11, METH_VARARGS | METH_KEYWORDS, "Compress lz11 data."},
+    {"decompressLZ10", (PyCFunction)decompressLZ10, METH_VARARGS | METH_KEYWORDS, decompressLZ10_doc},
+    {"compressLZ10", (PyCFunction)compressLZ10, METH_VARARGS | METH_KEYWORDS, compressLZ10_doc},
+    {"decompressLZ11", (PyCFunction)decompressLZ11, METH_VARARGS | METH_KEYWORDS, decompressLZ11_doc},
+    {"compressLZ11", (PyCFunction)compressLZ11, METH_VARARGS | METH_KEYWORDS, compressLZ11_doc},
     {NULL, NULL, 0, NULL}
 };
 
 static struct PyModuleDef cmp_lzssmodule = {
     PyModuleDef_HEAD_INIT,
     "cmp_lzss",
-    "LZSS functions.",
+    "C implementations of the LZ10 and LZ11 compression schemes, LZSS\n"
+    "variants used by the GBA and NDS BIOS.",
     -1,
     Cmp_lzssMethods
 };
