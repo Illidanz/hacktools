@@ -1,6 +1,6 @@
 import pytest
 import os.path
-from hacktools import cmp_lzss, cmp_cri, cmp_racjin
+from hacktools import cmp_lzss, cmp_cri, cmp_prs, cmp_racjin
 
 @pytest.fixture
 def data():
@@ -26,6 +26,13 @@ def test_cmp_lz11(data):
 def test_cmp_cri(data):
     cmp = cmp_cri.compressCRILAYLA(data)
     decmp = cmp_cri.decompressCRILAYLA(cmp)
+    assert len(data) == len(decmp)
+    assert data == decmp
+
+
+def test_cmp_prs(data):
+    cmp = cmp_prs.compressPRS(data)
+    decmp = cmp_prs.decompressPRS(cmp, len(data))
     assert len(data) == len(decmp)
     assert data == decmp
 

@@ -12,10 +12,6 @@ API Reference
    :maxdepth: 2
 
    api/arch
-   api/cmp_cri
-   api/cmp_lzss
-   api/cmp_misc
-   api/cmp_racjin
    api/common
    api/compression
    api/cpk

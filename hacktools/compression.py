@@ -1,38 +1,8 @@
 """Generic implementations of compression algorithms.
 
-Includes the Huffman coding scheme used by the GBA and NDS BIOS and the
-PRS scheme, an LZ77 variant used by several SEGA games.
+Includes the Huffman coding scheme used by the GBA and NDS BIOS.
 """
-import ctypes
 from hacktools import common
-
-
-# https://forum.xentax.com/viewtopic.php?p=30390#p30387
-def getBits(n: int, f: common.Stream, blen: int, fbuf: int) -> tuple[int, int, int]:
-    """Read bits from a stream, most significant first, through a byte buffer.
-
-    Args:
-        n: Number of bits to read.
-        f: Stream to read from.
-        blen: Number of bits still available in fbuf, 0 on the first call.
-        fbuf: Buffer with the current partially consumed byte, 0 on the first call.
-
-    Returns:
-        A tuple (value, blen, fbuf) with the bits that were read and the
-        updated buffer state to pass to the next call.
-    """
-    retv = 0
-    while n > 0:
-        retv = retv << 1
-        if blen == 0:
-            fbuf = f.readSByte()
-            blen = 8
-        if fbuf & 0x80:
-            retv |= 1
-        fbuf = fbuf << 1
-        blen -= 1
-        n -= 1
-    return retv, blen, fbuf
 
 
 def decompressHuffman(rawdata: bytes, decomplength: int, numbits: int = 8, little: bool = True) -> bytes:
@@ -237,53 +207,3 @@ def compressHuffman(indata: bytes, numbits: int = 8, little: bool = True) -> byt
         # Return data
         out.seek(0)
         return out.read()
-
-
-def decompressPRS(f: common.Stream, slen: int, dlen: int) -> bytearray:
-    """Decompress PRS data, an LZ77 variant.
-
-    Args:
-        f: Stream to read from, seeked to the start of the compressed data.
-        slen: Length of the compressed data.
-        dlen: Length of the decompressed data.
-
-    Returns:
-        The decompressed data.
-    """
-    dbuf = bytearray(dlen)
-    startpos = f.tell()
-    blen = 0
-    fbuf = 0
-    dptr = 0
-    plen = 0
-    pos = 0
-    while f.tell() < startpos + slen:
-        flag, blen, fbuf = getBits(1, f, blen, fbuf)
-        if flag == 1:
-            if dptr < dlen:
-                dbuf[dptr] = f.readByte()
-                dptr += 1
-        else:
-            flag, blen, fbuf = getBits(1, f, blen, fbuf)
-            if flag == 0:
-                plen, blen, fbuf = getBits(2, f, blen, fbuf)
-                plen += 2
-                data = f.readSByte()
-                # Use ctypes to correctly handle int overflow
-                pos = ctypes.c_int(data | 0xffffff00).value
-            else:
-                pos = ctypes.c_int((f.readSByte() << 8) | 0xffff0000).value
-                pos |= f.readSByte() & 0xff
-                plen = pos & 0x07
-                pos >>= 3
-                if plen == 0:
-                    plen = (f.readSByte() & 0xff) + 1
-                else:
-                    plen += 2
-            pos += dptr
-            for _ in range(plen):
-                if dptr < dlen:
-                    dbuf[dptr] = dbuf[pos]
-                    dptr += 1
-                    pos += 1
-    return dbuf
