@@ -286,5 +286,5 @@ static struct PyModuleDef cmp_prsmodule = {
 
 PyMODINIT_FUNC PyInit_cmp_prs(void)
 {
-    return PyModule_Create(&cmp_prsmodule);
+    return moduleCreate(&cmp_prsmodule);
 }

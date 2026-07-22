@@ -286,5 +286,5 @@ static struct PyModuleDef cmp_crimodule = {
 
 PyMODINIT_FUNC PyInit_cmp_cri(void)
 {
-    return PyModule_Create(&cmp_crimodule);
+    return moduleCreate(&cmp_crimodule);
 }

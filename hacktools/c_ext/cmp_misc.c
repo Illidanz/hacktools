@@ -69,5 +69,5 @@ static struct PyModuleDef cmp_miscmodule = {
 
 PyMODINIT_FUNC PyInit_cmp_misc(void)
 {
-    return PyModule_Create(&cmp_miscmodule);
+    return moduleCreate(&cmp_miscmodule);
 }

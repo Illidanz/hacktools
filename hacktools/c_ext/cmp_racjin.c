@@ -248,5 +248,5 @@ static struct PyModuleDef cmp_racjinmodule = {
 
 PyMODINIT_FUNC PyInit_cmp_racjin(void)
 {
-    return PyModule_Create(&cmp_racjinmodule);
+    return moduleCreate(&cmp_racjinmodule);
 }

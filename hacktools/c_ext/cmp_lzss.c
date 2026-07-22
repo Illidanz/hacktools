@@ -457,5 +457,5 @@ static struct PyModuleDef cmp_lzssmodule = {
 
 PyMODINIT_FUNC PyInit_cmp_lzss(void)
 {
-    return PyModule_Create(&cmp_lzssmodule);
+    return moduleCreate(&cmp_lzssmodule);
 }
