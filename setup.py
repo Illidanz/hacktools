@@ -46,8 +46,6 @@ setup(
     ],
     license="MIT",
     classifiers=[
-        "Programming Language :: Python :: 3.8",
-        "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
@@ -66,5 +64,5 @@ setup(
         "cli": extras_cli,
         "all": extras_nds + extras_armips + extras_xdelta + extras_iso + extras_psp + extras_ips + extras_graphics + extras_cli,
     },
-    python_requires=">=3.7",
+    python_requires=">=3.10",
 )

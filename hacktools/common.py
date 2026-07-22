@@ -36,7 +36,7 @@ try:
 except ImportError:
     pass
 
-table = {}
+table: dict[str, str] = {}
 
 
 # File reading
