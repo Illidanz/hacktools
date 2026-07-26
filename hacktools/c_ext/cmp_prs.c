@@ -54,12 +54,14 @@ static PyObject* decompressPRS(PyObject* m, PyObject* args, PyObject* kwargs)
     unsigned int slen = (unsigned int)datalength;
     unsigned char* dbuf = PyMem_Malloc(decomplength > 0 ? decomplength : 1);
     MALLOC_CHECK(dbuf);
+    // Zero-fill so streams that end before decomplength give deterministic output
+    memset(dbuf, 0, decomplength > 0 ? decomplength : 1);
 
     unsigned int readbytes = 0;
     unsigned int dptr = 0;
     int blen = 0;
     unsigned char fbuf = 0;
-    while (readbytes < slen)
+    while (readbytes < slen && dptr < decomplength)
     {
         int flag = getBits(1, data, slen, &readbytes, &blen, &fbuf);
         ERROR_CHECK(flag < 0, "Not enough data.");
@@ -95,6 +97,11 @@ static PyObject* decompressPRS(PyObject* m, PyObject* args, PyObject* kwargs)
                 // The offset is negative, in the [-8192, -1] range
                 pos = ((data[readbytes] << 8) | data[readbytes + 1]) - 0x10000;
                 readbytes += 2;
+                // A zero offset word encodes both the end-of-stream marker and a copy from
+                // exactly -8192 with the length bits at 0 (8ing's Wii FPK encoder emits the
+                // latter). Treat it as a copy when the distance is reachable.
+                if (pos == -0x10000 && dptr < 8192)
+                    break;
                 plen = pos & 0x07;
                 pos >>= 3;
                 if (plen == 0)
@@ -106,11 +113,12 @@ static PyObject* decompressPRS(PyObject* m, PyObject* args, PyObject* kwargs)
                     plen += 2;
             }
             pos += (int)dptr;
-            ERROR_CHECK(pos < 0, "Cannot go back more than already written.");
+            // Some encoders reference data before the stream start, expecting a zero-filled buffer
             for (int i = 0; i < plen; ++i)
             {
                 if (dptr < decomplength)
-                    dbuf[dptr++] = dbuf[pos++];
+                    dbuf[dptr++] = pos < 0 ? 0 : dbuf[pos];
+                ++pos;
             }
         }
     }
@@ -167,27 +175,74 @@ static void prsPutData(PRSWriter* w, unsigned char byte)
     w->pending[w->pendinglen++] = byte;
 }
 
-// Find the longest match for src[pos] in the previous 8192 bytes, preferring the closest one.
-static int findMatch(unsigned char* src, unsigned int srclen, unsigned int pos, int* outdisp)
+// Hash chains linking every position that shares a 3-byte prefix, newest first,
+// so the matcher only visits candidates that can actually match 3+ bytes.
+#define PRS_HASH_BITS 16
+#define PRS_HASH_SIZE (1 << PRS_HASH_BITS)
+
+typedef struct
 {
-    int maxdisp = pos < 8192 ? (int)pos : 8192;
+    int* head;
+    int* prev;
+} PRSMatcher;
+
+static unsigned int prsHash(unsigned char* p)
+{
+    unsigned int x = ((unsigned int)p[0] << 16) | ((unsigned int)p[1] << 8) | p[2];
+    return (x * 2654435761u) >> (32 - PRS_HASH_BITS);
+}
+
+static void prsInsert(PRSMatcher* mt, unsigned char* src, unsigned int srclen, unsigned int pos)
+{
+    if (pos + 2 < srclen)
+    {
+        unsigned int h = prsHash(src + pos);
+        mt->prev[pos] = mt->head[h];
+        mt->head[h] = (int)pos;
+    }
+}
+
+// Find the longest match for src[pos] in the previous 8191 bytes, preferring the closest one.
+static int findMatch(PRSMatcher* mt, unsigned char* src, unsigned int srclen, unsigned int pos, int* outdisp)
+{
     int maxlen = srclen - pos < 256 ? (int)(srclen - pos) : 256;
     int bestlen = 0;
     int bestdisp = 0;
-    for (int disp = 1; disp <= maxdisp; ++disp)
+    // Chains are newest first, so candidates are visited in increasing displacement
+    // order and the closest of the longest matches wins, like with a linear scan
+    if (pos + 2 < srclen)
     {
-        unsigned char* old = src + pos - disp;
-        int length = 0;
-        // The copy can overlap with the data being compressed, so always check up to maxlen bytes
-        while (length < maxlen && old[length] == src[pos + length])
-            ++length;
-        if (length > bestlen)
+        // Displacement 8192 would encode as a zero offset word, which decompressors
+        // can read as the end-of-stream marker, so only go back up to 8191 bytes
+        for (int cand = mt->head[prsHash(src + pos)]; cand >= 0 && pos - cand <= 8191; cand = mt->prev[cand])
         {
-            bestlen = length;
-            bestdisp = disp;
-            // If we cannot do better anyway, stop trying
-            if (bestlen == maxlen)
+            unsigned char* old = src + cand;
+            int length = 0;
+            // The copy can overlap with the data being compressed, so always check up to maxlen bytes
+            while (length < maxlen && old[length] == src[pos + length])
+                ++length;
+            if (length >= 3 && length > bestlen)
+            {
+                bestlen = length;
+                bestdisp = (int)(pos - cand);
+                // If we cannot do better anyway, stop trying
+                if (bestlen == maxlen)
+                    break;
+            }
+        }
+    }
+    // The chains cannot find 2-byte matches, look for one in the short copy range
+    if (bestlen < 3 && maxlen >= 2)
+    {
+        int maxdisp = pos < 256 ? (int)pos : 256;
+        for (int disp = 1; disp <= maxdisp; ++disp)
+        {
+            if (src[pos - disp] == src[pos] && src[pos - disp + 1] == src[pos + 1])
+            {
+                bestlen = 2;
+                bestdisp = disp;
                 break;
+            }
         }
     }
     *outdisp = bestdisp;
@@ -221,12 +276,27 @@ static PyObject* compressPRS(PyObject* m, PyObject* args, PyObject* kwargs)
     unsigned char* out = PyMem_Malloc(outcap);
     MALLOC_CHECK(out);
 
+    PRSMatcher mt;
+    mt.head = PyMem_Malloc(PRS_HASH_SIZE * sizeof(int));
+    mt.prev = PyMem_Malloc((srclen > 0 ? srclen : 1) * sizeof(int));
+    if (mt.head == NULL || mt.prev == NULL)
+    {
+        PyMem_Free(mt.head);
+        PyMem_Free(mt.prev);
+        PyMem_Free(out);
+        PyErr_NoMemory();
+        return NULL;
+    }
+    for (int i = 0; i < PRS_HASH_SIZE; ++i)
+        mt.head[i] = -1;
+
     PRSWriter w = { out, 0, 0, 0, { 0 }, 0 };
     unsigned int pos = 0;
     while (pos < srclen)
     {
         int disp;
-        int length = findMatch(src, (unsigned int)srclen, pos, &disp);
+        int length = findMatch(&mt, src, (unsigned int)srclen, pos, &disp);
+        int step = 1;
         if (length >= 3 || (length == 2 && disp <= 256))
         {
             if (disp <= 256 && length <= 5)
@@ -251,21 +321,31 @@ static PyObject* compressPRS(PyObject* m, PyObject* args, PyObject* kwargs)
                     prsPutData(&w, (unsigned char)(length - 1));
             }
             prsSave(&w);
-            pos += length;
+            step = length;
         }
         else
         {
             // Literal byte: flag bit 1
             prsPutBitNoSave(&w, 1);
-            prsPutData(&w, src[pos++]);
+            prsPutData(&w, src[pos]);
             prsSave(&w);
         }
+        // Add the consumed positions to the hash chains
+        for (int i = 0; i < step; ++i)
+            prsInsert(&mt, src, (unsigned int)srclen, pos + i);
+        pos += step;
     }
+    // End-of-stream marker: a long copy with a zero offset word
+    prsPutBit(&w, 0);
+    prsPutBitNoSave(&w, 1);
+    prsPutData(&w, 0);
+    prsPutData(&w, 0);
     // Flush the last partial control byte along with its data
-    if (w.bits > 0)
-        prsFlush(&w);
+    prsFlush(&w);
 
     PyObject *output = PyBytes_FromStringAndSize(out, w.outlen);
+    PyMem_Free(mt.head);
+    PyMem_Free(mt.prev);
     PyMem_Free(out);
     return output;
 }
