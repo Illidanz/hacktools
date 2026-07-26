@@ -27,7 +27,7 @@ def extractARC(infolder: str, outfolder: str) -> None:
     common.logMessage("Done! Extracted", len(files), "files")
 
 
-def extractTPL(infolder: str, outfolder: str, splitName: bool = True) -> None:
+def extractTPL(infolder: str, outfolder: str, splitName: bool = True, flatten: bool = False) -> None:
     """Extract all the .tpl files in a folder to png with wimgt.
 
     Args:
@@ -35,15 +35,82 @@ def extractTPL(infolder: str, outfolder: str, splitName: bool = True) -> None:
         outfolder: Path of the folder to extract to.
         splitName: Whether to name the output subfolder after the first
             component of each file path, instead of mirroring the whole path.
+        flatten: Whether to extract the files inside a .arc folder directly
+            in it, instead of mirroring its inner folder structure.
     """
     common.makeFolder(outfolder)
     common.logMessage("Extracting TPL to", outfolder, "...")
     files = common.getFiles(infolder, ".tpl")
     for file in common.showProgress(files):
         common.logDebug("Processing", file, "...")
-        filename = file.split("/")[0] if splitName else file
-        common.execute("wimgt DECODE " + infolder + file + " -D " + outfolder + filename + "/" + os.path.basename(file).replace(".tpl", ".png"), False)
+        if splitName:
+            filename = file.split("/")[0] + "/" + os.path.basename(file).replace(".tpl", ".png")
+        elif flatten and ".arc/" in file:
+            filename = file[:file.index(".arc/") + 4] + "/" + os.path.basename(file).replace(".tpl", ".png")
+        else:
+            filename = file.replace(".tpl", ".png")
+        common.execute("wimgt DECODE " + infolder + file + " -D " + outfolder + filename, False)
     common.logMessage("Done! Extracted", len(files), "files")
+
+
+def repackTPL(infolder: str, workfolder: str, outfolder: str) -> None:
+    """Repack modified pngs into the .arc folders extracted by extractARC.
+
+    For each png in workfolder that matches a .tpl file in infolder, the
+    containing .arc folder is copied to outfolder, then the png is encoded
+    over the tpl with wimgt, keeping the original image and palette formats.
+
+    Args:
+        infolder: Path of the folder extracted by :func:`extractARC`.
+        workfolder: Path of the folder with the modified pngs.
+        outfolder: Path of the folder the .arc folders are copied to.
+    """
+    common.makeFolder(outfolder)
+    common.logMessage("Repacking TPL from", workfolder, "...")
+    files = common.getFiles(workfolder, ".png")
+    arcs = []
+    repacked = 0
+    for file in common.showProgress(files):
+        tplfile = file.replace(".png", ".tpl")
+        if not os.path.isfile(infolder + tplfile):
+            # Search the .arc folder for pngs that were extracted with flatten
+            if ".arc/" not in file:
+                continue
+            arcname = file[:file.index(".arc/") + 4]
+            matches = [tpl for tpl in common.getFiles(infolder + arcname, ".tpl") if os.path.basename(tpl) == os.path.basename(tplfile)]
+            if len(matches) == 0:
+                common.logError("Work file", file, "does not match any file in", arcname)
+                continue
+            tplfile = arcname + matches[0]
+        common.logDebug("Processing", file, "...")
+        if ".arc/" in tplfile:
+            arcname = tplfile[:tplfile.index(".arc/") + 4]
+            if arcname not in arcs:
+                common.copyFolder(infolder + arcname, outfolder + arcname)
+                arcs.append(arcname)
+        transform = getTPLTransform(infolder + tplfile)
+        common.execute("wimgt ENCODE " + workfolder + file + " -D " + outfolder + tplfile + " --n-mipmaps 0 --transform " + transform + " --overwrite", False)
+        repacked += 1
+    common.logMessage("Done! Repacked", repacked, "files in", len(arcs), "ARC folders")
+
+
+def repackARC(workfolder: str, outfolder: str) -> None:
+    """Repack all the .arc folders in a folder with wszst.
+
+    Args:
+        workfolder: Path of the folder to scan.
+        outfolder: Path of the folder the .arc files are created in.
+    """
+    common.logMessage("Repacking ARC to", outfolder, "...")
+    arcs = []
+    for (root, dirs, files) in os.walk(workfolder):
+        for dir in sorted(dirs):
+            if dir.endswith(".arc"):
+                arcs.append(os.path.join(root, dir).replace("\\", "/").replace(workfolder, ""))
+    for arc in common.showProgress(arcs):
+        common.logDebug("Processing", arc, "...")
+        common.execute("wszst CREATE " + workfolder + arc + " -D " + outfolder + arc + " --overwrite", False)
+    common.logMessage("Done! Repacked", len(arcs), "files")
 
 
 def extractBREFT(infolder: str, tempfolder: str, outfolder: str) -> None:
@@ -69,6 +136,103 @@ def extractBREFT(infolder: str, tempfolder: str, outfolder: str) -> None:
         for imgfile in os.listdir(tempfolder + outfile + "/files"):
             common.execute("wimgt DECODE " + tempfolder + outfile + "/files/" + imgfile + " -D " + outfolder + outfile + "/" + imgfile + ".png", False)
     common.logMessage("Done! Extracted", len(files), "files")
+
+
+def extractBRTEX(infolder: str, tempfolder: str, outfolder: str) -> None:
+    """Extract all the .brtex files in a folder to png.
+
+    The files are extracted with wszst to the temp folder, alongside the
+    paired .brplt files when they exist, then every texture is converted
+    to a temporary TPL and decoded with wimgt.
+
+    Args:
+        infolder: Path of the folder to scan.
+        tempfolder: Path of the folder holding the extracted archives.
+        outfolder: Path of the folder the textures are decoded to.
+    """
+    common.makeFolder(tempfolder)
+    common.makeFolders(outfolder)
+    common.logMessage("Extracting BRTEX to", outfolder, "...")
+    files = common.getFiles(infolder, ".brtex")
+    extracted = 0
+    for file in common.showProgress(files):
+        common.logDebug("Processing", file, "...")
+        common.execute("wszst EXTRACT " + infolder + file + " -D " + tempfolder + file, False)
+        pltfile = file.replace(".brtex", ".brplt")
+        if os.path.isfile(infolder + pltfile):
+            common.execute("wszst EXTRACT " + infolder + pltfile + " -D " + tempfolder + pltfile, False)
+        texfolder = tempfolder + file + "/Textures(NW4R)/"
+        if not os.path.isdir(texfolder):
+            continue
+        for texname in sorted(os.listdir(texfolder)):
+            palfile = tempfolder + pltfile + "/Palettes(NW4R)/" + texname
+            if not os.path.isfile(palfile):
+                palfile = None
+            tplfile = tempfolder + file + "/" + texname + ".tpl"
+            texToTPL(texfolder + texname, tplfile, palfile)
+            common.execute("wimgt DECODE " + tplfile + " -D " + outfolder + file + "/" + texname + ".png --overwrite", False)
+            os.remove(tplfile)
+            extracted += 1
+    common.logMessage("Done! Extracted", extracted, "textures")
+
+
+def repackBRTEX(infolder: str, tempfolder: str, workfolder: str, outfolder: str) -> None:
+    """Repack modified pngs into .brtex and .brplt files.
+
+    For each folder in workfolder that matches a .brtex file in infolder, the
+    file is extracted with wszst to the temp folder, alongside the paired
+    .brplt file when it exists. Every png is encoded to a temporary TPL with
+    wimgt, keeping the original image and palette formats, and the data is
+    copied back into the TEX0 and PLT0 textures. The files are then rebuilt
+    with wszst into outfolder.
+
+    Args:
+        infolder: Path of the folder to scan.
+        tempfolder: Path of the folder holding the extracted archives.
+        workfolder: Path of the folder with the modified pngs.
+        outfolder: Path of the folder the files are created in.
+    """
+    common.makeFolder(tempfolder)
+    common.logMessage("Repacking BRTEX from", workfolder, "...")
+    files = common.getFiles(infolder, ".brtex")
+    repacked = 0
+    textures = 0
+    for file in common.showProgress(files):
+        workdir = workfolder + file + "/"
+        if not os.path.isdir(workdir):
+            continue
+        common.logDebug("Processing", file, "...")
+        common.execute("wszst EXTRACT " + infolder + file + " -D " + tempfolder + file, False)
+        pltfile = file.replace(".brtex", ".brplt")
+        if os.path.isfile(infolder + pltfile):
+            common.execute("wszst EXTRACT " + infolder + pltfile + " -D " + tempfolder + pltfile, False)
+        modified = pltmodified = False
+        for pngname in sorted(os.listdir(workdir)):
+            if not pngname.endswith(".png"):
+                continue
+            texname = pngname.replace(".png", "")
+            texfile = tempfolder + file + "/Textures(NW4R)/" + texname
+            if not os.path.isfile(texfile):
+                common.logError("Work file", pngname, "does not match any texture in", file)
+                continue
+            palfile = tempfolder + pltfile + "/Palettes(NW4R)/" + texname
+            if not os.path.isfile(palfile):
+                palfile = None
+            tplfile = tempfolder + file + "/" + texname + ".tpl"
+            transform = getTexTransform(texfile, palfile)
+            common.execute("wimgt ENCODE " + workdir + pngname + " -D " + tplfile + " --n-mipmaps 0 --transform " + transform + " --overwrite", False)
+            tplToTex(tplfile, texfile, palfile)
+            os.remove(tplfile)
+            textures += 1
+            modified = True
+            if palfile is not None:
+                pltmodified = True
+        if modified:
+            common.execute("wszst CREATE " + tempfolder + file + " -D " + outfolder + file + " --overwrite", False)
+            repacked += 1
+        if pltmodified:
+            common.execute("wszst CREATE " + tempfolder + pltfile + " -D " + outfolder + pltfile + " --overwrite", False)
+    common.logMessage("Done!", textures, "textures repacked in", repacked, "BRTEX files")
 
 
 def extractBRFNT(infile: str, outfile: str) -> None:
@@ -142,6 +306,182 @@ def repackIso(isofile: str, isopatch: str, workfolder: str, patchfile: str = "")
 
 
 # TPL files
+# wimgt name, bits per pixel and block size for every GX image format
+TEXFORMATS = {
+    0x00: ("I4", 4, 8, 8),
+    0x01: ("I8", 8, 8, 4),
+    0x02: ("IA4", 8, 8, 4),
+    0x03: ("IA8", 16, 4, 4),
+    0x04: ("RGB565", 16, 4, 4),
+    0x05: ("RGB5A3", 16, 4, 4),
+    0x06: ("RGBA32", 32, 4, 4),
+    0x08: ("C4", 4, 8, 8),
+    0x09: ("C8", 8, 8, 4),
+    0x0a: ("C14X2", 16, 4, 4),
+    0x0e: ("CMPR", 4, 8, 8),
+}
+TEXPALFORMATS = {0x00: "PIA8", 0x01: "PRGB565", 0x02: "PRGB5A3"}
+
+
+def getTexDataSize(width: int, height: int, format: int) -> int:
+    """Calculate the data size of an image in the given GX format.
+
+    Args:
+        width: Width of the image.
+        height: Height of the image.
+        format: Format of the image data.
+
+    Returns:
+        The size of the block-aligned image data.
+    """
+    bpp, tilewidth, tileheight = TEXFORMATS[format][1:]
+    blockwidth = math.ceil(width / tilewidth) * tilewidth
+    blockheight = math.ceil(height / tileheight) * tileheight
+    return blockwidth * blockheight * bpp // 8
+
+
+def getTPLTransform(file: str) -> str:
+    """Read the image and palette formats of a TPL file.
+
+    Args:
+        file: Path of the TPL file.
+
+    Returns:
+        The formats as a wimgt transform string, like TPL.C8.PRGB5A3.
+    """
+    with common.Stream(file, "rb", False) as f:
+        f.seek(f.readUIntAt(8))
+        imgoff = f.readUInt()
+        paloff = f.readUInt()
+        transform = "TPL." + TEXFORMATS[f.readUIntAt(imgoff + 4)][0]
+        if paloff > 0:
+            transform += "." + TEXPALFORMATS[f.readUIntAt(paloff + 4)]
+    return transform
+
+
+def getTexTransform(texfile: str, palfile: str = None) -> str:
+    """Read the image and palette formats of a TEX0 texture.
+
+    Args:
+        texfile: Path of the TEX0 file.
+        palfile: Optional path of the paired PLT0 file.
+
+    Returns:
+        The formats as a wimgt transform string, like TPL.C8.PRGB5A3.
+    """
+    with common.Stream(texfile, "rb", False) as f:
+        transform = "TPL." + TEXFORMATS[f.readUIntAt(0x20)][0]
+    if palfile is not None:
+        with common.Stream(palfile, "rb", False) as f:
+            transform += "." + TEXPALFORMATS[f.readUIntAt(0x18)]
+    return transform
+
+
+def texToTPL(texfile: str, tplfile: str, palfile: str = None) -> None:
+    """Convert a TEX0 texture and its optional PLT0 palette to a TPL file.
+
+    Args:
+        texfile: Path of the TEX0 file.
+        tplfile: Path of the output TPL file.
+        palfile: Optional path of the paired PLT0 file.
+    """
+    with common.Stream(texfile, "rb", False) as f:
+        dataoff = f.readUIntAt(0x10)
+        f.seek(0x1c)
+        width = f.readUShort()
+        height = f.readUShort()
+        format = f.readUInt()
+        f.seek(dataoff)
+        data = f.read(getTexDataSize(width, height, format))
+    paldata = b""
+    palformat = 0
+    if palfile is not None:
+        with common.Stream(palfile, "rb", False) as f:
+            paldataoff = f.readUIntAt(0x10)
+            palformat = f.readUIntAt(0x18)
+            palcount = f.readUShortAt(0x1c)
+            f.seek(paldataoff)
+            paldata = f.read(palcount * 2)
+    with common.Stream(tplfile, "wb", False) as f:
+        f.writeUInt(0x0020af30)  # Header
+        f.writeUInt(1)     # Image number
+        f.writeUInt(0xc)   # Table offset
+        f.writeUInt(0x14)  # Image header offset
+        f.writeUInt(0x38 if len(paldata) > 0 else 0)  # Palette header offset
+        f.writeUShort(height)
+        f.writeUShort(width)
+        f.writeUInt(format)
+        f.writeUInt(0)  # Data offset, written later
+        f.writeUInt(0)  # WrapS
+        f.writeUInt(0)  # WrapT
+        f.writeUInt(1)  # MinFilter
+        f.writeUInt(1)  # MagFilter
+        f.writeUInt(0)  # LODBias
+        f.writeUInt(0)  # EdgeLODEnable, MinLOD, MaxLOD, Unpacked
+        if len(paldata) > 0:
+            f.writeUShort(len(paldata) // 2)
+            f.writeUShort(0)  # Unpacked + padding
+            f.writeUInt(palformat)
+            f.writeUInt(0x60)  # Palette data offset
+            f.writeZero(0x60 - f.tell())
+            f.write(paldata)
+        imgdataoff = f.tell() + (-f.tell() % 32)
+        f.writeZero(imgdataoff - f.tell())
+        f.write(data)
+        f.writeUIntAt(0x1c, imgdataoff)
+
+
+def tplToTex(tplfile: str, texfile: str, palfile: str = None) -> None:
+    """Copy the image and palette data of a TPL back into TEX0/PLT0 files.
+
+    The palette is padded to the original color count when possible, so the
+    PLT0 file layout is unchanged.
+
+    Args:
+        tplfile: Path of the TPL file.
+        texfile: Path of the TEX0 file to update.
+        palfile: Optional path of the paired PLT0 file to update.
+    """
+    with common.Stream(tplfile, "rb", False) as f:
+        f.seek(f.readUIntAt(8))
+        imgoff = f.readUInt()
+        paloff = f.readUInt()
+        f.seek(imgoff)
+        height = f.readUShort()
+        width = f.readUShort()
+        format = f.readUInt()
+        dataoff = f.readUInt()
+        f.seek(dataoff)
+        data = f.read(getTexDataSize(width, height, format))
+        paldata = b""
+        if paloff > 0:
+            f.seek(paloff)
+            palcount = f.readUShort()
+            paldataoff = f.readUIntAt(paloff + 8)
+            f.seek(paldataoff)
+            paldata = f.read(palcount * 2)
+    with common.Stream(texfile, "rb+", False) as f:
+        texdataoff = f.readUIntAt(0x10)
+        f.seek(0x1c)
+        f.writeUShort(width)
+        f.writeUShort(height)
+        f.seek(texdataoff)
+        f.write(data)
+        f.truncate()
+        f.writeUIntAt(0x4, texdataoff + len(data))
+    if palfile is not None and len(paldata) > 0:
+        with common.Stream(palfile, "rb+", False) as f:
+            paldataoff = f.readUIntAt(0x10)
+            origcount = f.readUShortAt(0x1c)
+            if len(paldata) // 2 < origcount:
+                paldata += bytes(2 * (origcount - len(paldata) // 2))
+            f.writeUShortAt(0x1c, len(paldata) // 2)
+            f.seek(paldataoff)
+            f.write(paldata)
+            f.truncate()
+            f.writeUIntAt(0x4, paldataoff + len(paldata))
+
+
 class TPL:
     """Structure of a TPL texture file.
 
