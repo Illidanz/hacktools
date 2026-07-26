@@ -2010,16 +2010,18 @@ def readNSBTX(nsbmdfile: str, zerotransp: bool = False) -> NSBMD:
         return readTEX0(nsbmd, f, zerotransp)
 
 
-def drawNSBMD(file: str, nsbmd: NSBMD, texi: int) -> None:
+def drawNSBMD(file: str, nsbmd: NSBMD, texi: int, drawpalette: bool = True) -> None:
     """Draw a single NSBMD texture to a png file.
 
     All the texture formats are supported. The palette, if any, is drawn
-    on the right side.
+    on the right side, unless drawpalette is unset.
 
     Args:
         file: Path of the png file to create.
         nsbmd: Structure returned by :func:`readNSBMD`.
         texi: Index of the texture to draw.
+        drawpalette: Whether to draw the palette next to the texture, making
+            the image 40 pixels wider and at least as tall as the palette.
     """
     try:
         from PIL import Image
@@ -2034,6 +2036,7 @@ def drawNSBMD(file: str, nsbmd: NSBMD, texi: int) -> None:
     palette = None
     if tex.format != 7:
         palette = nsbmd.palettes[texi].data if texi < len(nsbmd.palettes) else nsbmd.palettes[0].data
+    if palette is not None and drawpalette:
         img = Image.new("RGBA", (tex.width + 40, max(tex.height, (len(palette) // 8) * 5)), (0, 0, 0, 0))
     else:
         img = Image.new("RGBA", (tex.width, tex.height), (0, 0, 0, 0))
@@ -2140,7 +2143,7 @@ def drawNSBMD(file: str, nsbmd: NSBMD, texi: int) -> None:
                 p = tex.data[x * 2] + (tex.data[x * 2 + 1] << 8)
                 pixels[j, i] = (((p >> 0) & 0x1f) << 3, ((p >> 5) & 0x1f) << 3, ((p >> 10) & 0x1f) << 3, 0xff if (p & 0x8000) else 0)
     # Draw palette
-    if tex.format != 7:
+    if palette is not None and drawpalette:
         pixels = common.drawPalette(pixels, palette, tex.width)
     img.save(file, "PNG")
 
