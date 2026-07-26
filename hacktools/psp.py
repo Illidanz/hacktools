@@ -180,11 +180,14 @@ def repackUMD(umdfile: str, umdpatch: str, workfolder: str, patchfile: str = "",
                     f.write(subf.read())
                 size = f.tell() - offset
                 # Pad to sector
-                f.seek((f.tell() // (sectorpadding * 0x800) + 1) * (sectorpadding * 0x800))
-                # Update volume descriptor
+                padding = sectorpadding * 0x800
+                if f.tell() % padding != 0:
+                    f.seek((f.tell() // padding + 1) * padding)
+                # Update the directory record, both endians
                 f.writeUIntAt(isofile.pos + 0x2, offset // 0x800)
                 f.writeUIntAt(isofile.pos + 0xa, size)
                 f.swapEndian()
+                f.writeUIntAt(isofile.pos + 0x6, offset // 0x800)
                 f.writeUIntAt(isofile.pos + 0xe, size)
                 f.swapEndian()
             # If the file is smaller, match the original
