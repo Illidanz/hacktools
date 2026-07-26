@@ -4,7 +4,6 @@ ISO, ARC, TPL and BREFT files are handled with the wit, wszst and wimgt
 tools from Wiimms ISO/SZS Tools, which need to be installed separately.
 BRFNT fonts are converted by calling the brfnt2tpl executable externally.
 """
-import codecs
 import math
 import os
 from hacktools import common
@@ -707,7 +706,7 @@ def extractFontData(file: str, outfile: str) -> None:
     """
     common.logMessage("Extracting font data to", outfile, "...")
     glyphs = getFontGlyphs(file)
-    with codecs.open(outfile, "w", "utf-8") as f:
+    with open(outfile, "w", encoding="utf-8", newline="") as f:
         for glyph in glyphs.values():
             char = glyph.char if glyph.char != "=" else "<3D>"
             f.write(char + "=" + str(glyph.start) + "," + str(glyph.width) + "," + str(glyph.length) + "\n")
@@ -726,7 +725,7 @@ def repackFontData(infile: str, outfile: str, datafile: str) -> None:
     common.logMessage("Repacking font data from", datafile, "...")
     common.copyFile(infile, outfile)
     glyphs = getFontGlyphs(infile)
-    with codecs.open(datafile, "r", "utf-8") as f:
+    with open(datafile, "r", encoding="utf-8", newline="") as f:
         section = common.getSection(f, "")
     if len(section) == 0:
         return

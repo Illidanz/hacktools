@@ -4,7 +4,6 @@ Includes the :class:`Stream` class for binary I/O, CLI bootstrapping for
 tools, logging, text section and XLIFF translation files, string extraction
 and repacking, folder and patching helpers, and texture utilities.
 """
-import codecs
 from io import BytesIO, StringIO
 import xml.etree.ElementTree as ET
 import logging
@@ -851,7 +850,7 @@ def loadTable(tablefile: str) -> None:
         tablefile: Path of the table file, with one key=value pair per line.
     """
     if os.path.isfile(tablefile):
-        with codecs.open(tablefile, "r", "utf-8") as ft:
+        with open(tablefile, "r", encoding="utf-8", newline="") as ft:
             for line in ft:
                 line = line.strip("\r\n")
                 if line.find("=") > 0:
@@ -916,7 +915,7 @@ def openSection(file: str, filestart: int = 1, fileend: int = 10):
             for i in range(filestart, fileend + 1):
                 sectionfile = file.format(str(i))
                 if os.path.isfile(sectionfile):
-                    with codecs.open(sectionfile, "r", "utf-8") as f:
+                    with open(sectionfile, "r", encoding="utf-8", newline="") as f:
                         section.write(f.read())
                 else:
                     break
@@ -924,7 +923,7 @@ def openSection(file: str, filestart: int = 1, fileend: int = 10):
         else:
             return None
     else:
-        return codecs.open(file.format(""), "r", "utf-8")
+        return open(file.format(""), "r", encoding="utf-8", newline="")
 
 
 def getSectionNames(f) -> list[str]:
@@ -1008,7 +1007,7 @@ def getSections(file: str, comment: str = "#", fixchars: list = [], inorder: boo
         A dictionary of section name -> section entries.
     """
     sections = {}
-    with codecs.open(file, "r", "utf-8") as wsb:
+    with open(file, "r", encoding="utf-8", newline="") as wsb:
         files = getSectionNames(wsb)
         for file in files:
             sections[file] = getSection(wsb, file, comment, fixchars, inorder=inorder)
@@ -1047,7 +1046,7 @@ def mergeSections(file1: str, file2: str, output: str, comment: str = "#", fixch
     """
     sections1 = getSections(file1, comment, fixchars, inorder=True)
     sections2 = getSections(file2, comment, fixchars)
-    with codecs.open(output, "w", "utf-8") as out:
+    with open(output, "w", encoding="utf-8", newline="") as out:
         for section in sections1.keys():
             out.write("!FILE:" + section + "\n")
             for v in sections1[section]:
@@ -1105,7 +1104,7 @@ class TranslationFile:
             comments: Comment marker, contents after it are ignored.
             fixchars: List of (old, new) character replacements to apply.
         """
-        with codecs.open(path, "r", "utf-8") as bin:
+        with open(path, "r", encoding="utf-8", newline="") as bin:
             mergesection = getSection(bin, section, comments, fixchars=fixchars, justone=False)
         # Check the merge section
         for file in self.root:
@@ -1262,7 +1261,7 @@ class TranslationFile:
         # Change this to match what Weblate does
         xmlstr = xmlstr.replace("<target />", "<target/>") + "\n"
         xmlstr = xmlstr.replace("<?xml version='1.0' encoding='utf-8'?>", "<?xml version=\"1.0\" encoding=\"UTF-8\"?>")
-        with codecs.open(filename, "w", "utf-8") as f:
+        with open(filename, "w", encoding="utf-8", newline="") as f:
             f.write(xmlstr)
 
     def _pretty_print(self, current, parent=None, index=-1, depth=0):

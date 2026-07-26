@@ -1,5 +1,4 @@
 """Support for PSX BIN/CUE images, EXE string repacking and TIM images."""
-import codecs
 import struct
 import os
 from hacktools import common
@@ -77,7 +76,7 @@ def extractEXE(binrange, readfunc=common.detectEncodedString, encoding: str = "s
     if isinstance(binrange, tuple):
         binrange = [binrange]
     strings, positions = common.extractBinaryStrings(exein, binrange, readfunc, encoding)
-    with codecs.open(exefile, "w", "utf-8") as out:
+    with open(exefile, "w", encoding="utf-8", newline="") as out:
         for i in range(len(strings)):
             if writepos:
                 out.write(common.toHex(positions[i][0]) + "!")
@@ -120,7 +119,7 @@ def repackEXE(binrange, freeranges: list | None = None, manualptrs: dict | None 
     common.copyFile(exein, exeout)
     common.logMessage("Repacking EXE from", exefile, "...")
     section = {}
-    with codecs.open(exefile, "r", "utf-8") as bin:
+    with open(exefile, "r", encoding="utf-8", newline="") as bin:
         section = common.getSection(bin, "", comments)
         chartot, transtot = common.getSectionPercentage(section)
     if isinstance(binrange, tuple):

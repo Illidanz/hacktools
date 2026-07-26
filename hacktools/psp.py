@@ -4,7 +4,6 @@ Includes ISO and UMD images, EBOOT decryption and signing, ELF expansion
 and string repacking, GIM/GMO images and PGF fonts.
 """
 import ctypes
-import codecs
 import json
 import math
 import os
@@ -1657,7 +1656,7 @@ def extractPGFData(file: str, outfile: str, bitmapout: str = "", justadvance: bo
     """
     pgf = readPGFData(file)
     with common.Stream(file, "rb") as fin:
-        with codecs.open(outfile, "w", "utf-8") as f:
+        with open(outfile, "w", encoding="utf-8", newline="") as f:
             for glyph in pgf.glyphs:
                 char = glyph.char.replace("=", "<3D>")
                 if justadvance:
@@ -1716,7 +1715,7 @@ def repackPGFData(fontin: str, fontout: str, configfile: str, bitmapin: str = ""
     pgf = readPGFData(fontin)
     section = {}
     if os.path.isfile(configfile):
-        with codecs.open(configfile, "r", "utf-8") as f:
+        with open(configfile, "r", encoding="utf-8", newline="") as f:
             section = common.getSection(f, "", "##")
     with common.Stream(fontin, "rb") as fin:
         # Set the new glyphs information

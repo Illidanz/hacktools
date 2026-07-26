@@ -1,5 +1,4 @@
 """x86 binary patching by calling the nasm executable externally."""
-import codecs
 import os
 import shlex
 from hacktools import common
@@ -24,7 +23,7 @@ def run(asmfile: str) -> None:
     """
     tempfile = "asm.tmp"
     tempout = "asm.bin"
-    with codecs.open(asmfile, "r", "utf-8") as asmf:
+    with open(asmfile, "r", encoding="utf-8", newline="") as asmf:
         lines = asmf.readlines()
     currf = None
     i = 0
@@ -80,7 +79,7 @@ def run(asmfile: str) -> None:
                     j += 1
             common.logDebug("NASM lines:", nasmlines.strip().replace("\n", " | "))
             # Write the nasm lines to a file and compile them
-            with codecs.open(tempfile, "w", "utf-8") as tempf:
+            with open(tempfile, "w", encoding="utf-8", newline="") as tempf:
                 tempf.write(nasmlines)
             nasm = common.bundledExecutable("nasm.exe")
             common.execute(nasm + " -O1 -o " + tempout + " -f bin " + tempfile, False)
