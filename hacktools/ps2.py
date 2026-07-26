@@ -17,7 +17,7 @@ gscoleven = [0, 1, 4, 5, 8, 9, 12, 13, 2, 3, 6, 7, 10, 11, 14, 15]
 gscolodd = [8, 9, 12, 13, 0, 1, 4, 5, 10, 11, 14, 15, 2, 3, 6, 7]
 
 
-swizzle4maps = {}
+swizzle4maps: dict[tuple[int, int], list[tuple[int, int]]] = {}
 
 
 def unswizzle4(pixels, w: int, h: int) -> bytearray:
@@ -151,7 +151,7 @@ def coord8(x: int, y: int, w: int, h: int) -> int:
     return block_location + column_location + byte_number
 
 
-swizzle8maps = {}
+swizzle8maps: dict[tuple[int, int], list[int]] = {}
 
 
 def getSwizzle8Map(w: int, h: int):
