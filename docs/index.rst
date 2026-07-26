@@ -20,6 +20,7 @@ API Reference
    api/nasm
    api/nds
    api/nitro
+   api/ps2
    api/psp
    api/psx
    api/wii
