@@ -1,13 +1,16 @@
 compression
 ===========
 
-.. automodule:: hacktools.compression
-   :members:
-
 cmp_cri
 -------
 
 .. automodule:: hacktools.cmp_cri
+   :members:
+
+cmp_huff
+--------
+
+.. automodule:: hacktools.cmp_huff
    :members:
 
 cmp_lzss

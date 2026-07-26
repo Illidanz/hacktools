@@ -1,13 +1,12 @@
-import codecs
 import os.path
 from setuptools import setup, Extension
 
-with open("README.md", "r") as fh:
+with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 def read(rel_path):
     here = os.path.abspath(os.path.dirname(__file__))
-    with codecs.open(os.path.join(here, rel_path), "r") as fp:
+    with open(os.path.join(here, rel_path), "r", encoding="utf-8") as fp:
         return fp.read()
 
 def getversion(rel_path):
@@ -40,6 +39,7 @@ setup(
     ext_modules=[
         Extension("hacktools.cmp_lzss", sources=["hacktools/c_ext/cmp_lzss.c"]),
         Extension("hacktools.cmp_cri",  sources=["hacktools/c_ext/cmp_cri.c"]),
+        Extension("hacktools.cmp_huff", sources=["hacktools/c_ext/cmp_huff.c"]),
         Extension("hacktools.cmp_misc", sources=["hacktools/c_ext/cmp_misc.c"]),
         Extension("hacktools.cmp_prs",  sources=["hacktools/c_ext/cmp_prs.c"]),
         Extension("hacktools.cmp_racjin",  sources=["hacktools/c_ext/cmp_racjin.c"]),

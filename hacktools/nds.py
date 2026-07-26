@@ -4,11 +4,10 @@ Includes ROM extraction and repacking, banner editing, string extraction
 and repacking for binary files, arm9.bin expansion and the BIOS
 compression formats.
 """
-import codecs
 from enum import IntFlag
 import os
 import struct
-from hacktools import common, compression, cmp_lzss, cmp_misc
+from hacktools import common, cmp_huff, cmp_lzss, cmp_misc
 
 
 def extractRom(romfile: str, extractfolder: str, workfolder: str = "") -> None:
@@ -176,7 +175,7 @@ def extractBIN(binrange, readfunc=common.detectEncodedString, encoding: str = "s
         binrange = [binrange]
     strings, positions = common.extractBinaryStrings(binin, binrange, readfunc, encoding)
     if binfile.endswith(".txt"):
-        with codecs.open(binfile, "w", "utf-8") as out:
+        with open(binfile, "w", encoding="utf-8", newline="") as out:
             for i in range(len(strings)):
                 if writepos:
                     allpositions = []
@@ -240,7 +239,7 @@ def repackBIN(binrange, freeranges: list = [], readfunc=common.detectEncodedStri
     common.logMessage("Repacking BIN from", binfile, "...")
     section = {}
     if binfile.endswith(".txt"):
-        with codecs.open(binfile, "r", "utf-8") as bin:
+        with open(binfile, "r", encoding="utf-8", newline="") as bin:
             section = common.getSection(bin, "", comments, fixchars=fixchars)
             chartot, transtot = common.getSectionPercentage(section)
     else:
@@ -434,9 +433,9 @@ def decompress(f: common.Stream, complength: int) -> bytes:
     elif type == CompressionType.LZ11:
         return cmp_lzss.decompressLZ11(data, decomplength, 1)
     elif type == CompressionType.Huff4:
-        return compression.decompressHuffman(data, decomplength, 4)
+        return cmp_huff.decompressHuffman(data, decomplength, 4)
     elif type == CompressionType.Huff8:
-        return compression.decompressHuffman(data, decomplength, 8)
+        return cmp_huff.decompressHuffman(data, decomplength, 8)
     elif type == CompressionType.RLE:
         return cmp_misc.decompressRLE(data, decomplength)
     else:
@@ -469,9 +468,11 @@ def compress(data: bytes, type: CompressionType) -> bytes:
         elif type == CompressionType.LZ11:
             out.write(cmp_lzss.compressLZ11(data, 1))
         elif type == CompressionType.Huff4:
-            out.write(compression.compressHuffman(data, 4))
+            out.write(cmp_huff.compressHuffman(data, 4))
         elif type == CompressionType.Huff8:
-            out.write(compression.compressHuffman(data, 8))
+            out.write(cmp_huff.compressHuffman(data, 8))
+        elif type == CompressionType.RLE:
+            out.write(cmp_misc.compressRLE(data))
         else:
             common.logError("Unsupported compression type", common.toHex(type))
             out.write(data)
