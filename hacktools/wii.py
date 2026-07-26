@@ -359,7 +359,7 @@ def getTPLTransform(file: str) -> str:
     return transform
 
 
-def getTexTransform(texfile: str, palfile: str = None) -> str:
+def getTexTransform(texfile: str, palfile: str | None = None) -> str:
     """Read the image and palette formats of a TEX0 texture.
 
     Args:
@@ -377,7 +377,7 @@ def getTexTransform(texfile: str, palfile: str = None) -> str:
     return transform
 
 
-def texToTPL(texfile: str, tplfile: str, palfile: str = None) -> None:
+def texToTPL(texfile: str, tplfile: str, palfile: str | None = None) -> None:
     """Convert a TEX0 texture and its optional PLT0 palette to a TPL file.
 
     Args:
@@ -431,7 +431,7 @@ def texToTPL(texfile: str, tplfile: str, palfile: str = None) -> None:
         f.writeUIntAt(0x1c, imgdataoff)
 
 
-def tplToTex(tplfile: str, texfile: str, palfile: str = None) -> None:
+def tplToTex(tplfile: str, texfile: str, palfile: str | None = None) -> None:
     """Copy the image and palette data of a TPL back into TEX0/PLT0 files.
 
     The palette is padded to the original color count when possible, so the
