@@ -582,7 +582,7 @@ def repackNARC(narcfilein: str, narcfileout: str, infolder: str, narc: NARC) -> 
                 fileend = f.tell()
                 # Pad with 0s
                 if f.tell() % 4 > 0:
-                    f.writeZero(f.tell() % 4)
+                    f.writeZero(4 - f.tell() % 4)
                 filepos = f.tell()
                 # Update the pointers
                 f.seek(narc.btaf + 12 + i * 8)

@@ -46,6 +46,16 @@ def test_cmp_huffman(data, numbits, little):
     assert data == decmp
 
 
+@pytest.mark.parametrize("numbits", [8, 4])
+def test_cmp_huffman_alignment(data, numbits):
+    for extra in (b"", b"\xf0"):
+        indata = data + extra
+        cmp = cmp_huff.compressHuffman(indata, numbits)
+        assert (2 + cmp[0] * 2) % 4 == 0
+        assert len(cmp) % 4 == 0
+        assert cmp_huff.decompressHuffman(cmp, len(indata), numbits) == indata
+
+
 def test_cmp_huffman_single_value():
     # A single distinct value needs a stub entry to build the tree with
     single = b"\xff" * 50

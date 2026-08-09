@@ -302,7 +302,7 @@ static PyObject* compressHuffman(PyObject* m, PyObject* args, PyObject* kwargs)
     size_t totalbits = 0;
     for (int i = 0; i < 256; ++i)
         totalbits += (size_t)freqcount[i] * codelengths[i];
-    size_t outcap = 2 + 2 * (size_t)lstlen + (totalbits + 31) / 32 * 4 + 4;
+    size_t outcap = 2 + 2 * (size_t)lstlen + 2 + (totalbits + 31) / 32 * 4 + 4;
     unsigned char* out = PyMem_Malloc(outcap);
     if (out == NULL)
     {
@@ -340,6 +340,14 @@ static PyObject* compressHuffman(PyObject* m, PyObject* args, PyObject* kwargs)
             node->code |= childsum & 0xff;
         }
         out[outlength++] = (unsigned char)(node->code & 0xff);
+    }
+
+    // Ensure nodes are word-aligned
+    if (lstlen % 2 == 0)
+    {
+        out[outlength++] = 0;
+        out[outlength++] = 0;
+        out[0] = (unsigned char)((lstlen + 1) & 0xff);
     }
 
     // Write bits to stream
