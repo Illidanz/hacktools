@@ -23,6 +23,23 @@ def test_cmp_lz11(data):
     assert data == decmp
 
 
+@pytest.mark.parametrize("length", [0x10, 0x11, 0x10f, 0x110, 0x111, 0x112])
+def test_cmp_lz11_match_lengths(length):
+    # Match lengths around the 0x11 and 0x111 block encoding boundaries
+    indata = b"xy" + b"A" * (length + 2) + b"z"
+    cmp = cmp_lzss.compressLZ11(indata, 1)
+    assert cmp_lzss.decompressLZ11(cmp, len(indata), 1) == indata
+
+
+@pytest.mark.parametrize("decompress", [cmp_lzss.decompressLZ10, cmp_lzss.decompressLZ11])
+@pytest.mark.parametrize("cmp", [b"", b"\x00", b"\x80\x20", b"\x80\x20\x00\x00"])
+def test_cmp_lzss_invalid(decompress, cmp):
+    # Truncated streams and references before the start of the output must be
+    # rejected instead of reading past the end of the buffers
+    with pytest.raises(ValueError):
+        decompress(cmp, 100, 1)
+
+
 def test_cmp_cri(data):
     cmp = cmp_cri.compressCRILAYLA(data)
     decmp = cmp_cri.decompressCRILAYLA(cmp)

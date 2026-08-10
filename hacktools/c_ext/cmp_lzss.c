@@ -36,10 +36,8 @@ static PyObject* decompressLZ10(PyObject* m, PyObject* args, PyObject* kwargs)
     unsigned int readbytes = 0;
     unsigned int bufferlength = 0x1000;
     unsigned int bufferoffset = 0;
-    unsigned char* buffer = PyMem_Malloc(bufferlength);
-    for (int i = 0; i < bufferlength; ++i)
-        buffer[i] = 0;
-    MALLOC_CHECK(buffer);
+    unsigned char buffer[0x1000];
+    memset(buffer, 0, bufferlength);
 
     unsigned int currentoutsize = 0;
     int flags = 0;
@@ -51,9 +49,8 @@ static PyObject* decompressLZ10(PyObject* m, PyObject* args, PyObject* kwargs)
         // last flag bit, get a new flags byte.
         if (mask == 1)
         {
-            ERROR_CHECK(readbytes >= complength, "Not enough data.");
+            ERROR_CHECK_FREE(readbytes >= complength, "Not enough data.", out);
             flags = data[readbytes++];
-            ERROR_CHECK(flags < 0, "Stream too short.");
             mask = 0x80;
         }
         else
@@ -65,43 +62,42 @@ static PyObject* decompressLZ10(PyObject* m, PyObject* args, PyObject* kwargs)
         {
             // Get length and displacement('disp') values from next 2 bytes
             // there are < 2 bytes available when the end is at most 1 byte away
-            ERROR_CHECK(readbytes + 1 >= complength, "Not enough data.");
+            ERROR_CHECK_FREE(readbytes + 1 >= complength, "Not enough data.", out);
             int byte1 = data[readbytes++];
             int byte2 = data[readbytes++];
-            ERROR_CHECK(byte2 < 0, "Stream too short.");
             // the number of bytes to copy
             int length = byte1 >> 4;
             length += 3;
             // from where the bytes should be copied (relatively)
             int disp = ((byte1 & 0x0f) << 8) | byte2;
             disp += dispextra;
-            ERROR_CHECK(disp > (int)currentoutsize, "Cannot go back more than already written.");
+            ERROR_CHECK_FREE(disp > (int)currentoutsize, "Cannot go back more than already written.", out);
 
             int bufidx = bufferoffset + bufferlength - disp;
             for (int i = 0; i < length; ++i)
             {
                 unsigned char next = buffer[bufidx % bufferlength];
                 ++bufidx;
-                out[currentoutsize + i] = next;
+                out[currentoutsize++] = next;
                 buffer[bufferoffset] = next;
                 bufferoffset = (bufferoffset + 1) % bufferlength;
+                // a block can encode more bytes than are left to write
+                if (currentoutsize >= decomplength)
+                    break;
             }
-            currentoutsize += length;
         }
         else
         {
-            ERROR_CHECK(readbytes >= complength, "Not enough data.");
-            int next = data[readbytes++];
-            ERROR_CHECK(next < 0, "Stream too short.");
-            out[currentoutsize++] = (unsigned char)next;
-            buffer[bufferoffset] = (unsigned char)next;
+            ERROR_CHECK_FREE(readbytes >= complength, "Not enough data.", out);
+            unsigned char next = data[readbytes++];
+            out[currentoutsize++] = next;
+            buffer[bufferoffset] = next;
             bufferoffset = (bufferoffset + 1) % bufferlength;
         }
     }
 
     PyObject *output = PyBytes_FromStringAndSize(out, decomplength);
     PyMem_Free(out);
-    PyMem_Free(buffer);
     return output;
 }
 
@@ -139,27 +135,33 @@ static PyObject* decompressLZ11(PyObject* m, PyObject* args, PyObject* kwargs)
 
     while (currentoutsize < decomplength)
     {
+        ERROR_CHECK_FREE(readbytes >= complength, "Not enough data.", out);
         unsigned char mask = data[readbytes++];
         for (int i = 0; i < 8; ++i)
         {
             if ((mask & 0x80) == 0)
             {
+                ERROR_CHECK_FREE(readbytes >= complength, "Not enough data.", out);
                 out[currentoutsize++] = data[readbytes++];
             }
             else
             {
+                // there are < 2 bytes available when the end is at most 1 byte away
+                ERROR_CHECK_FREE(readbytes + 1 >= complength, "Not enough data.", out);
                 unsigned char a = data[readbytes++];
                 unsigned char b = data[readbytes++];
-                int offset = 0;
-                int length2 = 0;
+                unsigned int offset = 0;
+                unsigned int length2 = 0;
                 if ((a >> 4) == 0)
                 {
+                    ERROR_CHECK_FREE(readbytes >= complength, "Not enough data.", out);
                     unsigned char c = data[readbytes++];
                     length2 = (((a & 0xf) << 4) | (b >> 4)) + 0x11;
                     offset = ((b & 0xf) << 8) | c;
                 }
                 else if ((a >> 4) == 1)
                 {
+                    ERROR_CHECK_FREE(readbytes + 1 >= complength, "Not enough data.", out);
                     unsigned char c = data[readbytes++];
                     unsigned char d = data[readbytes++];
                     length2 = (((a & 0xf) << 12) | (b << 4) | (c >> 4)) + 0x111;
@@ -171,7 +173,8 @@ static PyObject* decompressLZ11(PyObject* m, PyObject* args, PyObject* kwargs)
                     offset = ((a & 0xf) << 8) | b;
                 }
                 offset += dispextra;
-                for (int j = 0; j < length2; ++j)
+                ERROR_CHECK_FREE(offset > currentoutsize, "Cannot go back more than already written.", out);
+                for (unsigned int j = 0; j < length2; ++j)
                 {
                     out[currentoutsize] = out[currentoutsize - offset];
                     ++currentoutsize;
@@ -396,7 +399,7 @@ static PyObject* compressLZ11(PyObject* m, PyObject* args, PyObject* kwargs)
             readbytes += length;
             // mark the next block as compressed
             outbuffer[0] |= (unsigned char)(1 << (7 - bufferedblocks));
-            if (length >= 0x110)
+            if (length > 0x110)
             {
                 // case 1: 1(B CD E)(F GH) + (0x111)(0x1) = (LEN)(DISP)
                 outbuffer[bufferlength] = 0x10;

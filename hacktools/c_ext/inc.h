@@ -6,6 +6,7 @@
 
 #define MALLOC_CHECK(var) if (var == NULL) { PyErr_NoMemory(); return NULL; }
 #define ERROR_CHECK(cond, error) if (cond) { PyErr_SetString(PyExc_ValueError, error); return NULL; }
+#define ERROR_CHECK_FREE(cond, error, ptr) if (cond) { PyMem_Free(ptr); PyErr_SetString(PyExc_ValueError, error); return NULL; }
 #define READ_32(buf, pos) (buf[pos] | (buf[pos + 1] << 8) | (buf[pos + 2] << 16) | (buf[pos + 3] << 24))
 #define WRITE_32(buf, pos, val) buf[pos] = (unsigned char)((val) & 0xff); buf[pos + 1] = (unsigned char)(((val) >> 8) & 0xff); \
                                 buf[pos + 2] = (unsigned char)(((val) >> 16) & 0xff); buf[pos + 3] = (unsigned char)(((val) >> 24) & 0xff);
