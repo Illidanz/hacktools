@@ -38,7 +38,7 @@ static PyObject* compressCRILAYLA(PyObject* module, PyObject* args, PyObject* kw
     for (; n >= 0x100;)
     {
         j = n + 3 + 0x2000;
-        if (j > srclen)
+        if (j > (int)srclen)
             j = (int)srclen;
         for (i = n + 3, p = 0; i < j; i++)
         {

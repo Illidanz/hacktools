@@ -28,20 +28,15 @@ static PyObject* compressRACJIN(PyObject* module, PyObject* args, PyObject* kwar
     unsigned int destlen = 0;
 
     unsigned int index = 0; //position of an element from the input buffer
-    unsigned char last_enc_byte = 0;//last encoded byte
+    unsigned char last_enc_byte = 0; //last encoded byte
     unsigned char bit_shift = 0; //shift by bitShift (used to fold codes)
+    // PyMem_Calloc already zero-fills the buffers
     unsigned char* frequencies = PyMem_Calloc(256, sizeof(unsigned char));
     MALLOC_CHECK(frequencies);
-    for (int i = 0; i < 256; ++i)
-        frequencies[i] = 0;
     unsigned int* seq_indices = PyMem_Calloc(8192, sizeof(unsigned int));
     MALLOC_CHECK(seq_indices);
-    for (int i = 0; i < 8192; ++i)
-        seq_indices[i] = 0;
     unsigned short* codes = PyMem_Calloc(srclen, sizeof(unsigned short));
     MALLOC_CHECK(codes);
-    for (int i = 0; i < srclen; ++i)
-        codes[i] = 0;
     unsigned int codeslen = 0;
 
     while (index < srclen)
@@ -61,7 +56,7 @@ static PyObject* compressRACJIN(PyObject* module, PyObject* args, PyObject* kwar
             unsigned short key = freq + last_enc_byte * 32; //0x1F + 0xFF*32 = 8191
             unsigned int src_index = seq_indices[key];
             unsigned char matched = 0;
-            unsigned char max_length = index + 8 < srclen ? 8 : srclen - index;
+            unsigned char max_length = index + 8 < srclen ? 8 : (unsigned char)(srclen - index);
 
             for (unsigned char offset = 0; offset < max_length; ++offset)
             {

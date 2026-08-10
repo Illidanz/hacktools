@@ -272,7 +272,7 @@ static PyObject* compressLZ10(PyObject* m, PyObject* args, PyObject* kwargs)
     int bufferlength = 1;
     int bufferedblocks = 0;
     int readbytes = 0;
-    while (readbytes < inlength)
+    while (readbytes < (int)inlength)
     {
         // If 8 blocks are buffered, write them and reset the buffer
         // we can only buffer 8 blocks at a time.
@@ -366,7 +366,7 @@ static PyObject* compressLZ11(PyObject* m, PyObject* args, PyObject* kwargs)
     int bufferlength = 1;
     int bufferedblocks = 0;
     int readbytes = 0;
-    while (readbytes < inlength)
+    while (readbytes < (int)inlength)
     {
         // If 8 blocks are buffered, write them and reset the buffer
         // we can only buffer 8 blocks at a time.
