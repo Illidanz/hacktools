@@ -22,7 +22,7 @@ def extractARC(infolder: str, outfolder: str) -> None:
     files = common.getFiles(infolder, ".arc")
     for file in common.showProgress(files):
         common.logDebug("Processing", file, "...")
-        common.execute("wszst EXTRACT " + infolder + file + " -D " + outfolder + file, False)
+        common.execute("wszst EXTRACT \"" + infolder + file + "\" -D \"" + outfolder + file + "\"", False)
     common.logMessage("Done! Extracted", len(files), "files")
 
 
@@ -48,7 +48,7 @@ def extractTPL(infolder: str, outfolder: str, splitName: bool = True, flatten: b
             filename = file[:file.index(".arc/") + 4] + "/" + os.path.basename(file).replace(".tpl", ".png")
         else:
             filename = file.replace(".tpl", ".png")
-        common.execute("wimgt DECODE " + infolder + file + " -D " + outfolder + filename, False)
+        common.execute("wimgt DECODE \"" + infolder + file + "\" -D \"" + outfolder + filename + "\"", False)
     common.logMessage("Done! Extracted", len(files), "files")
 
 
@@ -88,7 +88,7 @@ def repackTPL(infolder: str, workfolder: str, outfolder: str) -> None:
                 common.copyFolder(infolder + arcname, outfolder + arcname)
                 arcs.append(arcname)
         transform = getTPLTransform(infolder + tplfile)
-        common.execute("wimgt ENCODE " + workfolder + file + " -D " + outfolder + tplfile + " --n-mipmaps 0 --transform " + transform + " --overwrite", False)
+        common.execute("wimgt ENCODE \"" + workfolder + file + "\" -D \"" + outfolder + tplfile + "\" --n-mipmaps 0 --transform " + transform + " --overwrite", False)
         repacked += 1
     common.logMessage("Done! Repacked", repacked, "files in", len(arcs), "ARC folders")
 
@@ -108,7 +108,7 @@ def repackARC(workfolder: str, outfolder: str) -> None:
                 arcs.append(os.path.join(root, dir).replace("\\", "/").replace(workfolder, ""))
     for arc in common.showProgress(arcs):
         common.logDebug("Processing", arc, "...")
-        common.execute("wszst CREATE " + workfolder + arc + " -D " + outfolder + arc + " --overwrite", False)
+        common.execute("wszst CREATE \"" + workfolder + arc + "\" -D \"" + outfolder + arc + "\" --overwrite", False)
     common.logMessage("Done! Repacked", len(arcs), "files")
 
 
@@ -131,9 +131,9 @@ def extractBREFT(infolder: str, tempfolder: str, outfolder: str) -> None:
         common.logDebug("Processing", file, "...")
         outfile = file.split("/")
         outfile = "/" + outfile[1] + "/" + outfile[3]
-        common.execute("wszst EXTRACT " + infolder + file + " -D " + tempfolder + outfile, False)
+        common.execute("wszst EXTRACT \"" + infolder + file + "\" -D \"" + tempfolder + outfile + "\"", False)
         for imgfile in os.listdir(tempfolder + outfile + "/files"):
-            common.execute("wimgt DECODE " + tempfolder + outfile + "/files/" + imgfile + " -D " + outfolder + outfile + "/" + imgfile + ".png", False)
+            common.execute("wimgt DECODE \"" + tempfolder + outfile + "/files/" + imgfile + "\" -D \"" + outfolder + outfile + "/" + imgfile + ".png\"", False)
     common.logMessage("Done! Extracted", len(files), "files")
 
 
@@ -156,10 +156,10 @@ def extractBRTEX(infolder: str, tempfolder: str, outfolder: str) -> None:
     extracted = 0
     for file in common.showProgress(files):
         common.logDebug("Processing", file, "...")
-        common.execute("wszst EXTRACT " + infolder + file + " -D " + tempfolder + file, False)
+        common.execute("wszst EXTRACT \"" + infolder + file + "\" -D \"" + tempfolder + file + "\"", False)
         pltfile = file.replace(".brtex", ".brplt")
         if os.path.isfile(infolder + pltfile):
-            common.execute("wszst EXTRACT " + infolder + pltfile + " -D " + tempfolder + pltfile, False)
+            common.execute("wszst EXTRACT \"" + infolder + pltfile + "\" -D \"" + tempfolder + pltfile + "\"", False)
         texfolder = tempfolder + file + "/Textures(NW4R)/"
         if not os.path.isdir(texfolder):
             continue
@@ -169,7 +169,7 @@ def extractBRTEX(infolder: str, tempfolder: str, outfolder: str) -> None:
                 palfile = None
             tplfile = tempfolder + file + "/" + texname + ".tpl"
             texToTPL(texfolder + texname, tplfile, palfile)
-            common.execute("wimgt DECODE " + tplfile + " -D " + outfolder + file + "/" + texname + ".png --overwrite", False)
+            common.execute("wimgt DECODE \"" + tplfile + "\" -D \"" + outfolder + file + "/" + texname + ".png\" --overwrite", False)
             os.remove(tplfile)
             extracted += 1
     common.logMessage("Done! Extracted", extracted, "textures")
@@ -201,10 +201,10 @@ def repackBRTEX(infolder: str, tempfolder: str, workfolder: str, outfolder: str)
         if not os.path.isdir(workdir):
             continue
         common.logDebug("Processing", file, "...")
-        common.execute("wszst EXTRACT " + infolder + file + " -D " + tempfolder + file, False)
+        common.execute("wszst EXTRACT \"" + infolder + file + "\" -D \"" + tempfolder + file + "\"", False)
         pltfile = file.replace(".brtex", ".brplt")
         if os.path.isfile(infolder + pltfile):
-            common.execute("wszst EXTRACT " + infolder + pltfile + " -D " + tempfolder + pltfile, False)
+            common.execute("wszst EXTRACT \"" + infolder + pltfile + "\" -D \"" + tempfolder + pltfile + "\"", False)
         modified = pltmodified = False
         for pngname in sorted(os.listdir(workdir)):
             if not pngname.endswith(".png"):
@@ -219,7 +219,7 @@ def repackBRTEX(infolder: str, tempfolder: str, workfolder: str, outfolder: str)
                 palfile = None
             tplfile = tempfolder + file + "/" + texname + ".tpl"
             transform = getTexTransform(texfile, palfile)
-            common.execute("wimgt ENCODE " + workdir + pngname + " -D " + tplfile + " --n-mipmaps 0 --transform " + transform + " --overwrite", False)
+            common.execute("wimgt ENCODE \"" + workdir + pngname + "\" -D \"" + tplfile + "\" --n-mipmaps 0 --transform " + transform + " --overwrite", False)
             tplToTex(tplfile, texfile, palfile)
             os.remove(tplfile)
             textures += 1
@@ -227,10 +227,10 @@ def repackBRTEX(infolder: str, tempfolder: str, workfolder: str, outfolder: str)
             if palfile is not None:
                 pltmodified = True
         if modified:
-            common.execute("wszst CREATE " + tempfolder + file + " -D " + outfolder + file + " --overwrite", False)
+            common.execute("wszst CREATE \"" + tempfolder + file + "\" -D \"" + outfolder + file + "\" --overwrite", False)
             repacked += 1
         if pltmodified:
-            common.execute("wszst CREATE " + tempfolder + pltfile + " -D " + outfolder + pltfile + " --overwrite", False)
+            common.execute("wszst CREATE \"" + tempfolder + pltfile + "\" -D \"" + outfolder + pltfile + "\" --overwrite", False)
     common.logMessage("Done!", textures, "textures repacked in", repacked, "BRTEX files")
 
 
@@ -245,8 +245,8 @@ def extractBRFNT(infile: str, outfile: str) -> None:
     if not os.path.isfile(brfnt2tpl):
         common.logError("brfnt2tpl not found")
         return
-    common.execute(brfnt2tpl + " {file}".format(file=infile), False)
-    common.execute("wimgt DECODE " + infile.replace(".brfnt", ".tpl") + " -D " + outfile, False)
+    common.execute("\"{exe}\" \"{file}\"".format(exe=brfnt2tpl, file=infile), False)
+    common.execute("wimgt DECODE \"" + infile.replace(".brfnt", ".tpl") + "\" -D \"" + outfile + "\"", False)
     os.remove(infile.replace(".brfnt", ".tpl"))
     os.remove(infile.replace(".brfnt", ".vbfta"))
 
@@ -262,11 +262,11 @@ def repackBRFNT(outfile: str, workfile: str) -> None:
     if not os.path.isfile(brfnt2tpl):
         common.logError("brfnt2tpl not found")
         return
-    common.execute(brfnt2tpl + " {file}".format(file=outfile), False)
+    common.execute("\"{exe}\" \"{file}\"".format(exe=brfnt2tpl, file=outfile), False)
     tplfile = outfile.replace(".brfnt", ".tpl")
     tpl = readTPL(tplfile)
     writeTPL(tplfile, tpl, workfile)
-    common.execute(brfnt2tpl + " {file}".format(file=outfile.replace(".brfnt", ".tpl")), False)
+    common.execute("\"{exe}\" \"{file}\"".format(exe=brfnt2tpl, file=outfile.replace(".brfnt", ".tpl")), False)
     os.remove(outfile.replace(".brfnt", ".tpl"))
     os.remove(outfile.replace(".brfnt", ".vbfta"))
 
@@ -282,7 +282,7 @@ def extractIso(isofile: str, extractfolder: str, workfolder: str = "") -> None:
     """
     common.logMessage("Extracting ISO", isofile, "...")
     common.makeFolder(extractfolder)
-    common.execute("wit EXTRACT -o {iso} {folder}".format(iso=isofile, folder=extractfolder), False)
+    common.execute("wit EXTRACT -o \"{iso}\" \"{folder}\"".format(iso=isofile, folder=extractfolder), False)
     if workfolder != "":
         common.copyFolder(extractfolder, workfolder)
     common.logMessage("Done!")
@@ -300,7 +300,7 @@ def repackIso(isofile: str, isopatch: str, workfolder: str, patchfile: str = "")
     common.logMessage("Repacking ISO", isopatch, "...")
     if os.path.isfile(isopatch):
         os.remove(isopatch)
-    common.execute("wit COPY {folder} {iso}".format(folder=workfolder, iso=isopatch), False)
+    common.execute("wit COPY \"{folder}\" \"{iso}\"".format(folder=workfolder, iso=isopatch), False)
     common.logMessage("Done!")
 
 
